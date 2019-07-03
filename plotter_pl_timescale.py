@@ -1,11 +1,13 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def get_data(name):
     rfile = open(name, "r")
     out = [eval(k) for k in rfile]
     rfile.close()
     return out
+
 
 contracts = get_data("data/contracts.dat")
 op = get_data("data/operational.dat")
@@ -30,7 +32,7 @@ pl_s = []
 
 c_re = []
 
-o_re= []
+o_re = []
 
 h_re = []
 
@@ -40,18 +42,18 @@ o_cb = []
 
 p_e = []
 
-for i in range(len(contracts[0])):                              #for every time period i
+for i in range(len(contracts[0])):  # for every time period i
     cs = np.mean([item[i] for item in contracts])
-    #pls = np.mean([item[i] for item in pl])
+    # pls = np.mean([item[i] for item in pl])
     os = np.median([item[i] for item in op])
     hs = np.median([item[i] for item in cash])
     c_s.append(cs)
     o_s.append(os)
     h_s.append(hs)
 
-    if i>0:
-        pls = np.mean([item[i]-item[i-1] for item in cash])
-        plre = np.mean([item[i]-item[i-1] for item in reincash])
+    if i > 0:
+        pls = np.mean([item[i] - item[i - 1] for item in cash])
+        plre = np.mean([item[i] - item[i - 1] for item in reincash])
         pl_s.append(pls)
         pl_re.append(plre)
 
@@ -61,47 +63,44 @@ for i in range(len(contracts[0])):                              #for every time 
     c_re.append(cre)
     o_re.append(ore)
     h_re.append(hre)
-    
+
     ocb = np.median([item[i] for item in catbop])
     o_cb.append(ocb)
-    
+
     p_s = np.median([item[i] for item in premium])
     p_e.append(p_s)
 
-
 maxlen_plots = max(len(pl_s), len(pl_re), len(o_s), len(o_re), len(p_e))
-xticks =  np.arange(200, maxlen_plots, step=120)
+xticks = np.arange(200, maxlen_plots, step=120)
 fig0 = plt.figure()
 ax3 = fig0.add_subplot(511)
-ax3.plot(range(len(pl_s))[200:], pl_s[200:],"b")
+ax3.plot(range(len(pl_s))[200:], pl_s[200:], "b")
 ax3.set_ylabel("Profits, Losses")
 ax3.set_xticks(xticks)
-ax3.set_xticklabels(["${0:d}$".format(int((xtc-200)/12)) for xtc in xticks])
+ax3.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 ax7 = fig0.add_subplot(512)
-ax7.plot(range(len(pl_re))[200:], pl_re[200:],"r")
+ax7.plot(range(len(pl_re))[200:], pl_re[200:], "r")
 ax7.set_ylabel("Profits, Losses (Reins.)")
 ax7.set_xticks(xticks)
-ax7.set_xticklabels(["${0:d}$".format(int((xtc-200)/12)) for xtc in xticks])
+ax7.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 ax1 = fig0.add_subplot(513)
-ax1.plot(range(len(o_s))[200:], o_s[200:],"b")
+ax1.plot(range(len(o_s))[200:], o_s[200:], "b")
 ax1.set_ylabel("Active firms")
 ax1.set_xticks(xticks)
-ax1.set_xticklabels(["${0:d}$".format(int((xtc-200)/12)) for xtc in xticks])
+ax1.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 ax5 = fig0.add_subplot(514)
-ax5.plot(range(len(o_re))[200:], o_re[200:],"r")
+ax5.plot(range(len(o_re))[200:], o_re[200:], "r")
 ax5.set_ylabel("Active reins. firms")
 ax5.set_xticks(xticks)
-ax5.set_xticklabels(["${0:d}$".format(int((xtc-200)/12)) for xtc in xticks])
+ax5.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 ax9 = fig0.add_subplot(515)
-ax9.plot(range(len(p_e))[200:], p_e[200:],"k")
+ax9.plot(range(len(p_e))[200:], p_e[200:], "k")
 ax9.set_ylabel("Premium")
 ax9.set_xlabel("Years")
 ax9.set_xticks(xticks)
-ax9.set_xticklabels(["${0:d}$".format(int((xtc-200)/12)) for xtc in xticks])
-
+ax9.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 
 plt.savefig("data/single_replication_new.pdf")
 plt.show()
-
 
 raise SystemExit
