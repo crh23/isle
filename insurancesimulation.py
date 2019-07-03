@@ -17,44 +17,38 @@ if isleconfig.show_network:
 
 class InsuranceSimulation():
     def __init__(self, override_no_riskmodels, replic_ID, simulation_parameters, rc_event_schedule, rc_event_damage):
-        # override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)
+
+        "Override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)"
         if override_no_riskmodels:
             simulation_parameters["no_riskmodels"] = override_no_riskmodels
         self.number_riskmodels = simulation_parameters["no_riskmodels"]
         
-        # save parameters
-        if (replic_ID is None) or (isleconfig.force_foreground):
+        "Save parameters, sets parameters of sim according to isleconfig.py"
+        if (replic_ID is None) or isleconfig.force_foreground:
             self.background_run = False 
         else:
             self.background_run = True
         self.replic_ID = replic_ID
         self.simulation_parameters = simulation_parameters
-
-        # unpack parameters, set up environment (distributions etc.)
         
-        # damage distribution
-        # TODO: control damage distribution via parameters, not directly
-        #self.damage_distribution = scipy.stats.uniform(loc=0, scale=1)
-        non_truncated = scipy.stats.pareto(b=2, loc=0, scale=0.25)
-        self.damage_distribution = TruncatedDistWrapper(lower_bound=0.25, upper_bound=1., dist=non_truncated)
-        
-        # remaining parameters
+        "Unpacks parameters and sets distributions"
         self.catbonds_off = simulation_parameters["catbonds_off"]
         self.reinsurance_off = simulation_parameters["reinsurance_off"]
-        self.cat_separation_distribution = scipy.stats.expon(0, simulation_parameters["event_time_mean_separation"])
+        self.total_no_risks = simulation_parameters["no_risks"]
         self.risk_factor_lower_bound = simulation_parameters["risk_factor_lower_bound"]
+        self.cat_separation_distribution = scipy.stats.expon(0, simulation_parameters["event_time_mean_separation"])
         self.risk_factor_spread = simulation_parameters["risk_factor_upper_bound"] - simulation_parameters["risk_factor_lower_bound"]
         self.risk_factor_distribution = scipy.stats.uniform(loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread)
         if not simulation_parameters["risk_factors_present"]:
             self.risk_factor_distribution = scipy.stats.uniform(loc=1.0, scale=0)
-        #self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
         self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)
-
         risk_factor_mean = self.risk_factor_distribution.mean()
         if np.isnan(risk_factor_mean):     # unfortunately scipy.stats.mean is not well-defined if scale = 0
             risk_factor_mean = self.risk_factor_distribution.rvs()
+        non_truncated = scipy.stats.pareto(b=2, loc=0, scale=0.25)
+        self.damage_distribution = TruncatedDistWrapper(lower_bound=0.25, upper_bound=1., dist=non_truncated)
 
-        # set initial market price (normalized, i.e. must be multiplied by value or excess-deductible)
+        "set initial market price (normalized, i.e. must be multiplied by value or excess-deductible)"
         if self.simulation_parameters["expire_immediately"]:
             assert self.cat_separation_distribution.dist.name == "expon"
             expected_damage_frequency = 1 - scipy.stats.poisson(1 / self.simulation_parameters["event_time_mean_separation"] * \
@@ -63,54 +57,41 @@ class InsuranceSimulation():
             expected_damage_frequency = self.simulation_parameters["mean_contract_runtime"] / \
                                                         self.cat_separation_distribution.mean()
         self.norm_premium = expected_damage_frequency * self.damage_distribution.mean() * \
-                        risk_factor_mean * \
-                        (1 + self.simulation_parameters["norm_profit_markup"])
+                            risk_factor_mean * (1 + self.simulation_parameters["norm_profit_markup"])
+        self.reinsurance_market_premium = self.market_premium = self.norm_premium
 
-        self.market_premium = self.norm_premium
-        self.reinsurance_market_premium = self.market_premium       # TODO: is this problematic as initial value? (later it is recomputed in every iteration)
-        self.total_no_risks = simulation_parameters["no_risks"]
-
-        # set up monetary system (should instead be with the customers, if customers are modeled explicitly)
+        "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.money_supply = self.simulation_parameters["money_supply"]
         self.obligations = []
 
-        # set up risk categories
+        "Set up risk categories"
         self.riskcategories = list(range(self.simulation_parameters["no_categories"]))
         self.rc_event_schedule = []
         self.rc_event_damage = []
-        self.rc_event_schedule_initial = []   #For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
-        self.rc_event_damage_initial = []     #and damages that will be use in a single run of the model.
+        self.rc_event_schedule_initial = []   # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
+        self.rc_event_damage_initial = []     # and damages that will be use in a single run of the model.
 
-        if rc_event_schedule is not None and rc_event_damage is not None: #If we have schedules pass as arguments we used them.
+        if rc_event_schedule is not None and rc_event_damage is not None:  # If we have schedules pass as arguments we used them.
             self.rc_event_schedule = copy.copy(rc_event_schedule)
             self.rc_event_schedule_initial = copy.copy(rc_event_schedule)
 
             self.rc_event_damage = copy.copy(rc_event_damage)
             self.rc_event_damage_initial = copy.copy(rc_event_damage)
-        else:                                                              #Otherwise the schedules and damages are generated.
+        else:                                                      # Otherwise the schedules and damages are generated.
             self.setup_risk_categories_caller()
 
-
-        # set up risks
+        "Set up risks"
         risk_value_mean = self.risk_value_distribution.mean()
-        if np.isnan(risk_value_mean):     # unfortunately scipy.stats.mean is not well-defined if scale = 0
+        if np.isnan(risk_value_mean):                 # unfortunately scipy.stats.mean is not well-defined if scale = 0
             risk_value_mean = self.risk_value_distribution.rvs()
         rrisk_factors = self.risk_factor_distribution.rvs(size=self.simulation_parameters["no_risks"])
         rvalues = self.risk_value_distribution.rvs(size=self.simulation_parameters["no_risks"])
         rcategories = np.random.randint(0, self.simulation_parameters["no_categories"], size=self.simulation_parameters["no_risks"])
         self.risks = [{"risk_factor": rrisk_factors[i], "value": rvalues[i], "category": rcategories[i], "owner": self} for i in range(self.simulation_parameters["no_risks"])]
-
         self.risks_counter = [0,0,0,0]
 
         for item in self.risks:
             self.risks_counter[item["category"]] = self.risks_counter[item["category"]] + 1
-
-
-        # set up risk models
-        #inaccuracy = [[(1./self.simulation_parameters["riskmodel_inaccuracy_parameter"] if (i + j) % 2 == 0 \
-        #                else self.simulation_parameters["riskmodel_inaccuracy_parameter"]) \
-        #                for i in range(self.simulation_parameters["no_categories"])] \
-        #                for j in range(self.simulation_parameters["no_riskmodels"])]
 
         self.inaccuracy = self.get_all_riskmodel_combinations(self.simulation_parameters["no_categories"], self.simulation_parameters["riskmodel_inaccuracy_parameter"])
 
@@ -129,81 +110,73 @@ class InsuranceSimulation():
                                       "inaccuracy_by_categ": self.inaccuracy[i]} \
                                       for i in range(self.simulation_parameters["no_riskmodels"])]
         
-        # prepare setting up agents (to be done from start.py)
-        self.agent_parameters = {"insurancefirm": [], "reinsurance": []}    # TODO: rename reinsurance -> reinsurancefirm (also in start.py and below in method accept_agents
+        "Prepare setting up agents (to be done from start.py)"
+        self.agent_parameters = {"insurancefirm": [], "reinsurancefirm": []}
+        self.initialize_agent_parameters("insurancefirm", simulation_parameters, risk_model_configurations)
+        self.initialize_agent_parameters("reinsurancefirm", simulation_parameters, risk_model_configurations)
 
-        self.insurer_id_counter = 0
-        # TODO: collapse the following two loops into one generic one?
-        for i in range(simulation_parameters["no_insurancefirms"]):
-            if simulation_parameters['static_non-proportional_reinsurance_levels']:
-                insurance_reinsurance_level = simulation_parameters["default_non-proportional_reinsurance_deductible"]
-            else:
-                insurance_reinsurance_level = np.random.uniform(simulation_parameters["insurance_reinsurance_levels_lower_bound"], simulation_parameters["insurance_reinsurance_levels_upper_bound"])
-
-            riskmodel_config = risk_model_configurations[i % len(risk_model_configurations)]
-            self.agent_parameters["insurancefirm"].append({'id': self.get_unique_insurer_id(), 'initial_cash': simulation_parameters["initial_agent_cash"],
-                                     'riskmodel_config': riskmodel_config, 'norm_premium': self.norm_premium,
-                                     'profit_target': simulation_parameters["norm_profit_markup"],
-                                     'initial_acceptance_threshold': simulation_parameters["initial_acceptance_threshold"],
-                                     'acceptance_threshold_friction': simulation_parameters["acceptance_threshold_friction"],
-                                     'reinsurance_limit': simulation_parameters["reinsurance_limit"],
-                                     'non-proportional_reinsurance_level': insurance_reinsurance_level,
-                                     'capacity_target_decrement_threshold': simulation_parameters['capacity_target_decrement_threshold'],
-                                     'capacity_target_increment_threshold': simulation_parameters['capacity_target_increment_threshold'],
-                                     'capacity_target_decrement_factor': simulation_parameters['capacity_target_decrement_factor'],
-                                     'capacity_target_increment_factor': simulation_parameters['capacity_target_increment_factor'],
-                                     'interest_rate': simulation_parameters["interest_rate"]})
-
-        self.reinsurer_id_counter = 0
-        for i in range(simulation_parameters["no_reinsurancefirms"]):
-            if simulation_parameters['static_non-proportional_reinsurance_levels']:
-                reinsurance_reinsurance_level = simulation_parameters["default_non-proportional_reinsurance_deductible"]
-            else:
-                reinsurance_reinsurance_level = np.random.uniform(simulation_parameters["reinsurance_reinsurance_levels_lower_bound"], simulation_parameters["reinsurance_reinsurance_levels_upper_bound"])
-
-            riskmodel_config = risk_model_configurations[i % len(risk_model_configurations)]
-            self.agent_parameters["reinsurance"].append({'id': self.get_unique_reinsurer_id(), 'initial_cash': simulation_parameters["initial_reinagent_cash"],
-                                'riskmodel_config': riskmodel_config, 'norm_premium': self.norm_premium,
-                                'profit_target': simulation_parameters["norm_profit_markup"],
-                                'initial_acceptance_threshold': simulation_parameters["initial_acceptance_threshold"],
-                                'acceptance_threshold_friction': simulation_parameters["acceptance_threshold_friction"],
-                                'reinsurance_limit': simulation_parameters["reinsurance_limit"],
-                                'non-proportional_reinsurance_level': reinsurance_reinsurance_level,
-                                'capacity_target_decrement_threshold': simulation_parameters['capacity_target_decrement_threshold'],
-                                'capacity_target_increment_threshold': simulation_parameters['capacity_target_increment_threshold'],
-                                'capacity_target_decrement_factor': simulation_parameters['capacity_target_decrement_factor'],
-                                'capacity_target_increment_factor': simulation_parameters['capacity_target_increment_factor'],
-                                'interest_rate': simulation_parameters["interest_rate"]})
-                                
-        # set up remaining list variables
-        
-        # agent lists
+        "Agent lists"
         self.reinsurancefirms = []
         self.insurancefirms = []
         self.catbonds = []
         
-        # lists of agent weights
+        "Lists of agent weights"
         self.insurers_weights = {}
         self.reinsurers_weights = {}
 
-
-        # list of reinsurance risks offered for underwriting
+        "List of reinsurance risks offered for underwriting"
         self.reinrisks = []
         self.not_accepted_reinrisks = []
         
-        # cumulative variables for history and logging
+        "Cumulative variables for history and logging"
         self.cumulative_bankruptcies = 0
         self.cumulative_market_exits = 0
         self.cumulative_unrecovered_claims = 0.0
         self.cumulative_claims = 0.0
         
-        # lists for logging history
+        "Lists for logging history"
         self.logger = logger.Logger(no_riskmodels=simulation_parameters["no_riskmodels"], 
                                     rc_event_schedule_initial=self.rc_event_schedule_initial, 
                                     rc_event_damage_initial=self.rc_event_damage_initial)
         
         self.insurance_models_counter = np.zeros(self.simulation_parameters["no_categories"])
         self.reinsurance_models_counter = np.zeros(self.simulation_parameters["no_categories"])
+
+    def initialize_agent_parameters(self, firmtype, simulation_parameters, risk_model_configurations):
+        """General function for initialising the agent parameters"""
+        if firmtype == "insurancefirm":
+            self.insurer_id_counter = 0
+            no_firms = simulation_parameters["no_insurancefirms"]
+            initial_cash = "initial_agent_cash"
+            reinsurance_level_lowerbound = simulation_parameters["insurance_reinsurance_levels_lower_bound"]
+            reinsurance_level_upperbound = simulation_parameters["insurance_reinsurance_levels_upper_bound"]
+
+        elif firmtype == "reinsurancefirm":
+            self.reinsurer_id_counter = 0
+            no_firms = simulation_parameters["no_reinsurancefirms"]
+            initial_cash = "initial_reinagent_cash"
+            reinsurance_level_lowerbound = simulation_parameters["reinsurance_reinsurance_levels_lower_bound"]
+            reinsurance_level_upperbound = simulation_parameters["reinsurance_reinsurance_levels_upper_bound"]
+
+        for i in range(no_firms):
+            if simulation_parameters['static_non-proportional_reinsurance_levels']:
+                reinsurance_level = simulation_parameters["default_non-proportional_reinsurance_deductible"]
+            else:
+                reinsurance_level = np.random.uniform(reinsurance_level_lowerbound, reinsurance_level_upperbound)
+
+            riskmodel_config = risk_model_configurations[i % len(risk_model_configurations)]
+            self.agent_parameters[firmtype].append({'id': self.get_unique_insurer_id(), 'initial_cash': simulation_parameters[initial_cash],
+                'riskmodel_config': riskmodel_config, 'norm_premium': self.norm_premium,
+                'profit_target': simulation_parameters["norm_profit_markup"],
+                'initial_acceptance_threshold': simulation_parameters["initial_acceptance_threshold"],
+                'acceptance_threshold_friction': simulation_parameters["acceptance_threshold_friction"],
+                'reinsurance_limit': simulation_parameters["reinsurance_limit"],
+                'non-proportional_reinsurance_level': reinsurance_level,
+                'capacity_target_decrement_threshold': simulation_parameters['capacity_target_decrement_threshold'],
+                'capacity_target_increment_threshold': simulation_parameters['capacity_target_increment_threshold'],
+                'capacity_target_decrement_factor': simulation_parameters['capacity_target_decrement_factor'],
+                'capacity_target_increment_factor': simulation_parameters['capacity_target_increment_factor'],
+                'interest_rate': simulation_parameters["interest_rate"]})
 
     def build_agents(self, agent_class, agent_class_string, parameters, agent_parameters):
         # assert agent_parameters == self.agent_parameters[agent_class_string]       #assert fits only the initial creation of agents, not later additions   # TODO: fix
@@ -227,7 +200,7 @@ class InsuranceSimulation():
             # remove new agent cash from simulation cash to ensure stock flow consistency
             new_agent_cash = sum([agent.cash for agent in agents])
             self.reduce_money_supply(new_agent_cash)
-        elif agent_class_string == "reinsurance":
+        elif agent_class_string == "reinsurancefirm":
             try:
                 self.reinsurancefirms += agents
                 self.reinsurancefirms_group = agent_group
