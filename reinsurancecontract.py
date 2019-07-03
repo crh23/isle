@@ -82,7 +82,7 @@ class ReinsuranceContract(MetaInsuranceContract):
             self.current_claim += (
                 self.contract.claim
             )  # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession?
-                # If so, reorganize more straightforwardly
+            # If so, reorganize more straightforwardly
 
             self.expiration = time
             # self.terminating = True

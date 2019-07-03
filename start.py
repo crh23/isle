@@ -22,7 +22,6 @@ simulation_parameters = isleconfig.simulation_parameters
 replic_ID = None
 override_no_riskmodels = False
 
-
 # ensure that logging directory exists
 if not os.path.isdir("data"):
     if os.path.exists("data"):
@@ -32,28 +31,7 @@ if not os.path.isdir("data"):
     os.makedirs("data")
 
 
-# create conditional decorator
-def conditionally(decorator_function, condition):
-    def wrapper(target_function):
-        if not condition:
-            return target_function
-        return decorator_function(target_function)
-
-    return wrapper
-
-
-# create non-abce placeholder gui decorator
-# TODO: replace this with more elegant solution if possible. Currently required since script will otherwise crash at the conditional decorator below since gui is then undefined
-if not isleconfig.use_abce:
-
-    def gui(*args, **kwargs):
-        pass
-
-
 # main function
-
-# @gui(simulation_parameters, serve=True)
-@conditionally(gui(simulation_parameters, serve=False), isleconfig.use_abce)
 def main(
     simulation_parameters,
     rc_event_schedule,
@@ -66,10 +44,6 @@ def main(
     np.random.seed(np_seed)
     random.seed(random_seed)
 
-    # create simulation and world objects (identical in non-abce mode)
-    if isleconfig.use_abce:
-        simulation = abce.Simulation(processes=1, random_seed=random_seed)
-
     simulation_parameters[
         "simulation"
     ] = world = insurancesimulation.InsuranceSimulation(
@@ -80,8 +54,7 @@ def main(
         rc_event_damage,
     )
 
-    if not isleconfig.use_abce:
-        simulation = world
+    simulation = world
 
     # create agents: insurance firms
     insurancefirms_group = simulation.build_agents(
@@ -91,10 +64,7 @@ def main(
         agent_parameters=world.agent_parameters["insurancefirm"],
     )
 
-    if isleconfig.use_abce:
-        insurancefirm_pointers = insurancefirms_group.get_pointer()
-    else:
-        insurancefirm_pointers = insurancefirms_group
+    insurancefirm_pointers = insurancefirms_group
     world.accept_agents("insurancefirm", insurancefirm_pointers, insurancefirms_group)
 
     # create agents: reinsurance firms
@@ -104,21 +74,20 @@ def main(
         parameters=simulation_parameters,
         agent_parameters=world.agent_parameters["reinsurancefirm"],
     )
-    if isleconfig.use_abce:
-        reinsurancefirm_pointers = reinsurancefirms_group.get_pointer()
-    else:
-        reinsurancefirm_pointers = reinsurancefirms_group
-    world.accept_agents("reinsurancefirm", reinsurancefirm_pointers, reinsurancefirms_group)
+    # TODO: I suspect that there is no distinction between pointers and group now abce is gone
+    reinsurancefirm_pointers = reinsurancefirms_group
+    world.accept_agents(
+        "reinsurancefirm", reinsurancefirm_pointers, reinsurancefirms_group
+    )
 
     # time iteration
     for t in range(simulation_parameters["max_time"]):
 
-        # abce time step
-        simulation.advance_round(t)
-
         # create new agents             # TODO: write method for this; this code block is executed almost identically 4 times
         if world.insurance_firm_enters_market(agent_type="InsuranceFirm"):
-            parameters = [np.random.choice(world.agent_parameters["insurancefirm"])]
+            parameters = [
+                np.random.choice(world.agent_parameters["insurancefirm"])
+            ]  # Which of these should be used?
             parameters = [
                 world.agent_parameters["insurancefirm"][
                     simulation.insurance_entry_index()
@@ -132,15 +101,7 @@ def main(
                 agent_parameters=parameters,
             )
             insurancefirms_group += new_insurance_firm
-            if isleconfig.use_abce:
-                # TODO: fix abce
-                # may fail in abce because addressing individual agents may not be allowed
-                # may also fail because agent methods may not be callable directly
-                new_insurancefirm_pointer = [
-                    new_insurance_firm[0].get_pointer()
-                ]  # index 0 because this is a list with just 1 object
-            else:
-                new_insurancefirm_pointer = new_insurance_firm
+            new_insurancefirm_pointer = new_insurance_firm
             world.accept_agents(
                 "insurancefirm", new_insurancefirm_pointer, new_insurance_firm, time=t
             )
@@ -165,32 +126,19 @@ def main(
                 agent_parameters=parameters,
             )
             reinsurancefirms_group += new_reinsurance_firm
-            if isleconfig.use_abce:
-                # TODO: fix abce
-                # may fail in abce because addressing individual agents may not be allowed
-                # may also fail because agent methods may not be callable directly
-                new_reinsurancefirm_pointer = [
-                    new_reinsurance_firm[0].get_pointer()
-                ]  # index 0 because this is a list with just 1 object
-            else:
-                new_reinsurancefirm_pointer = new_reinsurance_firm
+            new_reinsurancefirm_pointer = new_reinsurance_firm
             world.accept_agents(
-                "reinsurancefirm", new_reinsurancefirm_pointer, new_reinsurance_firm, time=t
+                "reinsurancefirm",
+                new_reinsurancefirm_pointer,
+                new_reinsurance_firm,
+                time=t,
             )
 
         # iterate simulation
         world.iterate(t)
 
         # log data
-        if isleconfig.use_abce:
-            # insurancefirms.logme()
-            # reinsurancefirms.logme()
-            insurancefirms_group.agg_log(
-                variables=["cash", "operational"], len=["underwritten_contracts"]
-            )
-            # reinsurancefirms_group.agg_log(variables=['cash'])
-        else:
-            world.save_data()
+        world.save_data()
 
         if t % 50 == save_iter:
             save_simulation(t, simulation, simulation_parameters, exit_now=False)
@@ -205,12 +153,13 @@ def main(
 
 # save function
 def save_simulation(t, sim, sim_param, exit_now=False):
-    d = {}
-    d["np_seed"] = np.random.get_state()
-    d["random_seed"] = random.getstate()
-    d["time"] = t
-    d["simulation"] = sim
-    d["simulation_parameters"] = sim_param
+    d = {
+        "np_seed": np.random.get_state(),
+        "random_seed": random.getstate(),
+        "time": t,
+        "simulation": sim,
+        "simulation_parameters": sim_param,
+    }
     with open("data/simulation_save.pkl", "bw") as wfile:
         pickle.dump(d, wfile, protocol=pickle.HIGHEST_PROTOCOL)
     with open("data/simulation_save.pkl", "br") as rfile:
@@ -229,7 +178,7 @@ if __name__ == "__main__":
 
     """ use argparse to handle command line arguments"""
     parser = argparse.ArgumentParser(description="Model the Insurance sector")
-    parser.add_argument("--abce", action="store_true", help="use abce")
+    parser.add_argument("--abce", action="store_true", help="[REMOVED] use abce")
     parser.add_argument(
         "--oneriskmodel",
         action="store_true",
@@ -278,8 +227,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.abce:
-        isleconfig.use_abce = True
-        raise Exception("ABCE not supported, probably won't become so")
+        raise Exception("ABCE is not and will not be supported")
     if args.oneriskmodel:
         isleconfig.oneriskmodel = True
         override_no_riskmodels = 1
@@ -311,12 +259,6 @@ if __name__ == "__main__":
     else:
         save_iter = 200
 
-    """ import abce module if required """
-    if isleconfig.use_abce:
-        # print("Importing abce")
-        import abce
-        from abce import gui
-
     from setup import SetupSim
 
     setup = SetupSim()  # Here the setup for the simulation is done.
@@ -329,6 +271,7 @@ if __name__ == "__main__":
         1
     )  # Only one ensemble. This part will only be run locally (laptop).
 
+    # Run the main program
     log = main(
         simulation_parameters,
         general_rc_event_schedule[0],

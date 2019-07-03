@@ -1,4 +1,3 @@
-use_abce = False
 oneriskmodel = False
 replicating = False
 force_foreground = False
@@ -27,7 +26,7 @@ simulation_parameters = {
     "mean_contract_runtime": 12,
     "contract_runtime_halfspread": 2,
     "default_contract_payment_period": 3,
-    "max_time": 100,
+    "max_time": 1000,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
     "expire_immediately": False,

@@ -4,7 +4,6 @@ from metainsurancecontract import MetaInsuranceContract
 
 
 class InsuranceContract(MetaInsuranceContract):
-
     def __init__(
         self,
         insurer,

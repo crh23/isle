@@ -8,14 +8,7 @@ from riskmodel import RiskModel
 import sys, pdb
 import uuid
 
-if isleconfig.use_abce:
-    from genericagentabce import GenericAgent
-
-    # print("abce imported")
-else:
-    from genericagent import GenericAgent
-
-    # print("abce not imported")
+from genericagent import GenericAgent
 
 
 def get_mean(x):
