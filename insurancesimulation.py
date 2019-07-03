@@ -1,5 +1,5 @@
 from insurancefirm import InsuranceFirm
-#from riskmodel import RiskModel
+# from riskmodel import RiskModel
 from reinsurancefirm import ReinsuranceFirm
 from distributiontruncated import TruncatedDistWrapper
 import numpy as np
@@ -13,13 +13,6 @@ import logger
 
 if isleconfig.show_network:
     import visualization_network
-
-if isleconfig.use_abce:
-    import abce
-    #print("abce imported")
-#else:
-#    print("abce not imported")
-
 
 
 class InsuranceSimulation():
@@ -212,10 +205,8 @@ class InsuranceSimulation():
         self.insurance_models_counter = np.zeros(self.simulation_parameters["no_categories"])
         self.reinsurance_models_counter = np.zeros(self.simulation_parameters["no_categories"])
 
-            
-    
     def build_agents(self, agent_class, agent_class_string, parameters, agent_parameters):
-        #assert agent_parameters == self.agent_parameters[agent_class_string]       #assert fits only the initial creation of agents, not later additions   # TODO: fix
+        # assert agent_parameters == self.agent_parameters[agent_class_string]       #assert fits only the initial creation of agents, not later additions   # TODO: fix
         agents = []
         for ap in agent_parameters:
             agents.append(agent_class(parameters, ap))
@@ -272,9 +263,8 @@ class InsuranceSimulation():
 
         self.reset_pls()
 
-
         # adjust market premiums
-        sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])      #TODO: include reinsurancefirms
+        sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])      # TODO: include reinsurancefirms
         self.adjust_market_premium(capital=sum_capital)
         sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])  # TODO: include reinsurancefirms
         self.adjust_reinsurance_market_premium(capital=sum_capital)
@@ -291,8 +281,8 @@ class InsuranceSimulation():
                 print("Something wrong; past events not deleted", file=sys.stderr)
             if len(self.rc_event_schedule[categ_id]) > 0 and self.rc_event_schedule[categ_id][0] == t:
                 self.rc_event_schedule[categ_id] = self.rc_event_schedule[categ_id][1:]
-                damage_extent = copy.copy(self.rc_event_damage[categ_id][0])      #Schedules of catastrophes and damages must me generated at the same time.
-                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)# TODO: consider splitting the following lines from this method and running it with nb.jit
+                damage_extent = copy.copy(self.rc_event_damage[categ_id][0])       # Schedules of catastrophes and damages must be generated at the same time.
+                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t) # TODO: consider splitting the following lines from this method and running it with nb.jit
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
             else:
                 if isleconfig.verbose:
@@ -307,14 +297,6 @@ class InsuranceSimulation():
         # iterate reinsurnace firm agents
         for reinagent in self.reinsurancefirms:
             reinagent.iterate(t)
-        # TODO: is the following necessary for abce to work (log) properly?
-        #if isleconfig.use_abce:
-        #    self.reinsurancefirms_group.iterate(time=t)
-        #else:
-        #    for reinagent in self.reinsurancefirms:
-        #        reinagent.iterate(t)
-        
-        # remove all non-accepted reinsurance risks
 
         self.reinrisks = []
 
@@ -324,12 +306,6 @@ class InsuranceSimulation():
         # iterate insurance firm agents
         for agent in self.insurancefirms:
             agent.iterate(t)
-        # TODO: is the following necessary for abce to work (log) properly?
-        #if isleconfig.use_abce:
-        #    self.insurancefirms_group.iterate(time=t)
-        #else:
-        #    for agent in self.insurancefirms:
-        #        agent.iterate(t)
         
         # iterate catbonds 
         for agent in self.catbonds:
@@ -350,15 +326,12 @@ class InsuranceSimulation():
                 if reinsurer.operational:
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
-        
-        #print(isleconfig.show_network)
-        # TODO: use network representation in a more generic way, perhaps only once at the end to characterize the network and use for calibration(?)
+
         if isleconfig.show_network and t % 40 == 0 and t > 0:
             RN = visualization_network.ReinsuranceNetwork(self.insurancefirms, self.reinsurancefirms, self.catbonds)
             RN.compute_measures()
             RN.visualize()
-        
-        
+
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the 
            Logger object (self.logger) to be recorded.
@@ -418,13 +391,10 @@ class InsuranceSimulation():
     def obtain_log(self, requested_logs=None):   #This function allows to return in a list all the data generated by the model. There is no other way to transfer it back from the cloud.
         return self.logger.obtain_log(requested_logs)
     
-    def advance_round(self, *args):
-        pass
-    
     def finalize(self, *args):
-        """Function to handle oberations after the end of the simulation run.
+        """Function to handle operations after the end of the simulation run.
            Currently empty.
-           It may be used to handle e.g. loging by including:
+           It may be used to handle e.g. logging by including:
             self.log()
            but logging has been moved to start.py and ensemble.py
            """
@@ -803,7 +773,7 @@ class InsuranceSimulation():
     def get_operational(self):
         return True
 
-    def reinsurance_capital_entry(self):     #This method determines the capital market entry of reinsurers. It is only run in start.py.
+    def reinsurance_capital_entry(self):     # This method determines the capital market entry of reinsurers. It is only run in start.py.
         capital_per_non_re_cat = []
 
         for reinrisk in self.not_accepted_reinrisks:
@@ -813,10 +783,10 @@ class InsuranceSimulation():
             capital_per_non_re_cat = np.random.choice(capital_per_non_re_cat, 10)        #Only 10 values sampled randomly are considered. (Too low?)
             entry = max(capital_per_non_re_cat)            #For market entry the maximum of the sample is considered.
             entry = 2 * entry           #The capital market entry of those values will be the double of the maximum.
-        else:    #Otherwise the default reinsurance cash market entry is considered.
+        else:    # Otherwise the default reinsurance cash market entry is considered.
             entry = self.simulation_parameters["initial_reinagent_cash"]
 
-        return entry           #The capital market entry is returned.
+        return entry           # The capital market entry is returned.
 
     def reset_pls(self):
         """Reset_pls Method.
