@@ -42,6 +42,8 @@ class ReinsuranceContract(MetaInsuranceContract):
         )
         # self.is_reinsurancecontract = True
 
+        if self.insurancetype not in ["excess-of-loss", "proportional"]:
+            raise ValueError(f'Unrecognised insurance type "{self.insurancetype}"')
         if self.insurancetype == "excess-of-loss":
             self.property_holder.add_reinsurance(
                 category=self.category,
@@ -66,7 +68,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         if self.insurancetype == "excess-of-loss" and damage_extent > self.deductible:
             claim = min(self.excess, damage_extent) - self.deductible
             self.insurer.receive_obligation(claim, self.property_holder, time, "claim")
-        else:
+        else:  # TODO: should this be elif == "proportional"?
             claim = min(self.excess, damage_extent) - self.deductible
             self.insurer.receive_obligation(
                 claim, self.property_holder, time + 1, "claim"
@@ -79,7 +81,8 @@ class ReinsuranceContract(MetaInsuranceContract):
         if self.expire_immediately:
             self.current_claim += (
                 self.contract.claim
-            )  # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession? If so, reorganize more straightforwardly
+            )  # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession?
+                # If so, reorganize more straightforwardly
 
             self.expiration = time
             # self.terminating = True

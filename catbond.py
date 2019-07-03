@@ -308,7 +308,7 @@ class CatBond(MetaInsuranceOrg):
                     # and categ_risks[i]["risk_factor"] < self.acceptance_threshold):
                     if (
                         categ_risks[i].get("contract") is not None
-                    ):  # categ_risks[i]["reinsurance"]:
+                    ):  # categ_risks[i]["reinsurancefirm"]:
                         if (
                             categ_risks[i]["contract"].expiration > time
                         ):  # required to rule out contracts that have exploded in the meantime

@@ -26,7 +26,7 @@ override_no_riskmodels = False
 # ensure that logging directory exists
 if not os.path.isdir("data"):
     if os.path.exists("data"):
-        raise Exception(
+        raise FileExistsError(
             "./data exists as regular file. This filename is required for the logging directory"
         )
     os.makedirs("data")
@@ -100,15 +100,15 @@ def main(
     # create agents: reinsurance firms
     reinsurancefirms_group = simulation.build_agents(
         reinsurancefirm.ReinsuranceFirm,
-        "reinsurance",
+        "reinsurancefirm",
         parameters=simulation_parameters,
-        agent_parameters=world.agent_parameters["reinsurance"],
+        agent_parameters=world.agent_parameters["reinsurancefirm"],
     )
     if isleconfig.use_abce:
         reinsurancefirm_pointers = reinsurancefirms_group.get_pointer()
     else:
         reinsurancefirm_pointers = reinsurancefirms_group
-    world.accept_agents("reinsurance", reinsurancefirm_pointers, reinsurancefirms_group)
+    world.accept_agents("reinsurancefirm", reinsurancefirm_pointers, reinsurancefirms_group)
 
     # time iteration
     for t in range(simulation_parameters["max_time"]):
@@ -117,7 +117,7 @@ def main(
         simulation.advance_round(t)
 
         # create new agents             # TODO: write method for this; this code block is executed almost identically 4 times
-        if world.insurance_firm_market_entry(agent_type="InsuranceFirm"):
+        if world.insurance_firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [np.random.choice(world.agent_parameters["insurancefirm"])]
             parameters = [
                 world.agent_parameters["insurancefirm"][
@@ -145,22 +145,22 @@ def main(
                 "insurancefirm", new_insurancefirm_pointer, new_insurance_firm, time=t
             )
 
-        if world.insurance_firm_market_entry(agent_type="ReinsuranceFirm"):
-            parameters = [np.random.choice(world.agent_parameters["reinsurance"])]
+        if world.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
+            parameters = [np.random.choice(world.agent_parameters["reinsurancefirm"])]
             parameters[0][
                 "initial_cash"
             ] = (
                 world.reinsurance_capital_entry()
             )  # Since the value of the reinrisks varies overtime it makes sense that the market entry of reinsures depends on those values. The method world.reinsurance_capital_entry() determines the capital market entry of reinsurers.
             parameters = [
-                world.agent_parameters["reinsurance"][
+                world.agent_parameters["reinsurancefirm"][
                     simulation.reinsurance_entry_index()
                 ]
             ]
             parameters[0]["id"] = world.get_unique_reinsurer_id()
             new_reinsurance_firm = simulation.build_agents(
                 reinsurancefirm.ReinsuranceFirm,
-                "reinsurance",
+                "reinsurancefirm",
                 parameters=simulation_parameters,
                 agent_parameters=parameters,
             )
@@ -175,7 +175,7 @@ def main(
             else:
                 new_reinsurancefirm_pointer = new_reinsurance_firm
             world.accept_agents(
-                "reinsurance", new_reinsurancefirm_pointer, new_reinsurance_firm, time=t
+                "reinsurancefirm", new_reinsurancefirm_pointer, new_reinsurance_firm, time=t
             )
 
         # iterate simulation

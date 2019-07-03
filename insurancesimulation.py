@@ -205,8 +205,8 @@ class InsuranceSimulation:
         # prepare setting up agents (to be done from start.py)
         self.agent_parameters = {
             "insurancefirm": [],
-            "reinsurance": [],
-        }  # TODO: rename reinsurance -> reinsurancefirm (also in start.py and below in method accept_agents
+            "reinsurancefirm": [],
+        }
 
         self.insurer_id_counter = 0
         # TODO: collapse the following two loops into one generic one?
@@ -270,7 +270,7 @@ class InsuranceSimulation:
             riskmodel_config = risk_model_configurations[
                 i % len(risk_model_configurations)
             ]
-            self.agent_parameters["reinsurance"].append(
+            self.agent_parameters["reinsurancefirm"].append(
                 {
                     "id": self.get_unique_reinsurer_id(),
                     "initial_cash": simulation_parameters["initial_reinagent_cash"],
@@ -360,7 +360,7 @@ class InsuranceSimulation:
             # remove new agent cash from simulation cash to ensure stock flow consistency
             new_agent_cash = sum([agent.cash for agent in agents])
             self.reduce_money_supply(new_agent_cash)
-        elif agent_class_string == "reinsurance":
+        elif agent_class_string == "reinsurancefirm":
             try:
                 self.reinsurancefirms += agents
                 self.reinsurancefirms_group = agent_group
@@ -403,11 +403,11 @@ class InsuranceSimulation:
         # adjust market premiums
         sum_capital = sum(
             [agent.get_cash() for agent in self.insurancefirms]
-        )  # TODO: include reinsurancefirms
+        )
         self.adjust_market_premium(capital=sum_capital)
         sum_capital = sum(
             [agent.get_cash() for agent in self.reinsurancefirms]
-        )  # TODO: include reinsurancefirms
+        )
         self.adjust_reinsurance_market_premium(capital=sum_capital)
 
         # pay obligations
@@ -415,11 +415,8 @@ class InsuranceSimulation:
 
         # identify perils and effect claims
         for categ_id in range(len(self.rc_event_schedule)):
-            try:
-                if len(self.rc_event_schedule[categ_id]) > 0:
-                    assert self.rc_event_schedule[categ_id][0] >= t
-            except:
-                print("Something wrong; past events not deleted", file=sys.stderr)
+            if self.rc_event_schedule[categ_id] and self.rc_event_schedule[categ_id][0] < t:
+                raise RuntimeWarning("Something wrong; past events not deleted")
             if (
                 len(self.rc_event_schedule[categ_id]) > 0
                 and self.rc_event_schedule[categ_id][0] == t
@@ -430,7 +427,7 @@ class InsuranceSimulation:
                 )  # Schedules of catastrophes and damages must me generated at the same time.
                 self.inflict_peril(
                     categ_id=categ_id, damage=damage_extent, t=t
-                )  # TODO: consider splitting the following lines from this method and running it with nb.jit
+                )
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
             else:
                 if isleconfig.verbose:
@@ -679,7 +676,8 @@ class InsuranceSimulation:
         self.money_supply += amount
 
     def reduce_money_supply(self, amount):
-        """Method to reduce money supply immediately and without payment recipient (used to adjust money supply to compensate for agent endowment)."""
+        """Method to reduce money supply immediately and without payment recipient (used to adjust money supply
+         to compensate for agent endowment)."""
         self.money_supply -= amount
         assert self.money_supply >= 0
 
@@ -969,16 +967,16 @@ class InsuranceSimulation:
                 mersennetwister_randomseed = eval(line)
                 found = True
         rfile.close()
+        if not found:
+            raise Exception(
+                "mersennetwister randomseed for current replication ID number {0:d} not found in data file. Exiting.".format(
+                    self.replic_ID
+                ))
         np.random.set_state(mersennetwister_randomseed)
-        assert (
-            found
-        ), "mersennetwister randomseed for current replication ID number {0:d} not found in data file. Exiting.".format(
-            self.replic_ID
-        )
 
-    def insurance_firm_market_entry(
-        self, prob=-1, agent_type="InsuranceFirm"
-    ):  # TODO: replace method name with a more descriptive one
+    def insurance_firm_enters_market(
+            self, prob=-1, agent_type="InsuranceFirm"
+    ):
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters[
@@ -989,15 +987,10 @@ class InsuranceSimulation:
                     "reinsurance_firm_market_entry_probability"
                 ]
             else:
-                assert (
-                    False
-                ), "Unknown agent type. Simulation requested to create agent of type {0:s}".format(
+                raise ValueError("Unknown agent type. Simulation requested to create agent of type {0:s}".format(
                     agent_type
-                )
-        if np.random.random() < prob:
-            return True
-        else:
-            return False
+                ))
+        return np.random.random() < prob
 
     def record_bankruptcy(self):
         """Record_bankruptcy Method.
@@ -1020,7 +1013,8 @@ class InsuranceSimulation:
 
     def record_claims(
         self, claims
-    ):  # This method records every claim made to insurers and reinsurers. It is called from both insurers and reinsurers (metainsuranceorg.py).
+    ):  # This method records every claim made to insurers and reinsurers.
+        # It is called from both insurers and reinsurers (metainsuranceorg.py).
         self.cumulative_claims += claims
 
     def log(self):
@@ -1057,7 +1051,7 @@ class InsuranceSimulation:
         return totaldiff
         # self.history_logs['market_diffvar'].append(totaldiff)
 
-    def count_underwritten_and_reinsured_risks_by_category(self):
+    def count_underwritten_and_reinsured_risks_by_category(self):  # QUERY does this do anything?
         underwritten_risks = 0
         reinsured_risks = 0
         underwritten_per_category = np.zeros(
@@ -1066,7 +1060,7 @@ class InsuranceSimulation:
         reinsured_per_category = np.zeros(self.simulation_parameters["no_categories"])
         for firm in self.insurancefirms:
             if firm.operational:
-                underwritten_by_category += firm.counter_category
+                underwritten_per_category += firm.counter_category
                 if (
                     self.simulation_parameters["simulation_reinsurance_type"]
                     == "non-proportional"
@@ -1091,12 +1085,12 @@ class InsuranceSimulation:
 
     def insurance_entry_index(self):
         return self.insurance_models_counter[
-            0 : self.simulation_parameters["no_riskmodels"]
+            0:self.simulation_parameters["no_riskmodels"]
         ].argmin()
 
     def reinsurance_entry_index(self):
         return self.reinsurance_models_counter[
-            0 : self.simulation_parameters["no_riskmodels"]
+            0:self.simulation_parameters["no_riskmodels"]
         ].argmin()
 
     def get_operational(self):
