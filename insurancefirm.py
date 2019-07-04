@@ -7,8 +7,10 @@ import isleconfig
 
 class InsuranceFirm(MetaInsuranceOrg):
     """ReinsuranceFirm class.
-       Inherits from InsuranceFirm."""
+       Inherits from MetaInsuranceFirm."""
 
+    # QUERY: now abce is gone can all of these inits become proper __init__s?
+    # In fact, can we do away with genericagent.py entirely?
     def init(self, simulation_parameters, agent_parameters):
         """Constructor method.
                Accepts arguments
@@ -22,19 +24,17 @@ class InsuranceFirm(MetaInsuranceOrg):
     def adjust_dividends(self, time, actual_capacity):
         # TODO: Implement algorithm from flowchart
         profits = self.get_profitslosses()
-        self.per_period_dividend = max(
-            0, self.dividend_share_of_profits * profits
-        )  # max function ensures that no negative dividends are paid
-        # if profits < 0:                                                             # no dividends when losses are written
+        self.per_period_dividend = max(0, self.dividend_share_of_profits * profits)
+        # max function ensures that no negative dividends are paid
+        # if profits < 0:  # no dividends when losses are written
         #    self.per_period_dividend = 0
-        if (
-            actual_capacity < self.capacity_target
-        ):  # no dividends if firm misses capital target
+        if actual_capacity < self.capacity_target:
+            # no dividends if firm misses capital target
             self.per_period_dividend = 0
 
-    def get_reinsurance_VaR_estimate(self, max_var):
+    def get_reinsurance_var_estimate(self, max_var):
         reinsurance_factor_estimate = (
-            sum(
+            len(
                 [
                     1
                     for categ_id in range(self.simulation_no_risk_categories)
@@ -44,19 +44,20 @@ class InsuranceFirm(MetaInsuranceOrg):
             * 1.0
             / self.simulation_no_risk_categories
         ) * (1.0 - self.np_reinsurance_deductible_fraction)
-        reinsurance_VaR_estimate = max_var * (1.0 + reinsurance_factor_estimate)
-        return reinsurance_VaR_estimate
+        reinsurance_var_estimate = max_var * (1.0 + reinsurance_factor_estimate)
+        return reinsurance_var_estimate
 
     def adjust_capacity_target(self, max_var):
-        reinsurance_VaR_estimate = self.get_reinsurance_VaR_estimate(max_var)
-        try:
+        reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
+        if max_var + reinsurance_var_estimate == 0:
+            # TODO: why is this being called with max_var = 0 anyway?
+            capacity_target_var_ratio_estimate = float("inf")
+        else:
             capacity_target_var_ratio_estimate = (
-                (self.capacity_target + reinsurance_VaR_estimate)
+                (self.capacity_target + reinsurance_var_estimate)
                 * 1.0
-                / (max_var + reinsurance_VaR_estimate)
+                / (max_var + reinsurance_var_estimate)
             )
-        except RuntimeError:
-            pass
         if (
             capacity_target_var_ratio_estimate
             > self.capacity_target_increment_threshold
@@ -70,16 +71,16 @@ class InsuranceFirm(MetaInsuranceOrg):
         return
 
     def get_capacity(self, max_var):
-        if (
-            max_var < self.cash
-        ):  # ensure presence of sufficiently much cash to cover VaR
-            reinsurance_VaR_estimate = self.get_reinsurance_VaR_estimate(max_var)
-            return self.cash + reinsurance_VaR_estimate
+        # ensure presence of sufficiently much cash to cover VaR
+        if max_var < self.cash:
+            reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
+            return self.cash + reinsurance_var_estimate
         # else: # (This point is only reached when insurer is in severe financial difficulty. Ensure insurer recovers complete coverage.)
         return self.cash
 
     def increase_capacity(self, time, max_var):
-        """This is implemented for non-proportional reinsurance only. Otherwise the price comparison is not meaningful. Assert non-proportional mode."""
+        """This is implemented for non-proportional reinsurance only.
+        Otherwise the price comparison is not meaningful. Assert non-proportional mode."""
         assert self.simulation_reinsurance_type == "non-proportional"
         """get prices"""
         reinsurance_price = self.simulation.get_reinsurance_premium(
@@ -129,7 +130,7 @@ class InsuranceFirm(MetaInsuranceOrg):
     ):
         if isleconfig.verbose:
             print(
-                "IF {0:d} increasing capacity in period {1:d}, cat bond price: {2:f}, reinsurance premium {3:f}".format(
+                f"IF {0:d} increasing capacity in period {1:d}, cat bond price: {2:f}, reinsurance premium {3:f}".format(
                     self.id, time, cat_bond_price, reinsurance_price
                 )
             )
@@ -173,7 +174,7 @@ class InsuranceFirm(MetaInsuranceOrg):
 
     def ask_reinsurance_non_proportional(self, time):
         """ Method for requesting excess of loss reinsurance for all underwritten contracts by category.
-            The method calculates the combined valur at risk. With a probability it then creates a combined 
+            The method calculates the combined value at risk. With a probability it then creates a combined
             reinsurance risk that may then be underwritten by a reinsurance firm.
             Arguments: 
                 time: integer
@@ -182,7 +183,9 @@ class InsuranceFirm(MetaInsuranceOrg):
         """
         """Evaluate by risk category"""
         for categ_id in range(self.simulation_no_risk_categories):
-            """Seek reinsurance only with probability 10% if not already reinsured"""  # TODO: find a more generic way to decide whether to request reinsurance for category in this period
+            """Seek reinsurance only with probability 10% if not already reinsured"""
+            # QUERY It doesn't actually have the 10% chance?
+            # TODO: find a more generic way to decide whether to request reinsurance for category in this period
             if self.category_reinsurance[categ_id] is None:
                 self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
@@ -225,19 +228,11 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.simulation.append_reinrisks(risk)
 
     def ask_reinsurance_proportional(self):
-        nonreinsured = []
-        for contract in self.underwritten_contracts:
-            if contract.reincontract == None:
-                nonreinsured.append(contract)
-
-        # nonreinsured_b = [contract
-        #                for contract in self.underwritten_contracts
-        #                if contract.reincontract == None]
-        #
-        # try:
-        #    assert nonreinsured == nonreinsured_b
-        # except:
-        #    pdb.set_trace()
+        nonreinsured = [
+            contract
+            for contract in self.underwritten_contracts
+            if contract.reincontract is None
+        ]
 
         nonreinsured.reverse()
 
@@ -328,7 +323,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                 risk["runtime"],
                 self.default_contract_payment_period,
                 expire_immediately=self.simulation_parameters["expire_immediately"],
-                initial_VaR=var_this_risk,
+                initial_var=var_this_risk,
                 insurancetype=risk["insurancetype"],
             )
             # per_value_reinsurance_premium = 0 because the insurance firm does not continue to make payments to the cat bond. Only once.
@@ -357,7 +352,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             categ_id, claims, is_proportional = contract.get_and_reset_current_claim()
             if is_proportional:
                 claims_this_turn[categ_id] += claims
-            if contract.reincontract != None:
+            if contract.reincontract is not None:
                 contract.reincontract.explode(time, claims)
 
         for categ_id in range(self.simulation_no_risk_categories):

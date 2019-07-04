@@ -12,7 +12,7 @@ class MetaInsuranceContract:
         runtime,
         payment_period,
         expire_immediately,
-        initial_VaR=0.0,
+        initial_var=0.0,
         insurancetype="proportional",
         deductible_fraction=None,
         excess_fraction=None,
@@ -28,7 +28,7 @@ class MetaInsuranceContract:
                     payment_period: Type integer.
                     expire_immediately: Type boolean. True if the contract expires with the first risk event. False
                                        if multiple risk events are covered.
-                    initial_VaR: Type float. Initial value at risk. Used only to compute true and estimated value at risk. 
+                    initial_var: Type float. Initial value at risk. Used only to compute true and estimated value at risk.
                 optional:
                     insurancetype: Type string. The type of this contract, especially "proportional" vs "excess_of_loss"
                     deductible: Type float (or int)
@@ -57,7 +57,7 @@ class MetaInsuranceContract:
         self.expire_immediately = expire_immediately
         self.terminating = False
         self.current_claim = 0
-        self.initial_VaR = initial_VaR
+        self.initial_VaR = initial_var
 
         # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0

@@ -29,7 +29,7 @@ simulation_parameters = {
     "max_time": 1000,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
-    "expire_immediately": False,
+    "expire_immediately": False,  # QUERY: What does this mean?
     "risk_factors_present": False,
     "risk_factor_lower_bound": 0.4,
     "risk_factor_upper_bound": 0.6,

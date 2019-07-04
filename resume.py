@@ -122,9 +122,7 @@ def main():  # TODO: this script should probably be an argument for start.py
             )
             insurancefirms_group += new_insurance_firm
             new_insurancefirm_pointer = new_insurance_firm
-            world.accept_agents(
-                "insurancefirm", new_insurancefirm_pointer, new_insurance_firm, time=t
-            )
+            world.accept_agents("insurancefirm", new_insurancefirm_pointer, time=t)
 
         if world.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
             parameters = [np.random.choice(world.agent_parameters["reinsurancefirm"])]
@@ -137,12 +135,7 @@ def main():  # TODO: this script should probably be an argument for start.py
             )
             reinsurancefirms_group += new_reinsurance_firm
             new_reinsurancefirm_pointer = new_reinsurance_firm
-            world.accept_agents(
-                "reinsurancefirm",
-                new_reinsurancefirm_pointer,
-                new_reinsurance_firm,
-                time=t,
-            )
+            world.accept_agents("reinsurancefirm", new_reinsurancefirm_pointer, time=t)
 
         # iterate simulation
         world.iterate(t)

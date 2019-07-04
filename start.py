@@ -46,7 +46,7 @@ def main(
 
     simulation_parameters[
         "simulation"
-    ] = world = insurancesimulation.InsuranceSimulation(
+    ] = simulation = insurancesimulation.InsuranceSimulation(
         override_no_riskmodels,
         replic_ID,
         simulation_parameters,
@@ -54,46 +54,42 @@ def main(
         rc_event_damage,
     )
 
-    simulation = world
-
     # create agents: insurance firms
     insurancefirms_group = simulation.build_agents(
         insurancefirm.InsuranceFirm,
         "insurancefirm",
         parameters=simulation_parameters,
-        agent_parameters=world.agent_parameters["insurancefirm"],
+        agent_parameters=simulation.agent_parameters["insurancefirm"],
     )
 
-    insurancefirm_pointers = insurancefirms_group
-    world.accept_agents("insurancefirm", insurancefirm_pointers, insurancefirms_group)
+    simulation.accept_agents("insurancefirm", insurancefirms_group)
 
     # create agents: reinsurance firms
     reinsurancefirms_group = simulation.build_agents(
         reinsurancefirm.ReinsuranceFirm,
         "reinsurancefirm",
         parameters=simulation_parameters,
-        agent_parameters=world.agent_parameters["reinsurancefirm"],
+        agent_parameters=simulation.agent_parameters["reinsurancefirm"],
     )
-    # TODO: I suspect that there is no distinction between pointers and group now abce is gone
-    reinsurancefirm_pointers = reinsurancefirms_group
-    world.accept_agents(
-        "reinsurancefirm", reinsurancefirm_pointers, reinsurancefirms_group
-    )
+    simulation.accept_agents("reinsurancefirm", reinsurancefirms_group)
 
     # time iteration
     for t in range(simulation_parameters["max_time"]):
-
-        # create new agents             # TODO: write method for this; this code block is executed almost identically 4 times
-        if world.insurance_firm_enters_market(agent_type="InsuranceFirm"):
+        # create new agents        # TODO: write method for this; this code block is executed almost identically 4 times
+        # In fact this should probably all go in insurancesimulation.py, as part of simulation.iterate(t)
+        if simulation.insurance_firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [
-                np.random.choice(world.agent_parameters["insurancefirm"])
+                np.random.choice(simulation.agent_parameters["insurancefirm"])
             ]  # Which of these should be used?
             parameters = [
-                world.agent_parameters["insurancefirm"][
+                simulation.agent_parameters["insurancefirm"][
                     simulation.insurance_entry_index()
                 ]
             ]
-            parameters[0]["id"] = world.get_unique_insurer_id()
+            # As far as I can tell, there are only {no_riskmodels} distinct values for parameters, why does
+            # simulation.agent_parameters["insurancefirm"] need to have length {no_insurancefirms}?
+            # Also why do the new insurers always use the least popular risk model?
+            parameters[0]["id"] = simulation.get_unique_insurer_id()
             new_insurance_firm = simulation.build_agents(
                 insurancefirm.InsuranceFirm,
                 "insurancefirm",
@@ -101,24 +97,24 @@ def main(
                 agent_parameters=parameters,
             )
             insurancefirms_group += new_insurance_firm
-            new_insurancefirm_pointer = new_insurance_firm
-            world.accept_agents(
-                "insurancefirm", new_insurancefirm_pointer, new_insurance_firm, time=t
-            )
+            simulation.accept_agents("insurancefirm", new_insurance_firm, time=t)
 
-        if world.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
-            parameters = [np.random.choice(world.agent_parameters["reinsurancefirm"])]
-            parameters[0][
-                "initial_cash"
-            ] = (
-                world.reinsurance_capital_entry()
-            )  # Since the value of the reinrisks varies overtime it makes sense that the market entry of reinsures depends on those values. The method world.reinsurance_capital_entry() determines the capital market entry of reinsurers.
+        if simulation.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
             parameters = [
-                world.agent_parameters["reinsurancefirm"][
+                np.random.choice(simulation.agent_parameters["reinsurancefirm"])
+            ]
+            # The reinsurance firms do just pick a random riskmodel when they are created. It is weighted by the initial
+            # distribution, I think # TODO: is this right?
+            parameters[0]["initial_cash"] = simulation.reinsurance_capital_entry()
+            # Since the value of the reinrisks varies overtime it makes sense that the market entry of reinsures
+            # depends on those values. The method world.reinsurance_capital_entry() determines the capital
+            # market entry of reinsurers.
+            parameters = [
+                simulation.agent_parameters["reinsurancefirm"][
                     simulation.reinsurance_entry_index()
                 ]
             ]
-            parameters[0]["id"] = world.get_unique_reinsurer_id()
+            parameters[0]["id"] = simulation.get_unique_reinsurer_id()
             new_reinsurance_firm = simulation.build_agents(
                 reinsurancefirm.ReinsuranceFirm,
                 "reinsurancefirm",
@@ -126,19 +122,13 @@ def main(
                 agent_parameters=parameters,
             )
             reinsurancefirms_group += new_reinsurance_firm
-            new_reinsurancefirm_pointer = new_reinsurance_firm
-            world.accept_agents(
-                "reinsurancefirm",
-                new_reinsurancefirm_pointer,
-                new_reinsurance_firm,
-                time=t,
-            )
+            simulation.accept_agents("reinsurancefirm", new_reinsurance_firm, time=t)
 
         # iterate simulation
-        world.iterate(t)
+        simulation.iterate(t)
 
         # log data
-        world.save_data()
+        simulation.save_data()
 
         if t % 50 == save_iter:
             save_simulation(t, simulation, simulation_parameters, exit_now=False)
