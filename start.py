@@ -61,10 +61,10 @@ def main(simulation_parameters, rc_event_schedule, rc_event_damage, np_seed, ran
     world.accept_agents("insurancefirm", insurancefirm_pointers, insurancefirms_group)
 
     """create agents: reinsurance firms according to number in isleconfig.py, adds them all to simulation instance"""
-    reinsurancefirms_group = simulation.build_agents(ReinsuranceFirm, 'reinsurance', parameters=simulation_parameters,
-                                               agent_parameters=world.agent_parameters["reinsurance"])
+    reinsurancefirms_group = simulation.build_agents(ReinsuranceFirm, 'reinsurancefirm', parameters=simulation_parameters,
+                                               agent_parameters=world.agent_parameters["reinsurancefirm"])
     reinsurancefirm_pointers = reinsurancefirms_group
-    world.accept_agents("reinsurance", reinsurancefirm_pointers, reinsurancefirms_group)
+    world.accept_agents("reinsurancefirm", reinsurancefirm_pointers, reinsurancefirms_group)
     
     """Time iteration"""
     for t in range(simulation_parameters["max_time"]):
@@ -73,24 +73,20 @@ def main(simulation_parameters, rc_event_schedule, rc_event_damage, np_seed, ran
         if world.insurance_firm_market_entry(agent_type="InsuranceFirm"):
             parameters = [world.agent_parameters["insurancefirm"][simulation.insurance_entry_index()]]
             parameters[0]["id"] = world.get_unique_insurer_id()
-            new_insurance_firm = simulation.build_agents(InsuranceFirm,
-                                             'insurancefirm',
-                                             parameters=simulation_parameters,
+            new_insurance_firm = simulation.build_agents(InsuranceFirm, 'insurancefirm', parameters=simulation_parameters,
                                              agent_parameters=parameters)
             insurancefirms_group += new_insurance_firm
             new_insurancefirm_pointer = new_insurance_firm
             world.accept_agents("insurancefirm", new_insurancefirm_pointer, new_insurance_firm, time=t)
         
         if world.insurance_firm_market_entry(agent_type="ReinsuranceFirm"):
-            parameters = [world.agent_parameters["reinsurance"][simulation.reinsurance_entry_index()]]
+            parameters = [world.agent_parameters["reinsurancefirm"][simulation.reinsurance_entry_index()]]
             parameters[0]["id"] = world.get_unique_reinsurer_id()
-            new_reinsurance_firm = simulation.build_agents(ReinsuranceFirm,
-                                             'reinsurance',
-                                             parameters=simulation_parameters,
+            new_reinsurance_firm = simulation.build_agents(ReinsuranceFirm, 'reinsurancefirm', parameters=simulation_parameters,
                                              agent_parameters=parameters)
             reinsurancefirms_group += new_reinsurance_firm
             new_reinsurancefirm_pointer = new_reinsurance_firm
-            world.accept_agents("reinsurance", new_reinsurancefirm_pointer, new_reinsurance_firm, time=t)
+            world.accept_agents("reinsurancefirm", new_reinsurancefirm_pointer, new_reinsurance_firm, time=t)
         
         "iterate simulation"
         world.iterate(t)

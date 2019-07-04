@@ -9,6 +9,7 @@ from riskmodel import RiskModel
 import sys, pdb
 import uuid
 
+
 class CatBond(MetaInsuranceOrg):
     def init(self, simulation, per_period_premium, owner, interest_rate = 0):   # do we need simulation parameters
         self.simulation = simulation

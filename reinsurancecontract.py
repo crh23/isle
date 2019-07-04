@@ -23,7 +23,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         
     def explode(self, time, damage_extent=None):
         """Explode method.
-               Accepts agruments
+               Accepts arguments
                    time: Type integer. The current time.
                    uniform_value: Not used
                    damage_extent: Type float. The absolute damage in excess-of-loss reinsurance (not relative as in 
@@ -50,7 +50,7 @@ class ReinsuranceContract(MetaInsuranceContract):
     def mature(self, time):
         """Mature method. 
                Accepts arguments
-                    time: Tyoe integer. The current time.
+                    time: Type integer. The current time.
                No return value.
            Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this 
            contract."""

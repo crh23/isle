@@ -4,6 +4,7 @@ import numpy as np
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
 
+
 class InsuranceFirm(MetaInsuranceOrg):
     """ReinsuranceFirm class.
        Inherits from InsuranceFirm."""
@@ -58,13 +59,13 @@ class InsuranceFirm(MetaInsuranceOrg):
         cat_bond_price = self.simulation.get_cat_bond_price(self.np_reinsurance_deductible_fraction)
         capacity = None
         if not reinsurance_price == cat_bond_price == float('inf'):
-            categ_ids = [ categ_id for categ_id in range(self.simulation_no_risk_categories) if (self.category_reinsurance[categ_id] is None)]
+            categ_ids = [categ_id for categ_id in range(self.simulation_no_risk_categories) if (self.category_reinsurance[categ_id] is None)]
             if len(categ_ids) > 1:
                 np.random.shuffle(categ_ids)
             while len(categ_ids) >= 1:       
                 categ_id = categ_ids.pop()
                 capacity = self.get_capacity(max_var)
-                if self.capacity_target < capacity: # just one per iteration, unless capital target is unmatched
+                if self.capacity_target < capacity:  # just one per iteration, unless capital target is unmatched
                     if self.increase_capacity_by_category(time, categ_id, reinsurance_price=reinsurance_price, cat_bond_price=cat_bond_price, force=False):
                         categ_ids = []
                 else:
@@ -143,7 +144,6 @@ class InsuranceFirm(MetaInsuranceOrg):
             avg_risk_factor /= number_risks
         return total_value, avg_risk_factor, number_risks, periodized_total_premium
 
-
     def ask_reinsurance_non_proportional_by_category(self, time, categ_id):
         """Proceed with creation of reinsurance risk only if category is not empty."""
         total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(time, categ_id)
@@ -164,15 +164,6 @@ class InsuranceFirm(MetaInsuranceOrg):
             if contract.reincontract == None:
                 nonreinsured.append(contract)
 
-        #nonreinsured_b = [contract
-        #                for contract in self.underwritten_contracts
-        #                if contract.reincontract == None]
-        #
-        #try:
-        #    assert nonreinsured == nonreinsured_b
-        #except:
-        #    pdb.set_trace()
-
         nonreinsured.reverse()
 
         if len(nonreinsured) >= (1 - self.reinsurance_limit) * len(self.underwritten_contracts):
@@ -186,7 +177,6 @@ class InsuranceFirm(MetaInsuranceOrg):
                             "expiration": contract.expiration, "contract": contract,
                             "risk_factor": contract.risk_factor}
 
-                    #print("CREATING", risk["expiration"], contract.expiration, risk["contract"].expiration, risk["identifier"])
                     self.simulation.append_reinrisks(risk)
                     counter += 1
                 else:
@@ -195,12 +185,10 @@ class InsuranceFirm(MetaInsuranceOrg):
     def add_reinsurance(self, category, excess_fraction, deductible_fraction, contract):
         self.riskmodel.add_reinsurance(category, excess_fraction, deductible_fraction, contract)
         self.category_reinsurance[category] = contract
-        #pass
 
     def delete_reinsurance(self, category, excess_fraction, deductible_fraction, contract):
         self.riskmodel.delete_reinsurance(category, excess_fraction, deductible_fraction, contract)
         self.category_reinsurance[category] = None
-        #pass
     
     def issue_cat_bond(self, time, categ_id, per_value_per_period_premium = 0):
         # premium is for usual reinsurance contracts paid using per value market premium
@@ -219,7 +207,6 @@ class InsuranceFirm(MetaInsuranceOrg):
             _, _, var_this_risk, _ = self.riskmodel.evaluate([], self.cash, risk)
             per_period_premium = per_value_per_period_premium * risk["value"]
             total_premium = sum([per_period_premium * ((1/(1+self.interest_rate))**i) for i in range(risk["runtime"])])                # TODO: or is it range(1, risk["runtime"]+1)?
-            #catbond = CatBond(self.simulation, per_period_premium)
             catbond = CatBond(self.simulation, per_period_premium, self.interest_rate)  # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like self.interest_rate from instance to instance and from class to class
 
             """add contract; contract is a quasi-reinsurance contract"""

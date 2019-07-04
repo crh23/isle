@@ -17,6 +17,13 @@ if isleconfig.show_network:
 
 class InsuranceSimulation():
     def __init__(self, override_no_riskmodels, replic_ID, simulation_parameters, rc_event_schedule, rc_event_damage):
+        """Initialises the simulation (Called from start.py)
+            Accepts:
+                override_no_riskmodels: Boolean determining if number of risk models should be overwritten
+                replic_ID: Integer, used if want to replicate data over multiple runs
+                simulation parameters: DataDict from isleconfig
+                rc_event_schedule: List of when event will occur, allows for replication
+                re_event_damage: List of severity of each event, allows for replication"""
 
         "Override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)"
         if override_no_riskmodels:
@@ -37,11 +44,12 @@ class InsuranceSimulation():
         self.total_no_risks = simulation_parameters["no_risks"]
         self.risk_factor_lower_bound = simulation_parameters["risk_factor_lower_bound"]
         self.cat_separation_distribution = scipy.stats.expon(0, simulation_parameters["event_time_mean_separation"])
+
         self.risk_factor_spread = simulation_parameters["risk_factor_upper_bound"] - simulation_parameters["risk_factor_lower_bound"]
         self.risk_factor_distribution = scipy.stats.uniform(loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread)
         if not simulation_parameters["risk_factors_present"]:
             self.risk_factor_distribution = scipy.stats.uniform(loc=1.0, scale=0)
-        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)
+        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)       #TODO is this correct?
         risk_factor_mean = self.risk_factor_distribution.mean()
         if np.isnan(risk_factor_mean):     # unfortunately scipy.stats.mean is not well-defined if scale = 0
             risk_factor_mean = self.risk_factor_distribution.rvs()
@@ -93,7 +101,7 @@ class InsuranceSimulation():
         for item in self.risks:
             self.risks_counter[item["category"]] = self.risks_counter[item["category"]] + 1
 
-        self.inaccuracy = self.get_all_riskmodel_combinations(self.simulation_parameters["no_categories"], self.simulation_parameters["riskmodel_inaccuracy_parameter"])
+        self.inaccuracy = self.get_all_riskmodel_combinations(self.simulation_parameters["riskmodel_inaccuracy_parameter"])
 
         self.inaccuracy = random.sample(self.inaccuracy, self.simulation_parameters["no_riskmodels"])
 
@@ -110,7 +118,7 @@ class InsuranceSimulation():
                                       "inaccuracy_by_categ": self.inaccuracy[i]} \
                                       for i in range(self.simulation_parameters["no_riskmodels"])]
         
-        "Prepare setting up agents (to be done from start.py)"
+        "Setting up agents (to be done from start.py)"
         self.agent_parameters = {"insurancefirm": [], "reinsurancefirm": []}
         self.initialize_agent_parameters("insurancefirm", simulation_parameters, risk_model_configurations)
         self.initialize_agent_parameters("reinsurancefirm", simulation_parameters, risk_model_configurations)
@@ -143,7 +151,10 @@ class InsuranceSimulation():
         self.reinsurance_models_counter = np.zeros(self.simulation_parameters["no_categories"])
 
     def initialize_agent_parameters(self, firmtype, simulation_parameters, risk_model_configurations):
-        """General function for initialising the agent parameters"""
+        """General function for initialising the agent parameters
+            Takes the firm type as argument, also needing sim params and risk configs
+              Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
+                Returns None"""
         if firmtype == "insurancefirm":
             self.insurer_id_counter = 0
             no_firms = simulation_parameters["no_insurancefirms"]
@@ -179,13 +190,30 @@ class InsuranceSimulation():
                 'interest_rate': simulation_parameters["interest_rate"]})
 
     def build_agents(self, agent_class, agent_class_string, parameters, agent_parameters):
-        # assert agent_parameters == self.agent_parameters[agent_class_string]       #assert fits only the initial creation of agents, not later additions   # TODO: fix
+        """Method for building new agents, only used for re/insurance firms. Loops through the agent parameters for each
+            initialised agent to create an instance of them using re/insurancefirm.
+            Accepts:
+                Agent_class: class of agent, either InsuranceFirm or ReinsuranceFirm.
+                agent_class_string: String Type containing string of agent class. Not used.
+                parameters: DataDict, contains config parameters.
+                agent_parameters: DataDict of agent parameters.
+            Returns:
+                agents: List Type, list of agent class instances created by loop"""
         agents = []
         for ap in agent_parameters:
             agents.append(agent_class(parameters, ap))
         return agents
         
     def accept_agents(self, agent_class_string, agents, agent_group=None, time=0):
+        """Method to 'accept' agents in that it adds agent to relevant list of agents kept by simulation
+            instance, also adds agent to logger. Also takes created agents initial cash out of economy.
+            Accepts:
+                agent_class_string: String Type.
+                agents: List type of agent class instances.
+                agent_group: List type of agent class instances.
+                time: Integer type, not used
+            Returns:
+                None"""
         # TODO: fix agent id's for late entrants (both firms and catbonds)
         if agent_class_string == "insurancefirm":
             try:
@@ -220,6 +248,9 @@ class InsuranceSimulation():
             assert False, "Error: Unexpected agent class used {0:s}".format(agent_class_string)
 
     def delete_agents(self, agent_class_string, agents):
+        """Method for deleting catbonds as it is only agent that is allowed to be removed
+            alters lists of catbonds
+              Returns none"""
         if agent_class_string == "catbond":
             for agent in agents:
                 self.catbonds.remove(agent)
@@ -227,7 +258,12 @@ class InsuranceSimulation():
             assert False, "Trying to remove unremovable agent, type: {0:s}".format(agent_class_string)
     
     def iterate(self, t):
-
+        """Function that is called from start.py for each iteration that settles obligations, capital then reselects
+            risks for the insurance and reinsurance companies to evaluate. Firms are then iterated through to accept
+              new risks, pay obligations, increase capacity etc.
+           Accepts:
+                t: Integer, current time step
+           Returns None"""
         if isleconfig.verbose:
             print()
             print(t, ": ", len(self.risks))
@@ -236,16 +272,16 @@ class InsuranceSimulation():
 
         self.reset_pls()
 
-        # adjust market premiums
-        sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])      # TODO: include reinsurancefirms
+        # Adjust market premiums
+        sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
         self.adjust_market_premium(capital=sum_capital)
-        sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])  # TODO: include reinsurancefirms
+        sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
         self.adjust_reinsurance_market_premium(capital=sum_capital)
 
-        # pay obligations
+        # Pay obligations
         self.effect_payments(t)
         
-        # identify perils and effect claims
+        # Identify perils and effect claims
         for categ_id in range(len(self.rc_event_schedule)):
             try:
                 if len(self.rc_event_schedule[categ_id]) > 0:
@@ -261,26 +297,26 @@ class InsuranceSimulation():
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
         
-        # shuffle risks (insurance and reinsurance risks)
+        # Shuffle risks (insurance and reinsurance risks)
         self.shuffle_risks()
 
-        # reset reinweights
+        # Reset reinweights
         self.reset_reinsurance_weights()
                     
-        # iterate reinsurnace firm agents
+        # Iterate reinsurnace firm agents
         for reinagent in self.reinsurancefirms:
             reinagent.iterate(t)
 
         self.reinrisks = []
 
-        # reset weights
+        # Reset weights
         self.reset_insurance_weights()
                     
-        # iterate insurance firm agents
+        # Iterate insurance firm agents
         for agent in self.insurancefirms:
             agent.iterate(t)
         
-        # iterate catbonds 
+        # Iterate catbonds
         for agent in self.catbonds:
             agent.iterate(t)
 
@@ -361,7 +397,9 @@ class InsuranceSimulation():
         """ call to Logger object """
         self.logger.record_data(current_log)
         
-    def obtain_log(self, requested_logs=None):   #This function allows to return in a list all the data generated by the model. There is no other way to transfer it back from the cloud.
+    def obtain_log(self, requested_logs=None):
+        """This function allows to return in a list all the data generated by the model. There is no other way to
+            transfer it back from the cloud."""
         return self.logger.obtain_log(requested_logs)
     
     def finalize(self, *args):
@@ -374,6 +412,13 @@ class InsuranceSimulation():
         pass
 
     def inflict_peril(self, categ_id, damage, t):
+        """Method that calculates percentage damage done to each underwritten risk that is affected in the category
+            that event happened in. Passes values to allow calculation contracts to be resolved.
+            Arguments:
+                ID of category events took place
+                Given severity of damage from pareto distribution
+                Time iteration
+            No return value"""
         affected_contracts = [contract for insurer in self.insurancefirms for contract in insurer.underwritten_contracts if contract.category == categ_id]
         if isleconfig.verbose:
             print("**** PERIL ", damage)
@@ -382,18 +427,34 @@ class InsuranceSimulation():
         [contract.explode(t, uniformvalues[i], damagevalues[i]) for i, contract in enumerate(affected_contracts)]
     
     def receive_obligation(self, amount, recipient, due_time, purpose):
+        """Method for adding obligation to list that is resolved at the start if each iteration of simulation. Only
+            called by metainsuranceorg for adding interest to cash.
+            Arguments
+                Amount: obligation value
+                Recipient: Who obligation is owed to
+                Due Time
+                Purpose: Reason for obligation (Interest due)
+            Returns None"""
+
         obligation = {"amount": amount, "recipient": recipient, "due_time": due_time, "purpose": purpose}
         self.obligations.append(obligation)
 
     def effect_payments(self, time):
+        """Method for checking and paying obligation if due.
+            Arguments
+                Current time to allow check if due
+            Returns None"""
         due = [item for item in self.obligations if item["due_time"]<=time]
-        #print("SIMULATION obligations: ", len(self.obligations), " of which are due: ", len(due))
         self.obligations = [item for item in self.obligations if item["due_time"]>time]
         sum_due = sum([item["amount"] for item in due])
         for obligation in due:
             self.pay(obligation)
 
     def pay(self, obligation):
+        """Method for paying obligations called from effect_payments
+            Accepts:
+                Obligation that must be payed
+            Returns None"""
         amount = obligation["amount"]
         recipient = obligation["recipient"]
         purpose = obligation["purpose"]
@@ -406,16 +467,19 @@ class InsuranceSimulation():
             recipient.receive(amount)
 
     def receive(self, amount):
-        """Method to accept cash payments."""
+        """Method to accept cash payments.
+            Accepts: Amount due"""
         self.money_supply += amount
 
     def reduce_money_supply(self, amount):
-        """Method to reduce money supply immediately and without payment recipient (used to adjust money supply to compensate for agent endowment)."""
+        """Method to reduce money supply immediately and without payment recipient
+            (used to adjust money supply to compensate for agent endowment)."""
         self.money_supply -= amount
         assert self.money_supply >= 0
 
     def reset_reinsurance_weights(self):
-
+        """Method for clearing and setting reinsurance weights dependant on how many reinsurance companies exist and
+            how many offered reinsurance risks there are."""
         self.not_accepted_reinrisks = []
 
         operational_reinfirms = [reinsurancefirm for reinsurancefirm in self.reinsurancefirms if reinsurancefirm.operational]
@@ -443,7 +507,9 @@ class InsuranceSimulation():
             self.not_accepted_reinrisks = self.reinrisks
 
     def reset_insurance_weights(self):
-
+        """Method for clearing and setting insurance weights dependant on how many insurance companies exist and
+            how many insurance risks are offered. This determined which risks are sent to metainsuranceorg
+            iteration."""
         operational_no = sum([insurancefirm.operational for insurancefirm in self.insurancefirms])
 
         operational_firms = [insurancefirm for insurancefirm in self.insurancefirms if insurancefirm.operational]
@@ -467,6 +533,7 @@ class InsuranceSimulation():
                     self.insurers_weights[operational_firms[s].id] += 1
 
     def shuffle_risks(self):
+        """Method for shuffling risks."""
         np.random.shuffle(self.reinrisks)
         np.random.shuffle(self.risks)
 
@@ -513,6 +580,10 @@ class InsuranceSimulation():
         return self.reinsurance_market_premium
 
     def get_reinsurance_premium(self, np_reinsurance_deductible_fraction):
+        """Method to determine reinsurance premium based on deductible fraction
+            Accepts:
+                np_reinsurance_deductible_fraction: Type Integer
+            Returns reinsurance premium (Type: Integer)"""
         # TODO: cut this out of the insurance market premium -> OBSOLETE??
         # TODO: make premiums dependend on the deductible per value (np_reinsurance_deductible_fraction) -> DONE.
         # TODO: make max_reduction into simulation_parameter ?
@@ -531,19 +602,30 @@ class InsuranceSimulation():
         return self.reinsurance_market_premium * (1. + max_CB_surcharge - max_reduction * np_reinsurance_deductible_fraction)
         
     def append_reinrisks(self, item):
-        if(len(item) > 0):
+        """Method for appending reinrisks to simulation instance. Called from insurancefirm
+            Accepts: item (Type: List)"""
+        if len(item) > 0:
             self.reinrisks.append(item)
 
     def remove_reinrisks(self,risko):
-        if(risko != None):
+        """Method for removing reinsurance risks from the simulation instance. Redundant?"""
+        if risko != None:
             self.reinrisks.remove(risko)
 
     def get_reinrisks(self):
+        """Method for shuffling reinsurance risks
+            Returns: reinsurance risks"""
         np.random.shuffle(self.reinrisks)
         return self.reinrisks
 
     def solicit_insurance_requests(self, id, cash, insurer):
-
+        """Method for determining which risks are to be assessed by firms based on insurer weights
+            Accepts:
+                id: Type integer
+                cash: Type Integer
+                insurer: Type firm metainsuranceorg instance
+            Returns:
+                risks_to_be_sent: Type List"""
         risks_to_be_sent = self.risks[:int(self.insurers_weights[insurer.id])]
         self.risks = self.risks[int(self.insurers_weights[insurer.id]):]
         for risk in insurer.risks_kept:
@@ -556,6 +638,13 @@ class InsuranceSimulation():
         return risks_to_be_sent
 
     def solicit_reinsurance_requests(self, id, cash, reinsurer):
+        """Method for determining which reinsurance risks are to be assessed by firms based on reinsurer weights
+                    Accepts:
+                        id: Type integer
+                        cash: Type Integer
+                        reinsurer: Type firm metainsuranceorg instance
+                    Returns:
+                        reinrisks_to_be_sent: Type List"""
         reinrisks_to_be_sent = self.reinrisks[:int(self.reinsurers_weights[reinsurer.id])]
         self.reinrisks = self.reinrisks[int(self.reinsurers_weights[reinsurer.id]):]
 
@@ -569,12 +658,28 @@ class InsuranceSimulation():
         return reinrisks_to_be_sent
 
     def return_risks(self, not_accepted_risks):
+        """Method for adding risks that were not deemed acceptable to underwrite back to list of uninsured risks
+            Accepts:
+                not_accepted_risks: Type List
+            Returns None"""
         self.risks += not_accepted_risks
 
     def return_reinrisks(self, not_accepted_risks):
+        """Method for adding reinsuracne risks that were not deemed acceptable to list of unaccepted reinsurance risks
+            Cleared every round and is never called so redundant?
+                    Accepts:
+                        not_accepted_risks: Type List
+                    Returns None"""
+        # TODO:Remove?
         self.not_accepted_reinrisks += not_accepted_risks
 
-    def get_all_riskmodel_combinations(self, n, rm_factor):
+    def get_all_riskmodel_combinations(self, rm_factor):
+        """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
+            used purely to assign inaccuracy. Currently all equal and overwritten immediately.
+            Accepts:
+                rm_factor: Type Integer = risk model inaccuracy parameter
+            Returns:
+                riskmodels: Type list"""
         riskmodels = []
         for i in range(self.simulation_parameters["no_categories"]):
             riskmodel_combination = rm_factor * np.ones(self.simulation_parameters["no_categories"])
@@ -583,11 +688,15 @@ class InsuranceSimulation():
         return riskmodels
 
     def setup_risk_categories(self):
+        """Method for generating the schedule of events and the percentage damage/severity caused by the event.
+            Only called if risk categories have not already been set as want to keep equal to allow for comparison.
+                Both must also be calculated at the same time to allow for replication.
+                    Event schedule and damage based on distributions set in __init__."""
         for i in self.riskcategories:
             event_schedule = []
             event_damage = []
             total = 0
-            while (total < self.simulation_parameters["max_time"]):
+            while total < self.simulation_parameters["max_time"]:
                 separation_time = self.cat_separation_distribution.rvs()
                 total += int(math.ceil(separation_time))
                 if total < self.simulation_parameters["max_time"]:
@@ -600,7 +709,8 @@ class InsuranceSimulation():
         self.rc_event_damage_initial = copy.copy(self.rc_event_damage)     #and damages that will be use in a single run of the model.
 
     def setup_risk_categories_caller(self):
-        #if self.background_run:
+        """Method for calling setup_risk_categories. If conditions are set such that the system is replicating it is
+            not called otherwise calls setup."""
         if self.replic_ID is not None:
             if isleconfig.replicating:
                 self.restore_state_and_risk_categories()
@@ -611,22 +721,22 @@ class InsuranceSimulation():
             self.setup_risk_categories()
 
     def save_state_and_risk_categories(self):
-        # save numpy Mersenne Twister state
+        """Method to save numpy Mersenne Twister state and event schedule to allow for replication and continuation."""
         mersennetwoster_randomseed = str(np.random.get_state())
         mersennetwoster_randomseed = mersennetwoster_randomseed.replace("\n","").replace("array", "np.array").replace("uint32", "np.uint32")
         wfile = open("data/replication_randomseed.dat","a")
         wfile.write(mersennetwoster_randomseed+"\n")
         wfile.close()
-        # save event schedule
+
         wfile = open("data/replication_rc_event_schedule.dat","a")
         wfile.write(str(self.rc_event_schedule)+"\n")
         wfile.close()
         
     def restore_state_and_risk_categories(self):
+        """Method to access saved event schedule, seed, and Mersenne twister state to allow for continuation."""
         rfile = open("data/replication_rc_event_schedule.dat","r")
         found = False
         for i, line in enumerate(rfile):
-            #print(i, self.replic_ID)
             if i == self.replic_ID:
                 self.rc_event_schedule = eval(line)
                 found = True
@@ -644,6 +754,8 @@ class InsuranceSimulation():
         assert found, "mersennetwister randomseed for current replication ID number {0:d} not found in data file. Exiting.".format(self.replic_ID)
 
     def insurance_firm_market_entry(self, prob=-1, agent_type="InsuranceFirm"):             # TODO: replace method name with a more descriptive one
+        """Method to determine if re/insurance firm enters the market based on set entry probabilities and a random
+            integer generated between 0, 1."""
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters["insurance_firm_market_entry_probability"]
@@ -673,16 +785,27 @@ class InsuranceSimulation():
         self.cumulative_market_exits += 1
 
     def record_unrecovered_claims(self, loss):
+        """Method for recording unrecovered claims. If firm runs out of money it cannot pay more claims and so that
+            money is lost and recorded using this method.
+            Accepts:
+                loss: Type integer, value of lost claim
+            Returns:
+                None"""
         self.cumulative_unrecovered_claims += loss
 
-    def record_claims(self, claims):   #This method records every claim made to insurers and reinsurers. It is called from both insurers and reinsurers (metainsuranceorg.py).
+    def record_claims(self, claims):
+        """This method records every claim made to insurers and reinsurers. It is called from both insurers and
+            reinsurers (metainsuranceorg.py)."""
         self.cumulative_claims += claims
     
     def log(self):
+        """Method to log if a background run or not dependant on parameters force_foreground and if the run is
+            replicating or not."""
         self.logger.save_log(self.background_run)
         
     def compute_market_diffvar(self):
-
+        """Method for calculating difference between number of all firms and the total value at risk. Used only in save
+            data when adding to the logger data dict."""
         varsfirms = []
         for firm in self.insurancefirms:
             if firm.operational:
@@ -713,6 +836,7 @@ class InsuranceSimulation():
         #self.history_logs['market_diffvar'].append(totaldiff)
 
     def count_underwritten_and_reinsured_risks_by_category(self):
+        """Not Used - Should be removed?"""
         underwritten_risks = 0
         reinsured_risks = 0
         underwritten_per_category = np.zeros(self.simulation_parameters["no_categories"])
@@ -728,25 +852,44 @@ class InsuranceSimulation():
                     reinsured_per_category += firm.counter_category
 
     def get_unique_insurer_id(self):
+        """Method for getting unique id for insurer. Used in initialising agents in start.py and insurancesimulation.
+            Iterates after each call so id is unique to each firm.
+           Returns:
+                current_id: Type integer"""
         current_id = self.insurer_id_counter
         self.insurer_id_counter += 1
         return current_id
 
     def get_unique_reinsurer_id(self):
+        """Method for getting unique id for insurer. Used in initialising agents in start.py and insurancesimulation.
+            Iterates after each call so id is unique to each firm.
+           Returns:
+                current_id: Type integer"""
         current_id = self.reinsurer_id_counter
         self.reinsurer_id_counter += 1
         return current_id
 
     def insurance_entry_index(self):
+        """Method that returns the entry index for insurance firms, i.e. the index for the initial agent parameters
+            that is taken from the list of already created parameters.
+        Returns:
+            Indices of the type of riskmodel that the least firms are using."""
         return self.insurance_models_counter[0:self.simulation_parameters["no_riskmodels"]].argmin()
 
     def reinsurance_entry_index(self):
+        """Method that returns the entry index for reinsurance firms, i.e. the index for the initial agent parameters
+            that is taken from the list of already created parameters.
+        Returns:
+            Indices of the type of riskmodel that the least reinsurance firms are using."""
         return self.reinsurance_models_counter[0:self.simulation_parameters["no_riskmodels"]].argmin()
 
     def get_operational(self):
+        """Method to return if simulation is operational. Always true. Used only in pay methods above and
+            metainsuranceorg."""
         return True
 
-    def reinsurance_capital_entry(self):     # This method determines the capital market entry of reinsurers. It is only run in start.py.
+    def reinsurance_capital_entry(self):
+        """This method determines the capital market entry of reinsurers. It is not run anywhere."""
         capital_per_non_re_cat = []
 
         for reinrisk in self.not_accepted_reinrisks:

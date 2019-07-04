@@ -3,6 +3,7 @@ import numpy as np
 from math import ceil
 import scipy.integrate
 
+
 class TruncatedDistWrapper():
     def __init__(self, dist, lower_bound=0, upper_bound=1):
         self.dist = dist

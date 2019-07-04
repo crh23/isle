@@ -20,12 +20,11 @@ class RiskModel():
         self.init_average_risk_factor = init_average_risk_factor
         self.init_profit_estimate = init_profit_estimate
         self.margin_of_safety = margin_of_safety
-        """damage_distribution is some scipy frozen rv distribution wich is bound between 0 and 1 and indicates 
+        """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
         self.damage_distribution = [damage_distribution for _ in range(self.category_number)] # TODO: separate that category wise? -> DONE.
         self.damage_distribution_stack = [[] for _ in range(self.category_number)] 
-        self.reinsurance_contract_stack = [[] for _ in range(self.category_number)] 
-        #self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number) 
+        self.reinsurance_contract_stack = [[] for _ in range(self.category_number)]
         self.inaccuracy = inaccuracy
     
     def getPPF(self, categ_id, tailSize):
@@ -102,7 +101,7 @@ class RiskModel():
             #categ_risks = [risk for risk in risks if risk["category"]==categ_id]
             
             if len(categ_risks) > 0:
-                average_risk_factor, average_exposure, incr_expected_profits =  self.compute_expectation(categ_risks=categ_risks, categ_id=categ_id)
+                average_risk_factor, average_exposure, incr_expected_profits = self.compute_expectation(categ_risks=categ_risks, categ_id=categ_id)
             else:
                 average_risk_factor = self.init_average_risk_factor
                 average_exposure = self.init_average_exposure
@@ -219,6 +218,7 @@ class RiskModel():
         # sort current contracts
         el_risks = [risk for risk in risks if risk["insurancetype"] == 'excess-of-loss']
         risks = [risk for risk in risks if risk["insurancetype"] == 'proportional']
+
         # compute liquidity requirements and acceptable risks from existing contract
         if (offered_risk is not None) or (len(el_risks) > 0):
             cash_left_by_categ, additional_required, var_this_risk = self.evaluate_excess_of_loss(el_risks, cash_left_by_categ, offered_risk)
@@ -246,4 +246,4 @@ class RiskModel():
         assert self.reinsurance_contract_stack[categ_id][-1] == contract
         self.reinsurance_contract_stack[categ_id].pop()
         self.damage_distribution[categ_id] = self.damage_distribution_stack[categ_id].pop()
-                
+

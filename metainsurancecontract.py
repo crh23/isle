@@ -79,8 +79,6 @@ class MetaInsuranceContract():
         # This flag is set to 1, when the contract is about to expire and there is an attempt to roll it over.
         self.roll_over_flag = 0
 
-
-
     def check_payment_due(self, time):
         if len(self.payment_times) > 0 and time >= self.payment_times[0]:
             # Create obligation for premium payment
@@ -96,7 +94,6 @@ class MetaInsuranceContract():
         self.current_claim = 0
         return self.category, current_claim, (self.insurancetype == "proportional")
 
-    
     def terminate_reinsurance(self, time):
         """Terminate reinsurance method.
                Accepts arguments

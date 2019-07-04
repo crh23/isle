@@ -22,6 +22,7 @@ import os
 import isleconfig
 from distributiontruncated import TruncatedDistWrapper
 
+
 class SetupSim():
 
     def __init__(self):
@@ -73,12 +74,11 @@ class SetupSim():
     def seeds(self, replications):   #This method returns the seeds required for an ensemble of replications of the model. The argument (replications) is the number of replications.
         """draw random variates for random seeds"""
         for i in range(replications):
-            np_seed, random_seed = scipy.stats.randint.rvs(0, 2**32 - 1, size=2)
+            np_seed, random_seed = scipy.stats.randint.rvs(0, 2**16 - 1, size=2)
             self.np_seed.append(np_seed)
             self.random_seed.append(random_seed)
 
         return self.np_seed, self.random_seed
-
 
     def store(self, replications):   #This method stores in a file the the schedules and random seeds required for an ensemble of replications of the model. The argument (replications) is the number of replications.
                                      #With the information stored it is possible to replicate the entire behavior of the ensemble at a later time.
@@ -108,7 +108,6 @@ class SetupSim():
             for rep_schedule in event_schedules:
                 wfile.write(str(rep_schedule).replace("\n","").replace("array", "np.array").replace("uint32", "np.uint32") + "\n")
 
-
     def obtain_ensemble(self, replications):  #This method returns all the information (schedules and seeds) required to run an ensemble of simulations of the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a later time. The argument (replications) is the number of replications.
                                               #This method will be called either form ensemble.py or start.py
         [general_rc_event_schedule, general_rc_event_damage] = self.schedule(replications)
@@ -119,8 +118,3 @@ class SetupSim():
 
         return general_rc_event_schedule, general_rc_event_damage, np_seeds, random_seeds
 
-
-
-
-
-    
