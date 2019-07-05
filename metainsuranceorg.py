@@ -361,12 +361,6 @@ class MetaInsuranceOrg(GenericAgent):
             else:
                 self.var_counter_per_risk = 0
 
-    def adjust_dividend(self, time):
-        assert False, "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
-        
-    def adjust_capacity_target(self, time):
-        assert False, "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
-
     def risks_reinrisks_organizer(self, new_risks):  #
         """This method organizes the new risks received by the insurer (or reinsurer)"""
 
@@ -549,7 +543,7 @@ class MetaInsuranceOrg(GenericAgent):
            Reset the profits and losses variable of each firm at the beginning of every iteration. It has to be run in insurancesimulation.py at the beginning of the iterate method"""
         self.profits_losses = 0
 
-    def roll_over(self,time):
+    def roll_over(self, time):
         """Roll_over Method.
                Accepts arguments
                    time: Type integer. The current time.               No return value.

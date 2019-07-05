@@ -453,7 +453,7 @@ class InsuranceSimulation():
     def pay(self, obligation):
         """Method for paying obligations called from effect_payments
             Accepts:
-                Obligation that must be payed
+                Obligation: Type DataDict with categories amount, recipient, due time, purpose.
             Returns None"""
         amount = obligation["amount"]
         recipient = obligation["recipient"]
@@ -467,13 +467,17 @@ class InsuranceSimulation():
             recipient.receive(amount)
 
     def receive(self, amount):
-        """Method to accept cash payments.
-            Accepts: Amount due"""
+        """Method to accept cash payments. As insurance simulation cash is economy, adds money to total economy.
+            Accepts:
+                Amount due: Type Integer
+            Returns None"""
         self.money_supply += amount
 
     def reduce_money_supply(self, amount):
         """Method to reduce money supply immediately and without payment recipient
-            (used to adjust money supply to compensate for agent endowment)."""
+            (used to adjust money supply to compensate for agent endowment).
+            Accepts:
+                amount: Type Integer"""
         self.money_supply -= amount
         assert self.money_supply >= 0
 
@@ -607,11 +611,6 @@ class InsuranceSimulation():
         if len(item) > 0:
             self.reinrisks.append(item)
 
-    def remove_reinrisks(self,risko):
-        """Method for removing reinsurance risks from the simulation instance. Redundant?"""
-        if risko != None:
-            self.reinrisks.remove(risko)
-
     def get_reinrisks(self):
         """Method for shuffling reinsurance risks
             Returns: reinsurance risks"""
@@ -661,7 +660,7 @@ class InsuranceSimulation():
         """Method for adding risks that were not deemed acceptable to underwrite back to list of uninsured risks
             Accepts:
                 not_accepted_risks: Type List
-            Returns None"""
+            No return value"""
         self.risks += not_accepted_risks
 
     def return_reinrisks(self, not_accepted_risks):
@@ -753,16 +752,21 @@ class InsuranceSimulation():
         np.random.set_state(mersennetwister_randomseed)
         assert found, "mersennetwister randomseed for current replication ID number {0:d} not found in data file. Exiting.".format(self.replic_ID)
 
-    def insurance_firm_market_entry(self, prob=-1, agent_type="InsuranceFirm"):             # TODO: replace method name with a more descriptive one
+    def insurance_firm_market_entry(self, agent_type="InsuranceFirm"):
         """Method to determine if re/insurance firm enters the market based on set entry probabilities and a random
-            integer generated between 0, 1."""
-        if prob == -1:
-            if agent_type == "InsuranceFirm":
-                prob = self.simulation_parameters["insurance_firm_market_entry_probability"]
-            elif agent_type == "ReinsuranceFirm":
-                prob = self.simulation_parameters["reinsurance_firm_market_entry_probability"]
-            else:
-                assert False, "Unknown agent type. Simulation requested to create agent of type {0:s}".format(agent_type)
+            integer generated between 0, 1.
+            Accepts:
+                agent_type: Type String
+            Returns:
+                 True if firm can enter market
+                 False if firm cannot enter market"""
+
+        if agent_type == "InsuranceFirm":
+            prob = self.simulation_parameters["insurance_firm_market_entry_probability"]
+        elif agent_type == "ReinsuranceFirm":
+            prob = self.simulation_parameters["reinsurance_firm_market_entry_probability"]
+        else:
+            assert False, "Unknown agent type. Simulation requested to create agent of type {0:s}".format(agent_type)
         if np.random.random() < prob:
             return True
         else:
@@ -789,8 +793,7 @@ class InsuranceSimulation():
             money is lost and recorded using this method.
             Accepts:
                 loss: Type integer, value of lost claim
-            Returns:
-                None"""
+            No return value"""
         self.cumulative_unrecovered_claims += loss
 
     def record_claims(self, claims):
@@ -835,22 +838,6 @@ class InsuranceSimulation():
         return totaldiff
         #self.history_logs['market_diffvar'].append(totaldiff)
 
-    def count_underwritten_and_reinsured_risks_by_category(self):
-        """Not Used - Should be removed?"""
-        underwritten_risks = 0
-        reinsured_risks = 0
-        underwritten_per_category = np.zeros(self.simulation_parameters["no_categories"])
-        reinsured_per_category = np.zeros(self.simulation_parameters["no_categories"])
-        for firm in self.insurancefirms:
-            if firm.operational:
-                underwritten_by_category += firm.counter_category
-                if self.simulation_parameters["simulation_reinsurance_type"] == "non-proportional":
-                    reinsured_per_category += firm.counter_category * firm.category_reinsurance 
-        if self.simulation_parameters["simulation_reinsurance_type"] == "proportional":
-            for firm in self.insurancefirms:
-                if firm.operational:
-                    reinsured_per_category += firm.counter_category
-
     def get_unique_insurer_id(self):
         """Method for getting unique id for insurer. Used in initialising agents in start.py and insurancesimulation.
             Iterates after each call so id is unique to each firm.
@@ -885,24 +872,10 @@ class InsuranceSimulation():
 
     def get_operational(self):
         """Method to return if simulation is operational. Always true. Used only in pay methods above and
-            metainsuranceorg."""
+            metainsuranceorg.
+           Accepts no arguments
+           Returns True"""
         return True
-
-    def reinsurance_capital_entry(self):
-        """This method determines the capital market entry of reinsurers. It is not run anywhere."""
-        capital_per_non_re_cat = []
-
-        for reinrisk in self.not_accepted_reinrisks:
-            capital_per_non_re_cat.append(reinrisk["value"])     #It takes all the values of the reinsurance risks NOT REINSURED.
-
-        if len(capital_per_non_re_cat) > 0:  #We only perform this action if there are reinsurance contracts that has not been reinsured in the last period of time.
-            capital_per_non_re_cat = np.random.choice(capital_per_non_re_cat, 10)        #Only 10 values sampled randomly are considered. (Too low?)
-            entry = max(capital_per_non_re_cat)            #For market entry the maximum of the sample is considered.
-            entry = 2 * entry           #The capital market entry of those values will be the double of the maximum.
-        else:    # Otherwise the default reinsurance cash market entry is considered.
-            entry = self.simulation_parameters["initial_reinagent_cash"]
-
-        return entry           # The capital market entry is returned.
 
     def reset_pls(self):
         """Reset_pls Method.
