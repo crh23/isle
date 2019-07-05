@@ -40,15 +40,16 @@ class RiskModel:
         # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
         self.inaccuracy = inaccuracy
 
-    def getPPF(self, categ_id, tailSize):
+    def getPPF(self, categ_id, tail_size):
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
               categ_id  integer:            category 
               tailSize  (float >=0, <=1):   quantile
            Returns value-at-risk."""
-        return self.damage_distribution[categ_id].ppf(1 - tailSize)
+        return self.damage_distribution[categ_id].ppf(1 - tail_size)
 
-    def get_categ_risks(self, risks, categ_id):
+    @staticmethod
+    def get_categ_risks(risks, categ_id):
         # categ_risks2 = [risk for risk in risks if risk["category"]==categ_id]
         categ_risks = []
         for risk in risks:
@@ -60,10 +61,10 @@ class RiskModel:
     def compute_expectation(self, categ_risks, categ_id):  # TODO: more intuitive name?
         # average_exposure2 = np.mean([risk["excess"]-risk["deductible"] for risk in categ_risks])
         #
-        ##average_risk_factor = np.mean([risk["risk_factor"] for risk in categ_risks])
+        # average_risk_factor = np.mean([risk["risk_factor"] for risk in categ_risks])
         # average_risk_factor2 = self.inaccuracy[categ_id] * np.mean([risk["risk_factor"] for risk in categ_risks])
         #
-        ## compute expected profits from category
+        # """compute expected profits from category"""
         # mean_runtime2 = np.mean([risk["runtime"] for risk in categ_risks])
 
         exposures = []
@@ -76,7 +77,9 @@ class RiskModel:
             runtimes.append(risk["runtime"])
         average_exposure = np.mean(exposures)
         average_risk_factor = self.inaccuracy[categ_id] * np.mean(risk_factors)
+
         mean_runtime = np.mean(runtimes)
+
         # assert average_exposure == average_exposure2
         # assert average_risk_factor == average_risk_factor2
         # assert mean_runtime == mean_runtime2
@@ -129,7 +132,7 @@ class RiskModel:
 
             # compute value at risk
             var_per_risk = (
-                self.getPPF(categ_id=categ_id, tailSize=self.var_tail_prob)
+                self.getPPF(categ_id=categ_id, tail_size=self.var_tail_prob)
                 * average_risk_factor
                 * average_exposure
                 * self.margin_of_safety
@@ -220,7 +223,7 @@ class RiskModel:
             # TODO: allow for different risk distributions for different categories
             # TODO: factor in risk_factors
             percentage_value_at_risk = self.getPPF(
-                categ_id=categ_id, tailSize=self.var_tail_prob
+                categ_id=categ_id, tail_size=self.var_tail_prob
             )
 
             # compute liquidity requirements from existing contracts

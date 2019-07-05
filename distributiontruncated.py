@@ -13,6 +13,7 @@ class TruncatedDistWrapper:
         self.upper_bound = upper_bound
         assert self.upper_bound > self.lower_bound
 
+    @functools.lru_cache(maxsize=1024)
     def pdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
@@ -26,6 +27,7 @@ class TruncatedDistWrapper:
             r = float(r)
         return r
 
+    @functools.lru_cache(maxsize=1024)
     def cdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
@@ -42,7 +44,7 @@ class TruncatedDistWrapper:
             r = float(r)
         return r
 
-    @functools.lru_cache(maxsize=512)
+    @functools.lru_cache(maxsize=1024)
     def ppf(self, x):
         x = np.array(x, ndmin=1)
         assert (x >= 0).all() and (x <= 1).all()

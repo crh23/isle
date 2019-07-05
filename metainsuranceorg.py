@@ -21,8 +21,8 @@ def get_mean_std(x):
     return m, np.sqrt(variance / len(x))
 
 
-class MetaInsuranceOrg(GenericAgent):
-    def init(self, simulation_parameters, agent_parameters):
+class MetaInsuranceOrg:
+    def __init__(self, simulation_parameters, agent_parameters):
         self.simulation = simulation_parameters["simulation"]
         self.simulation_parameters = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
@@ -145,9 +145,8 @@ class MetaInsuranceOrg(GenericAgent):
         ]
         self.market_permanency_counter = 0
 
-    def iterate(
-        self, time
-    ):  # TODO: split function so that only the sequence of events remains here and everything else is in separate methods
+    def iterate(self, time):
+        # TODO: split up so that only the sequence of events remains here and everything else is in separate methods
 
         """obtain investments yield"""
         self.obtain_yield(time)
@@ -166,23 +165,24 @@ class MetaInsuranceOrg(GenericAgent):
 
         self.make_reinsurance_claims(time)
 
-        """mature contracts"""
-        if isleconfig.verbose:
-            print("Number of underwritten contracts ", len(self.underwritten_contracts))
-        maturing = [
-            contract
-            for contract in self.underwritten_contracts
-            if contract.expiration <= time
-        ]
-        for contract in maturing:
-            self.underwritten_contracts.remove(contract)
-            contract.mature(time)
-        contracts_dissolved = len(maturing)
+        contracts_dissolved = self.mature_contracts(time)
 
         """effect payments from contracts"""
         for contract in self.underwritten_contracts:
             contract.check_payment_due(time)
 
+        self.collect_process_evaluate_risks(time, contracts_dissolved)
+
+        # """adjust liquidity, borrow or invest""" # Not implemented
+        # pass
+
+        self.market_permanency(time)
+
+        self.roll_over(time)
+
+        self.estimated_var()
+
+    def collect_process_evaluate_risks(self, time, contracts_dissolved):
         if self.operational:
 
             """request risks to be considered for underwriting in the next period and collect those for this period"""
@@ -219,16 +219,16 @@ class MetaInsuranceOrg(GenericAgent):
             """deal with non-proportional risks first as they must evaluate each request separatly,
              then with proportional ones"""
 
-            [
-                reinrisks_per_categ,
-                number_reinrisks_categ,
-            ] = self.risks_reinrisks_organizer(
+            # Here the new reinrisks are organized by category.
+            reinrisks_per_categ, number_reinrisks_categ = self.risks_reinrisks_organizer(
                 new_nonproportional_risks
-            )  # Here the new reinrisks are organized by category.
+            )
 
+            assert self.recursion_limit > 0
             for repetition in range(self.recursion_limit):
-                # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is
+                # TODO: find an efficient way to stop the loop if there are no more risks to accept or if it is
                 #  not accepting any more over several iterations.
+                # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
                 former_reinrisks_per_categ = copy.copy(reinrisks_per_categ)
                 [
                     reinrisks_per_categ,
@@ -236,15 +236,17 @@ class MetaInsuranceOrg(GenericAgent):
                 ] = self.process_newrisks_reinsurer(
                     reinrisks_per_categ, number_reinrisks_categ, time
                 )
-                # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
-                if (
-                    former_reinrisks_per_categ == reinrisks_per_categ
-                ):  # Stop condition implemented. Might solve the previous TODO.
+
+                # QUERY: I moved this into the loop - was this correct?
+                #  The loop only runs once in my tests, what needs tweaking to have firms not accept risks?
+                self.simulation.return_reinrisks(not_accepted_reinrisks)
+
+                if former_reinrisks_per_categ == reinrisks_per_categ:
+                    # Stop condition implemented. Might solve the previous TODO.
                     break
 
-            self.simulation.return_reinrisks(not_accepted_reinrisks)
-
-            # QUERY: it's typically dangerous to compare floats with !=, is it okay in this case?
+            # QUERY: it's typically dangerous to compare floats with !=, is it okay in this case? Probably, since
+            #  no arithmetic is done
             underwritten_risks = [
                 {
                     "value": contract.value,
@@ -260,7 +262,7 @@ class MetaInsuranceOrg(GenericAgent):
             ]
 
             """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
-            # TODO: Enable reinsurance shares other tan 0.0 and 1.0
+            # TODO: Enable reinsurance shares other than 0.0 and 1.0
             expected_profit, acceptable_by_category, cash_left_by_categ, var_per_risk_per_categ, self.excess_capital = self.riskmodel.evaluate(
                 underwritten_risks, self.cash
             )
@@ -271,11 +273,7 @@ class MetaInsuranceOrg(GenericAgent):
             max_var_by_categ = self.cash - self.excess_capital
             self.adjust_capacity_target(max_var_by_categ)
             actual_capacity = self.increase_capacity(time, max_var_by_categ)
-            # seek reinsurance
-            # if self.is_insurer:
-            #    # TODO: Why should only insurers be able to get reinsurance (not reinsurers)? (Technically, it should work) --> OBSOLETE
-            #    self.ask_reinsurance(time)
-            #    # TODO: make independent of insurer/reinsurer, but change this to different deductable values
+
             """handle capital market interactions: capital history, dividends"""
             self.cash_last_periods = [self.cash] + self.cash_last_periods[:3]
             self.adjust_dividends(time, actual_capacity)
@@ -299,22 +297,25 @@ class MetaInsuranceOrg(GenericAgent):
                 )
                 acceptable_by_category = np.int64(np.round(acceptable_by_category))
 
+            # Here the new risks are organized by category.
             [risks_per_categ, number_risks_categ] = self.risks_reinrisks_organizer(
                 new_risks
-            )  # Here the new risks are organized by category.
+            )
 
-            for repetition in range(
-                self.recursion_limit
-            ):  # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
+            for repetition in range(self.recursion_limit):
+                # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
                 former_risks_per_categ = copy.copy(risks_per_categ)
-                [risks_per_categ, not_accepted_risks] = self.process_newrisks_insurer(
+                # Here we process all the new risks in order to keep the portfolio as balanced as possible.
+                risks_per_categ, not_accepted_risks = self.process_newrisks_insurer(
                     risks_per_categ,
                     number_risks_categ,
                     acceptable_by_category,
                     var_per_risk_per_categ,
                     cash_left_by_categ,
                     time,
-                )  # Here we process all the new risks in order to keep the portfolio as balanced as possible.
+                )
+                # QUERY: As above, moved inside loop
+                self.simulation.return_risks(not_accepted_risks)
                 if (
                     former_risks_per_categ == risks_per_categ
                 ):  # Stop condition implemented. Might solve the previous TODO.
@@ -322,17 +323,6 @@ class MetaInsuranceOrg(GenericAgent):
 
             # return unacceptables
             # print(self.id, " now has ", len(self.underwritten_contracts), " & returns ", len(not_accepted_risks))
-            self.simulation.return_risks(not_accepted_risks)
-
-            # not implemented
-            # """adjust liquidity, borrow or invest"""
-            # pass
-
-        self.market_permanency(time)
-
-        self.roll_over(time)
-
-        self.estimated_var()
 
     def enter_illiquidity(self, time):
         """Enter_illiquidity Method.
@@ -467,6 +457,20 @@ class MetaInsuranceOrg(GenericAgent):
         #  This interest rate should be taken from self.simulation with a getter method
         self.simulation.receive_obligation(amount, self, time, "yields")
 
+    def mature_contracts(self, time):
+        # matures all contracts that have expired, returns the number of contracts that matured
+        if isleconfig.verbose:
+            print("Number of underwritten contracts ", len(self.underwritten_contracts))
+        maturing = [
+            contract
+            for contract in self.underwritten_contracts
+            if contract.expiration <= time
+        ]
+        for contract in maturing:
+            self.underwritten_contracts.remove(contract)
+            contract.mature(time)
+        return len(maturing)
+
     def get_cash(self):
         return self.cash
 
@@ -477,6 +481,11 @@ class MetaInsuranceOrg(GenericAgent):
         self.log("cash", self.cash)
         self.log("underwritten_contracts", self.underwritten_contracts)
         self.log("operational", self.operational)
+
+    def log(self, *args):
+        raise NotImplementedError(
+            "The log method should have been overridden by the subclass"
+        )
 
     def number_underwritten_contracts(self):
         return len(self.underwritten_contracts)
@@ -523,19 +532,19 @@ class MetaInsuranceOrg(GenericAgent):
             else:
                 self.var_counter_per_risk = 0
 
-    def increase_capacity(self):
+    def increase_capacity(self, time, var_by_category):
         raise NotImplementedError(
             "Method is not implemented in MetaInsuranceOrg, just in inheriting InsuranceFirm instances"
         )
 
-    def adjust_dividend(self, time):
+    def adjust_dividends(self, time, actual_capacity):
         raise NotImplementedError(
-            "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
+            "Method not implemented. adjust_dividends method should be implemented in inheriting classes"
         )
 
     def adjust_capacity_target(self, time):
         raise NotImplementedError(
-            "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
+            "Method not implemented. adjust_capacity_target method should be implemented in inheriting classes"
         )
 
     def risks_reinrisks_organizer(self, new_risks):
@@ -573,7 +582,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         if risk.get("insurancetype") == "excess-of-loss":
             percentage_value_at_risk = self.riskmodel.getPPF(
-                categ_id=risk["category"], tailSize=self.riskmodel.var_tail_prob
+                categ_id=risk["category"], tail_size=self.riskmodel.var_tail_prob
             )
             expected_damage = (
                 percentage_value_at_risk
@@ -905,3 +914,9 @@ class MetaInsuranceOrg(GenericAgent):
                     ):
                         if reinrisk is not None:
                             self.reinrisks_kept.append(reinrisk)
+
+    def make_reinsurance_claims(self, time):
+        raise NotImplementedError(
+            "MetaInsuranceOrg does not implement make_reinsurance_claims, "
+            "it should have been overridden"
+        )

@@ -831,6 +831,7 @@ class InsuranceSimulation:
         for risk in insurer.risks_kept:
             risks_to_be_sent.append(risk)
 
+        # QUERY: what actuall is insurancefirm.risks_kept?
         insurer.risks_kept = []
 
         np.random.shuffle(risks_to_be_sent)

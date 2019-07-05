@@ -32,7 +32,7 @@ class SetupSim:
         self.max_time = self.simulation_parameters["max_time"]
         self.no_categories = self.simulation_parameters["no_categories"]
 
-        """set distribution"""
+        """set distribution"""  # TODO: this should be a parameter
         self.non_truncated = scipy.stats.pareto(
             b=2, loc=0, scale=0.25
         )  # It is assumed that the damages of the catastrophes are drawn from a truncated Pareto distribution.
@@ -48,32 +48,23 @@ class SetupSim:
         self.random_seed = []
         self.general_rc_event_schedule = []
         self.general_rc_event_damage = []
+        self.filepath = "risk_event_schedules.islestore"
+        self.overwrite = False
+        self.replications = None
 
-    def schedule(
-        self, replications
-    ):  # This method returns the lists of schedule times and damages for an ensemble of replications of the model. The argument (replications) is the number of replications.
-
-        general_rc_event_schedule = (
-            []
-        )  # In this list will be stored the lists of schedule times of catastrophes for an ensemble of simulations of the model. ([[Schedule 1], [Schedule 2], [Schedule 3],...,[Schedule N]])
-        general_rc_event_damage = (
-            []
-        )  # In this list will be stored the lists of schedule damages of catastrophes for an ensemble of simulations of the model. ([[Schedule 1], [Schedule 2], [Schedule 3],...,[Schedule N]])
-
+    def schedule(self, replications):
         for i in range(replications):
-            rc_event_schedule = (
-                []
-            )  # In this list will be stored the lists of times when there will be catastrophes for every category of the model during a single run. ([[times for C1],[times for C2],[times for C3],[times for C4]])
-            rc_event_damage = (
-                []
-            )  # In this list will be stored the lists of catastrophe damages for every category of the model during a single run. ([[damages for C1],[damages for C2],[damages for C3],[damages for C4]])
+            # In this list will be stored the lists of times when there will be catastrophes for every category of the
+            # model during a single run. ([[times for C1],[times for C2],[times for C3],[times for C4]])
+            rc_event_schedule = []
+            # In this list will be stored the lists of catastrophe damages for every category of the model during a
+            # single run. ([[damages for C1],[damages for C2],[damages for C3],[damages for C4]])
+            rc_event_damage = []
             for j in range(self.no_categories):
-                event_schedule = (
-                    []
-                )  # In this list will be stored the times when there will be a catastrophe related to a particular category.
-                event_damage = (
-                    []
-                )  # In this list will be stored the damages of a catastrophe related to a particular category.
+                # In this list will be stored the times when there will be a catastrophe in a particular category.
+                event_schedule = []
+                # In this list will be stored the damages of a catastrophe related to a particular category.
+                event_damage = []
                 total = 0
                 while total < self.max_time:
                     separation_time = self.cat_separation_distribution.rvs()
@@ -89,9 +80,9 @@ class SetupSim:
 
         return self.general_rc_event_schedule, self.general_rc_event_damage
 
-    def seeds(
-        self, replications
-    ):  # This method returns the seeds required for an ensemble of replications of the model. The argument (replications) is the number of replications.
+    def seeds(self, replications):
+        # This method sets (and returns) the seeds required for an ensemble of replications of the model.
+        # The argument (replications) is the number of replications.
         """draw random variates for random seeds"""
         for i in range(replications):
             np_seed, random_seed = scipy.stats.randint.rvs(0, 2 ** 32 - 1, size=2)
@@ -100,11 +91,18 @@ class SetupSim:
 
         return self.np_seed, self.random_seed
 
-    def store(
-        self, replications
-    ):  # This method stores in a file the the schedules and random seeds required for an ensemble of replications of the model. The argument (replications) is the number of replications.
+    def store(self):
+        # This method stores in a file the the schedules and random seeds required for an ensemble of replications of
+        # the model. The number of replications is calculated from the length of the exisiting values.
         # With the information stored it is possible to replicate the entire behavior of the ensemble at a later time.
         event_schedules = []
+        assert (
+            len(self.np_seed)
+            == len(self.random_seed)
+            == len(self.general_rc_event_damage)
+            == len(self.general_rc_event_schedule)
+        )
+        replications = len(self.np_seed)
 
         for i in range(replications):
             """pack to dict"""
@@ -118,40 +116,96 @@ class SetupSim:
 
         """ ensure that logging directory exists"""
         if not os.path.isdir("data"):
-            assert not os.path.exists(
-                "data"
-            ), "./data exists as regular file. This filename is required for the logging and event schedule directory"
+            if os.path.exists("data"):
+                raise Exception(
+                    "./data exists as regular file. "
+                    "This filename is required for the logging and event schedule directory"
+                )
             os.makedirs("data")
 
-        """Save as both pickle and txt"""
-        with open("./data/risk_event_schedules.pkl", "wb") as wfile:
-            pickle.dump(event_schedules, wfile, protocol=pickle.HIGHEST_PROTOCOL)
-
-        with open("./data/risk_event_schedules.txt", "w") as wfile:
-            for rep_schedule in event_schedules:
-                wfile.write(
-                    str(rep_schedule)
-                    .replace("\n", "")
-                    .replace("array", "np.array")
-                    .replace("uint32", "np.uint32")
-                    + "\n"
+        # If we are avoiding overwriting, check if the file to write to exist
+        if not self.overwrite:
+            if os.path.exists("data/" + self.filepath):
+                raise ValueError(
+                    f"File {'./data/' + self.filepath} already exists and we are not overwriting."
                 )
 
-    def obtain_ensemble(
-        self, replications
-    ):  # This method returns all the information (schedules and seeds) required to run an ensemble of simulations of the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a later time. The argument (replications) is the number of replications.
-        # This method will be called either form ensemble.py or start.py
-        [general_rc_event_schedule, general_rc_event_damage] = self.schedule(
-            replications
+        """Save the initial values"""
+        with open("./data/" + self.filepath, "wb") as wfile:
+            pickle.dump(event_schedules, wfile, protocol=pickle.HIGHEST_PROTOCOL)
+
+        # with open("./data/risk_event_schedules.txt", "w") as wfile: # QUERY: what's this for?
+        #     for rep_schedule in event_schedules:
+        #         wfile.write(
+        #             str(rep_schedule)
+        #             .replace("\n", "")
+        #             .replace("array", "np.array")
+        #             .replace("uint32", "np.uint32")
+        #             + "\n"
+        #         )
+
+    def recall(self):
+        assert (
+            self.np_seed
+            == self.random_seed
+            == self.general_rc_event_schedule
+            == self.general_rc_event_damage
+            == []
         )
+        with open("./data/" + self.filepath, "rb") as rfile:
+            event_schedules = pickle.load(rfile)
+        self.replications = len(event_schedules)
+        for initial_values in event_schedules:
+            self.np_seed.append(initial_values["np_seed"])
+            self.random_seed.append(initial_values["random_seed"])
+            self.general_rc_event_schedule.append(initial_values["event_times"])
+            self.general_rc_event_damage.append(initial_values["event_damages"])
+            self.simulation_parameters["no_categories"] = initial_values[
+                "num_categories"
+            ]
 
-        [np_seeds, random_seeds] = self.seeds(replications)
+    def obtain_ensemble(self, replications, filepath, overwrite):
+        # This method returns all the information (schedules and seeds) required to run an ensemble of simulations of
+        # the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a
+        # later time. The argument (replications) is the number of replications.
+        # This method will be called either form ensemble.py or start.py
+        if filepath is not None:
+            self.filepath = self.to_filename(filepath)
+        self.overwrite = overwrite
+        if not isleconfig.replicating:
+            # We are writing to the file given
+            self.replications = replications
+            if filepath is None and not self.overwrite:
+                print("No explicit path given, automatically overwriting default path")
+                self.overwrite = True
+            self.schedule(replications)
+            self.seeds(replications)
 
-        self.store(replications)
+            self.store()
+        else:
+            # We are reading from the file given
+            if filepath is not None:
+                self.recall()
+                if replications != self.replications:
+                    raise ValueError(
+                        f"Found {self.replications} replications in given file, expected {replications}."
+                    )
+            else:
+                # Could read from default file, seems like a bad idea though.
+                raise ValueError(
+                    "Simulation is set to replicate but no replicid has been given"
+                )
 
         return (
-            general_rc_event_schedule,
-            general_rc_event_damage,
-            np_seeds,
-            random_seeds,
+            self.general_rc_event_schedule,
+            self.general_rc_event_damage,
+            self.np_seed,
+            self.random_seed,
         )
+
+    @staticmethod
+    def to_filename(filepath):
+        if len(filepath) >= 10 and filepath[-10:] == ".islestore":
+            return filepath
+        else:
+            return filepath + ".islestore"

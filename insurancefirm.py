@@ -11,13 +11,13 @@ class InsuranceFirm(MetaInsuranceOrg):
 
     # QUERY: now abce is gone can all of these inits become proper __init__s?
     # In fact, can we do away with genericagent.py entirely?
-    def init(self, simulation_parameters, agent_parameters):
+    def __init__(self, simulation_parameters, agent_parameters):
         """Constructor method.
                Accepts arguments
                    Signature is identical to constructor method of parent class.
            Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of
            the object."""
-        super(InsuranceFirm, self).init(simulation_parameters, agent_parameters)
+        super(InsuranceFirm, self).__init__(simulation_parameters, agent_parameters)
         self.is_insurer = True
         self.is_reinsurer = False
 

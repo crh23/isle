@@ -10,7 +10,7 @@ import uuid
 
 
 class CatBond(MetaInsuranceOrg):
-    def init(
+    def __init__(
         self, simulation, per_period_premium, owner, interest_rate=0
     ):  # do we need simulation parameters
         self.simulation = simulation
@@ -22,9 +22,9 @@ class CatBond(MetaInsuranceOrg):
         self.operational = True
         self.owner = owner
         self.per_period_dividend = per_period_premium
-        self.interest_rate = (
-            interest_rate
-        )  # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like self.interest_rate from instance to instance and from class to class
+        self.interest_rate = interest_rate
+        # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like
+        #  self.interest_rate from instance to instance and from class to class
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
     # TODO: change start and InsuranceSimulation so that it iterates CatBonds
