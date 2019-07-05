@@ -9,8 +9,6 @@ class InsuranceFirm(MetaInsuranceOrg):
     """ReinsuranceFirm class.
        Inherits from MetaInsuranceFirm."""
 
-    # QUERY: now abce is gone can all of these inits become proper __init__s?
-    # In fact, can we do away with genericagent.py entirely?
     def __init__(self, simulation_parameters, agent_parameters):
         """Constructor method.
                Accepts arguments

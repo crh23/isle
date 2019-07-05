@@ -15,6 +15,8 @@ import warnings
 
 
 class InsuranceSimulation:
+    # Note: if we ever want to have a larger number of categories we should use numpy arrays for all of the
+    # "by_categ"-type variables and then where possible do numpy operations instead of iterating over them.
     def __init__(
         self,
         override_no_riskmodels,
@@ -626,14 +628,15 @@ class InsuranceSimulation:
         self.obligations.append(obligation)
 
     def effect_payments(self, time):
-        due = [item for item in self.obligations if item["due_time"] <= time]
-        # print("SIMULATION obligations: ", len(self.obligations), " of which are due: ", len(due))
-        self.obligations = [
-            item for item in self.obligations if item["due_time"] > time
-        ]
-        sum_due = sum([item["amount"] for item in due])
-        for obligation in due:
-            self.pay(obligation)
+        if self.get_operational():
+            due = [item for item in self.obligations if item["due_time"] <= time]
+            # print("SIMULATION obligations: ", len(self.obligations), " of which are due: ", len(due))
+            self.obligations = [
+                item for item in self.obligations if item["due_time"] > time
+            ]
+            # sum_due = sum([item["amount"] for item in due])
+            for obligation in due:
+                self.pay(obligation)
 
     def pay(self, obligation):
         amount = obligation["amount"]
@@ -641,7 +644,7 @@ class InsuranceSimulation:
         purpose = obligation["purpose"]
         if not self.money_supply > amount:
             warnings.warn("Something wrong: economy out of money", RuntimeWarning)
-        if self.get_operational() and recipient.get_operational():
+        if recipient.get_operational():
             self.money_supply -= amount
             recipient.receive(amount)
 

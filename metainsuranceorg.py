@@ -2,13 +2,12 @@ import isleconfig
 import numpy as np
 import scipy.stats
 import copy
+import math
 from insurancecontract import InsuranceContract
 from reinsurancecontract import ReinsuranceContract
 from riskmodel import RiskModel
 import sys, pdb
 import uuid
-
-from genericagent import GenericAgent
 
 
 def get_mean(x):
@@ -16,9 +15,11 @@ def get_mean(x):
 
 
 def get_mean_std(x):
+    # At the moment this is always called with a no_category length array
+    # I have tested the numpy versions of this, they are slower for small arrays but much, much faster for large ones
     m = get_mean(x)
-    variance = sum((val - m) ** 2 for val in x)
-    return m, np.sqrt(variance / len(x))
+    std = math.sqrt(sum((val - m) ** 2 for val in x)) / len(x)
+    return m, std
 
 
 class MetaInsuranceOrg:
@@ -180,7 +181,7 @@ class MetaInsuranceOrg:
 
         self.roll_over(time)
 
-        self.estimated_var()
+        self.estimate_var()
 
     def collect_process_evaluate_risks(self, time, contracts_dissolved):
         if self.operational:
@@ -499,7 +500,7 @@ class MetaInsuranceOrg:
     def get_underwritten_contracts(self):
         return self.underwritten_contracts
 
-    def estimated_var(self):
+    def estimate_var(self):
         self.counter_category = np.zeros(self.simulation_no_risk_categories)
         self.var_category = np.zeros(self.simulation_no_risk_categories)
 
@@ -510,22 +511,14 @@ class MetaInsuranceOrg:
         if self.operational:
 
             for contract in self.underwritten_contracts:
-                self.counter_category[contract.category] = (
-                    self.counter_category[contract.category] + 1
-                )
-                self.var_category[contract.category] = (
-                    self.var_category[contract.category] + contract.initial_VaR
-                )
+                self.counter_category[contract.category] += 1
+                self.var_category[contract.category] += contract.initial_VaR
 
             for category in range(len(self.counter_category)):
-                self.var_counter = (
-                    self.var_counter
-                    + self.counter_category[category]
-                    * self.riskmodel.inaccuracy[category]
-                )
-                self.var_sum = self.var_sum + self.var_category[category]
+                self.var_counter += self.counter_category[category] * self.riskmodel.inaccuracy[category]
+                self.var_sum += self.var_category[category]
 
-            if not sum(self.counter_category) == 0:
+            if sum(self.counter_category) != 0:
                 self.var_counter_per_risk = self.var_counter / sum(
                     self.counter_category
                 )
@@ -572,9 +565,9 @@ class MetaInsuranceOrg:
         # This method decides whether the portfolio is balanced enough to accept a new risk or not.
         # If it is balanced enough return True, otherwise False.
         # This method also returns the cash available per category independently the risk is accepted or not.
-        cash_reserved_by_categ = (
-            self.cash - cash_left_by_categ
-        )  # Here it is computed the cash already reserved by category
+
+        # Compute the cash already reserved by category
+        cash_reserved_by_categ = self.cash - cash_left_by_categ
 
         _, std_pre = get_mean_std(cash_reserved_by_categ)
 
@@ -597,27 +590,25 @@ class MetaInsuranceOrg:
 
             # record liquidity requirement and apply margin of safety for liquidity requirement
 
-            cash_reserved_by_categ_store[risk["category"]] += (
-                expected_claim * self.riskmodel.margin_of_safety
-            )  # Here it is computed how the cash reserved by category would change if the new reinsurance risk was accepted
+            # Compute how the cash reserved by category would change if the new reinsurance risk was accepted
+            cash_reserved_by_categ_store[risk["category"]] += expected_claim * self.riskmodel.margin_of_safety
 
         else:
-            cash_reserved_by_categ_store[risk["category"]] += var_per_risk[
-                risk["category"]
-            ]  # Here it is computed how the cash reserved by category would change if the new insurance risk was accepted
+            # Compute how the cash reserved by category would change if the new insurance risk was accepted
+            cash_reserved_by_categ_store[risk["category"]] += var_per_risk[risk["category"]]
 
-        mean, std_post = get_mean_std(
-            cash_reserved_by_categ_store
-        )  # Here it is computed the mean, std of the cash reserved by category after the new risk of reinrisk is accepted
+        # Compute the mean, std of the cash reserved by category after the new risk of reinrisk is accepted
+        mean, std_post = get_mean_std(cash_reserved_by_categ_store)
 
         total_cash_reserved_by_categ_post = sum(cash_reserved_by_categ_store)
 
         if (std_post * total_cash_reserved_by_categ_post / self.cash) <= (
             self.balance_ratio * mean
-        ) or std_post < std_pre:  # The new risk is accepted is the standard deviation is reduced or the cash reserved by category is very well balanced. (std_post) <= (self.balance_ratio * mean)
-            for i in range(
-                len(cash_left_by_categ)
-            ):  # The balance condition is not taken into account if the cash reserve is far away from the limit. (total_cash_employed_by_categ_post/self.cash <<< 1)
+        ) or std_post < std_pre:
+            # The new risk is accepted if the standard deviation is reduced or the cash reserved by category is very
+            # well balanced. (std_post) <= (self.balance_ratio * mean)
+            for i in range(len(cash_left_by_categ)):
+                # The balance condition is not taken into account if the cash reserve is far away from the limit. (total_cash_employed_by_categ_post/self.cash <<< 1)
                 cash_left_by_categ[i] = self.cash - cash_reserved_by_categ_store[i]
 
             return True, cash_left_by_categ
@@ -662,6 +653,7 @@ class MetaInsuranceOrg:
                     # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and
                     #  to account for existing non-proportional risks correctly -> DONE.
                     if accept:
+                        # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
                         per_value_reinsurance_premium = (
                             self.np_reinsurance_premium_share
                             * risk_to_insure["periodized_total_premium"]
@@ -671,12 +663,13 @@ class MetaInsuranceOrg:
                                 / self.simulation.get_market_premium()
                             )
                             / risk_to_insure["value"]
-                        )  # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
-                        [condition, cash_left_by_categ] = self.balanced_portfolio(
-                            risk_to_insure, cash_left_by_categ, None
                         )
                         # Here it is check whether the portfolio is balanced or not if the reinrisk
                         # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                        condition, cash_left_by_categ = self.balanced_portfolio(
+                            risk_to_insure, cash_left_by_categ, None
+                        )
+
                         if condition:
                             contract = ReinsuranceContract(
                                 self,

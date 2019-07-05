@@ -70,7 +70,7 @@ class CatBond(MetaInsuranceOrg):
             if self.operational:
                 self.pay_dividends(time)
 
-        # self.estimated_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
+        # self.estimate_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
 
     def set_owner(self, owner):
         self.owner = owner
