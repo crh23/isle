@@ -1,14 +1,10 @@
 """import common packages and necessary classes"""
 import numpy as np
-import scipy.stats
-import math
-import sys, pdb
 import argparse
 import os
 import pickle
 import hashlib
 import random
-import copy
 import importlib
 import isleconfig
 from insurancesimulation import InsuranceSimulation

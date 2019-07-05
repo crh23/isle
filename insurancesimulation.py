@@ -597,6 +597,12 @@ class InsuranceSimulation():
         return self.reinsurance_market_premium * (1. - max_reduction * np_reinsurance_deductible_fraction)
         
     def get_cat_bond_price(self, np_reinsurance_deductible_fraction):
+        """Method to calculate and return catbond price. If catbonds are not desired will return infinity so no catbonds
+            will be issued. Otherwise calculates based on reinsurance market premium, catbond premium, deductible fraction.
+           Accepts:
+                np_reinsurance_deductible_fraction: Type Integer
+           Returns:
+                Calculated catbond price."""
         # TODO: implement function dependent on total capital in cat bonds and on deductible ()
         # TODO: make max_reduction and max_CB_surcharge into simulation_parameters ?
         if self.catbonds_off:
@@ -802,8 +808,12 @@ class InsuranceSimulation():
         self.cumulative_claims += claims
     
     def log(self):
-        """Method to log if a background run or not dependant on parameters force_foreground and if the run is
-            replicating or not."""
+        """Method to save the data of the simulation.
+            No accepted values
+            No return values
+           Calls logger instance to save all the data of the simulation to a file, has to return if background run or
+           not for replicating instances. This depends on parameters force_foreground and if the run is replicating
+           or not."""
         self.logger.save_log(self.background_run)
         
     def compute_market_diffvar(self):
