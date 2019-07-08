@@ -8,18 +8,19 @@ from reinsurancecontract import ReinsuranceContract
 from riskmodel import RiskModel
 import sys, pdb
 import uuid
+import functools
 
 
-# Can't use caching, as arrays are mutable and thus not hashable
 def get_mean(x):
     return sum(x) / len(x)
 
 
+# A quick check tells me that we don't need a very large cache for this, as it only tends to repeat a couple of times.
+@functools.lru_cache(maxsize=16)
 def get_mean_std(x):
     # At the moment this is always called with a no_category length array
     # I have tested the numpy versions of this, they are slower for small arrays but much, much faster for large ones
     # If we ever let no_category be much larger, might want to use np for this bit
-    print(x)
     m = get_mean(x)
     std = math.sqrt(sum((val - m) ** 2 for val in x)) / len(x)
     return m, std
@@ -144,7 +145,9 @@ class MetaInsuranceOrg:
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
         # QUERY: Should this have to sum to self.cash
-        self.cash_left_by_categ = self.cash * np.ones(self.simulation_parameters["no_categories"])
+        self.cash_left_by_categ = self.cash * np.ones(
+            self.simulation_parameters["no_categories"]
+        )
         self.market_permanency_counter = 0
 
     def iterate(self, time):
@@ -516,7 +519,10 @@ class MetaInsuranceOrg:
                 self.var_category[contract.category] += contract.initial_VaR
 
             for category in range(len(self.counter_category)):
-                self.var_counter += self.counter_category[category] * self.riskmodel.inaccuracy[category]
+                self.var_counter += (
+                    self.counter_category[category]
+                    * self.riskmodel.inaccuracy[category]
+                )
                 self.var_sum += self.var_category[category]
 
             if sum(self.counter_category) != 0:
@@ -570,12 +576,12 @@ class MetaInsuranceOrg:
         # Compute the cash already reserved by category
         cash_reserved_by_categ = self.cash - cash_left_by_categ
 
-        _, std_pre = get_mean_std(cash_reserved_by_categ)
+        _, std_pre = get_mean_std(tuple(cash_reserved_by_categ))
 
         cash_reserved_by_categ_store = np.copy(cash_reserved_by_categ)
 
         if risk.get("insurancetype") == "excess-of-loss":
-            percentage_value_at_risk = self.riskmodel.getPPF(
+            percentage_value_at_risk = self.riskmodel.get_ppf(
                 categ_id=risk["category"], tail_size=self.riskmodel.var_tail_prob
             )
             expected_damage = (
@@ -592,14 +598,18 @@ class MetaInsuranceOrg:
             # record liquidity requirement and apply margin of safety for liquidity requirement
 
             # Compute how the cash reserved by category would change if the new reinsurance risk was accepted
-            cash_reserved_by_categ_store[risk["category"]] += expected_claim * self.riskmodel.margin_of_safety
+            cash_reserved_by_categ_store[risk["category"]] += (
+                expected_claim * self.riskmodel.margin_of_safety
+            )
 
         else:
             # Compute how the cash reserved by category would change if the new insurance risk was accepted
-            cash_reserved_by_categ_store[risk["category"]] += var_per_risk[risk["category"]]
+            cash_reserved_by_categ_store[risk["category"]] += var_per_risk[
+                risk["category"]
+            ]
 
         # Compute the mean, std of the cash reserved by category after the new risk of reinrisk is accepted
-        mean, std_post = get_mean_std(cash_reserved_by_categ_store)
+        mean, std_post = get_mean_std(tuple(cash_reserved_by_categ_store))
 
         total_cash_reserved_by_categ_post = sum(cash_reserved_by_categ_store)
 
@@ -710,25 +720,28 @@ class MetaInsuranceOrg:
         # be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible. For that
         # reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
         _cached_rvs = self.contract_runtime_dist.rvs()
-        for iter in range(max(number_risks_categ)):
+        for risk_index in range(max(number_risks_categ)):
             for categ_id in range(len(acceptable_by_category)):
                 # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
                 # risk[C4], risk[C1], risk[C2], ... if possible.
+
+                # First check that we are actually going to hit a risk
                 if (
-                    iter < number_risks_categ[categ_id]
+                    risk_index < number_risks_categ[categ_id]
                     and acceptable_by_category[categ_id] > 0
-                    and risks_per_categ[categ_id][iter] is not None
+                    and risks_per_categ[categ_id][risk_index] is not None
                 ):
-                    risk_to_insure = risks_per_categ[categ_id][iter]
+                    risk_to_insure = risks_per_categ[categ_id][risk_index]
                     if (
-                        risk_to_insure.get("contract") is not None
+                        "contract" in risk_to_insure
                         and risk_to_insure["contract"].expiration > time
                     ):
-                        # risk_to_insure["contract"]: # required to rule out contracts that have exploded in the meantime
+                        # In this case the risk being inspected already has a contract, so we are deciding whether to
+                        # give reinsurance for it # QUERY: is this correct?
                         [condition, cash_left_by_categ] = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, None
                         )
-                        # Here it is check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is
+                        # Here we check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is
                         # underwritten. Return True if it is balanced. False otherwise.
                         if condition:
                             contract = ReinsuranceContract(
@@ -744,13 +757,15 @@ class MetaInsuranceOrg:
                             )
                             self.underwritten_contracts.append(contract)
                             self.cash_left_by_categ = cash_left_by_categ
-                            risks_per_categ[categ_id][iter] = None
+                            risks_per_categ[categ_id][risk_index] = None
                             # TODO: move this to insurancecontract (ca. line 14) -> DONE
                             # TODO: do not write into other object's properties, use setter -> DONE
                     else:
                         [condition, cash_left_by_categ] = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, var_per_risk_per_categ
                         )
+                        # In this case there is no contact currently associated with the risk, so we decide whether
+                        # to insure it
                         # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is
                         # underwritten. Return True if it is balanced. False otherwise.
                         if condition:
@@ -768,7 +783,7 @@ class MetaInsuranceOrg:
                             )
                             self.underwritten_contracts.append(contract)
                             self.cash_left_by_categ = cash_left_by_categ
-                            risks_per_categ[categ_id][iter] = None
+                            risks_per_categ[categ_id][risk_index] = None
                     acceptable_by_category[categ_id] -= 1
                     # TODO: allow different values per risk (i.e. sum over value (and reinsurance_share) or
                     #  exposure instead of counting)

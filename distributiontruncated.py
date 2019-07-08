@@ -6,7 +6,7 @@ import functools
 
 
 class TruncatedDistWrapper:
-    def __init__(self, dist, lower_bound=0., upper_bound=1.):
+    def __init__(self, dist, lower_bound=0.0, upper_bound=1.0):
         self.dist = dist
         self.normalizing_factor = dist.cdf(upper_bound) - dist.cdf(lower_bound)
         self.lower_bound = lower_bound
@@ -53,15 +53,15 @@ class TruncatedDistWrapper:
         )
 
     def rvs(self, size=1):
+        # Sample RVs from the original distribution and then throw out the ones that are outside the bounds.
         init_sample_size = int(ceil(size / self.normalizing_factor * 1.1))
         sample = self.dist.rvs(size=init_sample_size)
-        sample = sample[sample >= self.lower_bound]
-        sample = sample[sample <= self.upper_bound]
+        sample = np.logical_and(self.lower_bound <= sample, sample <= self.upper_bound)
         while len(sample) < size:
             sample = np.append(sample, self.rvs(size - len(sample)))
         return sample[:size]
 
-    # Cache could be replaced with a simple if is None cache, might offer a small performance gain.
+    # Cache could be replaced with a simple "if is None" cache, might offer a small performance gain.
     # Also this could be a read-only @property, but then again so could a lot of things.
     @functools.lru_cache(maxsize=1)
     def mean(self):
@@ -77,7 +77,7 @@ if __name__ == "__main__":
         lower_bound=0.55, upper_bound=1.0, dist=non_truncated
     )
 
-    x = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
+    x1 = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
     x2 = np.linspace(truncated.ppf(0.01), truncated.ppf(0.99), 100)
 
     print(truncated.mean())

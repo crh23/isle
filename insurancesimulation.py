@@ -450,11 +450,8 @@ class InsuranceSimulation:
             self.simulation_parameters["no_categories"]
         )
 
-        for (
-            insurer
-        ) in (
-            self.insurancefirms
-        ):  # TODO: this and the next look like they could be cleaner
+        # TODO: this and the next look like they could be cleaner
+        for insurer in self.insurancefirms:
             if insurer.operational:
                 for i in range(len(self.inaccuracy)):
                     if insurer.riskmodel.inaccuracy == self.inaccuracy[i]:
