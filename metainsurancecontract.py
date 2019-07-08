@@ -59,19 +59,13 @@ class MetaInsuranceContract():
         self.reinsurer = None
         self.reincontract = None
         self.reinsurance_share = None
-        #self.is_reinsurancecontract = False
 
         # setup payment schedule
-        #total_premium = premium * (self.excess - self.deductible)   # TODO: excess and deductible should not be considered linearily in premium computation; this should be shifted to the (re)insurer who supplies the premium as argument to the contract's constructor method
         total_premium = premium * self.value 
         self.periodized_premium = total_premium / self.runtime
         self.payment_times = [time + i for i in range(runtime) if i % payment_period == 0]
         self.payment_values = total_premium * (np.ones(len(self.payment_times)) / len(self.payment_times))
-        
-        ## Create obligation for premium payment
-        #self.property_holder.receive_obligation(premium * (self.excess - self.deductible), self.insurer, time, 'premium')
- 
-        # Embed contract in reinsurance network, if applicable
+
         if self.contract is not None:
             self.contract.reinsure(reinsurer=self.insurer, reinsurance_share=properties["reinsurance_share"], \
                                    reincontract=self)
@@ -80,9 +74,13 @@ class MetaInsuranceContract():
         self.roll_over_flag = 0
 
     def check_payment_due(self, time):
+        """Method to check if a contract payment is due.
+            Accepts:
+                time: Type integer
+            No return values.
+        This method checks if a scheduled premium payment is due, pays it to the insurer, and removes from schedule."""
         if len(self.payment_times) > 0 and time >= self.payment_times[0]:
             # Create obligation for premium payment
-            #self.property_holder.receive_obligation(premium * (self.excess - self.deductible), self.insurer, time, 'premium')
             self.property_holder.receive_obligation(self.payment_values[0], self.insurer, time, 'premium')
             
             # Remove current payment from payment schedule
@@ -90,6 +88,13 @@ class MetaInsuranceContract():
             self.payment_values = self.payment_values[1:]
     
     def get_and_reset_current_claim(self):
+        """Method to return and reset claim.
+            No accepted values
+            Returns:
+                self.category: Type integer. Which category the contracted risk is in.
+                current_claim: Type decimal
+                self.insurancetype == proportional: Type Boolean. Returns True if insurance is proportional and vice versa.
+        This method retuns the current claim, then resets it, and also indicates the type of insurance."""
         current_claim = self.current_claim
         self.current_claim = 0
         return self.category, current_claim, (self.insurancetype == "proportional")
