@@ -58,8 +58,7 @@ class MetaInsuranceContract:
         self.terminating = False
         self.current_claim = 0
         self.initial_VaR = initial_var
-
-        # set deductible from argument, risk property or default value, whichever first is not None
+            # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0
         if deductible_fraction is not None:
             self.deductible_fraction = deductible_fraction

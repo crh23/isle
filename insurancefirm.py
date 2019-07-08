@@ -350,7 +350,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             categ_id, claims, is_proportional = contract.get_and_reset_current_claim()
             if is_proportional:
                 claims_this_turn[categ_id] += claims
-            if contract.reincontract is not None:
+            if contract.reincontract:
                 contract.reincontract.explode(time, claims)
 
         for categ_id in range(self.simulation_no_risk_categories):

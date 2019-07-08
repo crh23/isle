@@ -50,39 +50,24 @@ class RiskModel:
 
     @staticmethod
     def get_categ_risks(risks, categ_id):
-        # categ_risks2 = [risk for risk in risks if risk["category"]==categ_id]
-        categ_risks = []
-        for risk in risks:
-            if risk["category"] == categ_id:
-                categ_risks.append(risk)
-        # assert categ_risks == categ_risks2
+        # List comprehension is faster
+        categ_risks = [risk for risk in risks if risk["category"] == categ_id]
         return categ_risks
 
     def compute_expectation(self, categ_risks, categ_id):  # TODO: more intuitive name?
-        # average_exposure2 = np.mean([risk["excess"]-risk["deductible"] for risk in categ_risks])
-        #
-        # average_risk_factor = np.mean([risk["risk_factor"] for risk in categ_risks])
-        # average_risk_factor2 = self.inaccuracy[categ_id] * np.mean([risk["risk_factor"] for risk in categ_risks])
-        #
-        # """compute expected profits from category"""
-        # mean_runtime2 = np.mean([risk["runtime"] for risk in categ_risks])
 
-        exposures = []
-        risk_factors = []
-        runtimes = []
-        for risk in categ_risks:
+        exposures = np.zeros(len(categ_risks))
+        risk_factors = np.zeros(len(categ_risks))
+        runtimes = np.zeros(len(categ_risks))
+        for i, risk in enumerate(categ_risks):
             # TODO: factor in excess instead of value?
-            exposures.append(risk["value"] - risk["deductible"])
-            risk_factors.append(risk["risk_factor"])
-            runtimes.append(risk["runtime"])
+            exposures[i] = risk["value"] - risk["deductible"]
+            risk_factors[i] = risk["risk_factor"]
+            runtimes[i] = risk["runtime"]
         average_exposure = np.mean(exposures)
         average_risk_factor = self.inaccuracy[categ_id] * np.mean(risk_factors)
 
-        mean_runtime = np.mean(runtimes)
-
-        # assert average_exposure == average_exposure2
-        # assert average_risk_factor == average_risk_factor2
-        # assert mean_runtime == mean_runtime2
+        # mean_runtime = np.mean(runtimes)
 
         if self.expire_immediately:
             incr_expected_profits = -1

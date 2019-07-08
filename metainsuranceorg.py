@@ -10,6 +10,7 @@ import sys, pdb
 import uuid
 
 
+# Can't use caching, as arrays are mutable and thus not hashable
 def get_mean(x):
     return sum(x) / len(x)
 
@@ -17,6 +18,8 @@ def get_mean(x):
 def get_mean_std(x):
     # At the moment this is always called with a no_category length array
     # I have tested the numpy versions of this, they are slower for small arrays but much, much faster for large ones
+    # If we ever let no_category be much larger, might want to use np for this bit
+    print(x)
     m = get_mean(x)
     std = math.sqrt(sum((val - m) ** 2 for val in x)) / len(x)
     return m, std
@@ -140,10 +143,8 @@ class MetaInsuranceOrg:
         self.reinrisks_kept = []
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
-        # TODO: Check that this shouldn't have to sum to self.cash
-        self.cash_left_by_categ = [
-            self.cash for i in range(self.simulation_parameters["no_categories"])
-        ]
+        # QUERY: Should this have to sum to self.cash
+        self.cash_left_by_categ = self.cash * np.ones(self.simulation_parameters["no_categories"])
         self.market_permanency_counter = 0
 
     def iterate(self, time):
@@ -880,33 +881,36 @@ class MetaInsuranceOrg:
             for contract in self.underwritten_contracts
             if contract.expiration == time + 1
         ]
-
-        if self.is_insurer is True:
-            for contract in maturing_next:
-                contract.roll_over_flag = 1
-                if (
-                    np.random.uniform(0, 1, 1)
-                    > self.simulation_parameters["insurance_retention"]
-                ):
-                    self.simulation.return_risks(
-                        [contract.risk_data]
-                    )  # TODO: This is not a retention, so the roll_over_flag might be confusing in this case
-                else:
-                    self.risks_kept.append(contract.risk_data)
-
-        if self.is_reinsurer is True:
-            for reincontract in maturing_next:
-                if reincontract.property_holder.operational:
-                    reincontract.roll_over_flag = 1
-                    reinrisk = reincontract.property_holder.create_reinrisk(
-                        time, reincontract.category
-                    )
+        # QUERY: Is it true to say that no firm underwrites both insurance and reinsurance?
+        # Generate all the rvs at the start
+        if maturing_next:
+            uniform_rvs = np.nditer(np.random.uniform(size=len(maturing_next)))
+            if self.is_insurer is True:
+                for contract in maturing_next:
+                    contract.roll_over_flag = 1
                     if (
-                        np.random.uniform(0, 1, 1)
-                        < self.simulation_parameters["reinsurance_retention"]
+                        next(uniform_rvs)
+                        > self.simulation_parameters["insurance_retention"]
                     ):
-                        if reinrisk is not None:
-                            self.reinrisks_kept.append(reinrisk)
+                        self.simulation.return_risks(
+                            [contract.risk_data]
+                        )  # TODO: This is not a retention, so the roll_over_flag might be confusing in this case
+                    else:
+                        self.risks_kept.append(contract.risk_data)
+
+            if self.is_reinsurer is True:
+                for reincontract in maturing_next:
+                    if reincontract.property_holder.operational:
+                        reincontract.roll_over_flag = 1
+                        reinrisk = reincontract.property_holder.create_reinrisk(
+                            time, reincontract.category
+                        )
+                        if (
+                            next(uniform_rvs)
+                            < self.simulation_parameters["reinsurance_retention"]
+                        ):
+                            if reinrisk is not None:
+                                self.reinrisks_kept.append(reinrisk)
 
     def make_reinsurance_claims(self, time):
         raise NotImplementedError(

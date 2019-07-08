@@ -6,7 +6,7 @@ import functools
 
 
 class TruncatedDistWrapper:
-    def __init__(self, dist, lower_bound=0, upper_bound=1):
+    def __init__(self, dist, lower_bound=0., upper_bound=1.):
         self.dist = dist
         self.normalizing_factor = dist.cdf(upper_bound) - dist.cdf(lower_bound)
         self.lower_bound = lower_bound
@@ -61,9 +61,12 @@ class TruncatedDistWrapper:
             sample = np.append(sample, self.rvs(size - len(sample)))
         return sample[:size]
 
+    # Cache could be replaced with a simple if is None cache, might offer a small performance gain.
+    # Also this could be a read-only @property, but then again so could a lot of things.
+    @functools.lru_cache(maxsize=1)
     def mean(self):
         mean_estimate, mean_error = scipy.integrate.quad(
-            lambda Y: Y * self.pdf(Y), self.lower_bound, self.upper_bound
+            lambda x: x * self.pdf(x), self.lower_bound, self.upper_bound
         )
         return mean_estimate
 
