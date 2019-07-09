@@ -49,11 +49,11 @@ class RiskModel:
            Returns value-at-risk."""
         return self.damage_distribution[categ_id].ppf(1 - tail_size)
 
-    @staticmethod
-    def get_categ_risks(risks, categ_id):
-        # List comprehension is slightly faster than repeated appending
-        categ_risks = [risk for risk in risks if risk["category"] == categ_id]
-        return categ_risks
+    def get_risks_by_categ(self, risks):
+        risks_by_categ = [[] for _ in range(self.category_number)]
+        for risk in risks:
+            risks_by_categ[risk["category"]].append(risk)
+        return risks_by_categ
 
     def compute_expectation(self, categ_risks, categ_id):  # TODO: more intuitive name?
 
@@ -94,14 +94,11 @@ class RiskModel:
         necessary_liquidity = 0
 
         var_per_risk_per_categ = np.zeros(self.category_number)
-
+        risks_by_categ = self.get_risks_by_categ(risks)
         # compute acceptable risks by category
         for categ_id in range(self.category_number):
             # compute number of acceptable risks of this category
-
-            categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
-            # categ_risks = [risk for risk in risks if risk["category"]==categ_id]
-
+            categ_risks = risks_by_categ[categ_id]
             if len(categ_risks) > 0:
                 average_risk_factor, average_exposure, incr_expected_profits = self.compute_expectation(
                     categ_risks=categ_risks, categ_id=categ_id
@@ -202,9 +199,10 @@ class RiskModel:
         additional_required = np.zeros(self.category_number)
         additional_var_per_categ = np.zeros(self.category_number)
 
+        risks_by_categ = self.get_risks_by_categ(risks)
         # values at risk and liquidity requirements by category
         for categ_id in range(self.category_number):
-            categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
+            categ_risks = risks_by_categ[categ_id]
 
             # TODO: allow for different risk distributions for different categories
             # TODO: factor in risk_factors

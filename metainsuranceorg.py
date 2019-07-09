@@ -550,9 +550,9 @@ class MetaInsuranceOrg:
         # This method organizes the new risks received by the insurer (or reinsurer)
 
         # This method organizes the new risks received by category in the nested list "risks_per_categ".
-        risks_per_categ = [[]] * self.simulation_parameters["no_categories"]
+        risks_per_categ = [[] for _ in range(self.simulation_parameters["no_categories"])]
         # This method also counts the new risks received by category in the list "number_risks_categ".
-        number_risks_categ = [0] * self.simulation_parameters["no_categories"]
+        number_risks_categ = [0 for _ in range(self.simulation_parameters["no_categories"])]
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
             risks_per_categ[categ_id] = [
