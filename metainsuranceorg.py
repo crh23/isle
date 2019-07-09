@@ -550,12 +550,10 @@ class MetaInsuranceOrg:
     def risks_reinrisks_organizer(self, new_risks):
         # This method organizes the new risks received by the insurer (or reinsurer)
 
-        risks_per_categ = [
-            [] for x in range(self.simulation_parameters["no_categories"])
-        ]  # This method organizes the new risks received by the insurer (or reinsurer) by category in the nested list "risks_per_categ".
-        number_risks_categ = [
-            [] for x in range(self.simulation_parameters["no_categories"])
-        ]  # This method also counts the new risks received by the insurer (or reinsurer) by category in the list "number_risks_categ".
+        # This method organizes the new risks received by category in the nested list "risks_per_categ".
+        risks_per_categ = [[]] * self.simulation_parameters["no_categories"]
+        # This method also counts the new risks received by category in the list "number_risks_categ".
+        number_risks_categ = [0] * self.simulation_parameters["no_categories"]
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
             risks_per_categ[categ_id] = [
@@ -563,10 +561,8 @@ class MetaInsuranceOrg:
             ]
             number_risks_categ[categ_id] = len(risks_per_categ[categ_id])
 
-        return (
-            risks_per_categ,
-            number_risks_categ,
-        )  # The method returns both risks_per_categ and number_risks_categ.
+        # The method returns both risks_per_categ and number_risks_categ.
+        return risks_per_categ, number_risks_categ
 
     def balanced_portfolio(self, risk, cash_left_by_categ, var_per_risk):
         # This method decides whether the portfolio is balanced enough to accept a new risk or not.
@@ -619,7 +615,8 @@ class MetaInsuranceOrg:
             # The new risk is accepted if the standard deviation is reduced or the cash reserved by category is very
             # well balanced. (std_post) <= (self.balance_ratio * mean)
             for i in range(len(cash_left_by_categ)):
-                # The balance condition is not taken into account if the cash reserve is far away from the limit. (total_cash_employed_by_categ_post/self.cash <<< 1)
+                # The balance condition is not taken into account if the cash reserve is far away from the limit.
+                # (total_cash_employed_by_categ_post/self.cash <<< 1)
                 cash_left_by_categ[i] = self.cash - cash_reserved_by_categ_store[i]
 
             return True, cash_left_by_categ

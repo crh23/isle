@@ -149,13 +149,11 @@ class RiskModel:
             # print("RISKMODEL: ", self.get_ppf(categ_id=categ_id, tailSize=0.5) * average_risk_factor * average_exposure, " = PPF(0.5) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.get_ppf(categ_id=categ_id, tailSize=0.5) * average_risk_factor * average_exposure * len(categ_risks))
             # if cash[categ_id] < 0:
             #    pdb.set_trace()
-            try:
-                acceptable = int(math.floor(cash[categ_id] / var_per_risk))
-                remaining = acceptable - len(categ_risks)
-                cash_left = cash[categ_id] - len(categ_risks) * var_per_risk
-            except:
-                print(sys.exc_info())
-                pdb.set_trace()
+
+            acceptable = int(math.floor(cash[categ_id] / var_per_risk))
+            remaining = acceptable - len(categ_risks)
+            cash_left = cash[categ_id] - len(categ_risks) * var_per_risk
+
             acceptable_by_category.append(acceptable)
             remaining_acceptable_by_category.append(remaining)
             cash_left_by_category[categ_id] = cash_left

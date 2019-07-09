@@ -134,7 +134,7 @@ class SetupSim:
         with open("./data/" + self.filepath, "wb") as wfile:
             pickle.dump(event_schedules, wfile, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # with open("./data/risk_event_schedules.txt", "w") as wfile: # QUERY: what's this for?
+        # with open("./data/risk_event_schedules.txt", "w") as wfile: # QUERY: what's this for? Why do we need the txt?
         #     for rep_schedule in event_schedules:
         #         wfile.write(
         #             str(rep_schedule)
@@ -164,7 +164,7 @@ class SetupSim:
                 "num_categories"
             ]
 
-    def obtain_ensemble(self, replications, filepath, overwrite):
+    def obtain_ensemble(self, replications, filepath=None, overwrite=False):
         # This method returns all the information (schedules and seeds) required to run an ensemble of simulations of
         # the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a
         # later time. The argument (replications) is the number of replications.
@@ -173,7 +173,7 @@ class SetupSim:
             self.filepath = self.to_filename(filepath)
         self.overwrite = overwrite
         if not isleconfig.replicating:
-            # We are writing to the file given
+            # Not replicating another run, so we are writing to the file given
             self.replications = replications
             if filepath is None and not self.overwrite:
                 print("No explicit path given, automatically overwriting default path")
@@ -183,7 +183,7 @@ class SetupSim:
 
             self.store()
         else:
-            # We are reading from the file given
+            # Replicating anothe run, so we are reading from the file given
             if filepath is not None:
                 self.recall()
                 if replications != self.replications:

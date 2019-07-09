@@ -12,6 +12,7 @@ import random
 import copy
 import logger
 import warnings
+import utils
 
 
 class InsuranceSimulation:
@@ -63,15 +64,11 @@ class InsuranceSimulation:
                 loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread
             )
         else:
-            self.risk_factor_distribution = scipy.stats.uniform(loc=1.0, scale=0)
-            # TODO: figure out a better way of implementing a constant rv
+            self.risk_factor_distribution = utils.constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
-        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)
+        self.risk_value_distribution = utils.constant(loc=1000)
 
         risk_factor_mean = self.risk_factor_distribution.mean()
-        # unfortunately scipy.stats.mean is not well-defined if scale = 0
-        if np.isnan(risk_factor_mean):
-            risk_factor_mean = self.risk_factor_distribution.rvs()
 
         # set initial market price (normalized, i.e. must be multiplied by value or excess-deductible)
         if self.simulation_parameters["expire_immediately"]:
@@ -125,11 +122,8 @@ class InsuranceSimulation:
 
         # set up risks
         risk_value_mean = self.risk_value_distribution.mean()
-        if np.isnan(risk_value_mean):
-            # unfortunately scipy.stats.mean is not well-defined if scale = 0
-            risk_value_mean = self.risk_value_distribution.rvs()
 
-        # QUERY: I'm stumped, what is the risk factor distribution?
+        # QUERY: What are risk factors? Are "risk_factor" values other than one meaningful at present?
         rrisk_factors = self.risk_factor_distribution.rvs(
             size=self.simulation_parameters["no_risks"]
         )
@@ -195,11 +189,16 @@ class InsuranceSimulation:
         ]
 
         # prepare setting up agents (to be done from start.py)
+        # QUERY: What is agent_parameters["insurancefirm"] meant to be? Is it a list of the parameters for the existing
+        #  firms (why can't we just get that from the instances of InsuranceFirm) or a list of the *possible* parameter
+        #  values for insurance firms (in which case why does it have the length it does)?
         self.agent_parameters = {"insurancefirm": [], "reinsurancefirm": []}
 
         self.insurer_id_counter = 0
         # TODO: collapse the following two loops into one generic one?
         for i in range(simulation_parameters["no_insurancefirms"]):
+            # Set up the parameters for each insurance firm
+            # Determine the level of reinsurance the firm will aim for? #QUERY: is that what this is?
             if simulation_parameters["static_non-proportional_reinsurance_levels"]:
                 insurance_reinsurance_level = simulation_parameters[
                     "default_non-proportional_reinsurance_deductible"
@@ -209,7 +208,9 @@ class InsuranceSimulation:
                     simulation_parameters["insurance_reinsurance_levels_lower_bound"],
                     simulation_parameters["insurance_reinsurance_levels_upper_bound"],
                 )
-            # The initial set of insurers are approximately uniformly distributed over the possible risk models
+
+            # The initial set of insurers are cycle over the possible risk models
+            # QUERY: Why don't they pick random risk models?
             riskmodel_config = risk_model_configurations[
                 i % len(risk_model_configurations)
             ]
@@ -324,12 +325,15 @@ class InsuranceSimulation:
             self.simulation_parameters["no_categories"]
         )
 
-    # QUERY: Now abce is gone can we merge all of the agent creation into here out of start.py?
+    def add_agents(self, agent_class, agent_class_string):
+        pass
+
     def build_agents(
         self, agent_class, agent_class_string, parameters, agent_parameters
     ):
         # assert agent_parameters == self.agent_parameters[agent_class_string]
         # #assert fits only the initial creation of agents, not later additions   # TODO: fix
+        assert parameters == self.simulation_parameters
         agents = []
         for ap in agent_parameters:
             agents.append(agent_class(parameters, ap))
@@ -416,8 +420,8 @@ class InsuranceSimulation:
                 )  # Schedules of catastrophes and damages must me generated at the same time.
                 self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
-                # TODO: Ideally don't want to be taking from the beginning of lists,
-                #  consider having soonest events at the end of the list.
+                # TODO: Ideally don't want to be taking from the beginning of lists, consider having soonest events at
+                #  the end of the list. Probably fine though, only happens once per iteration
             else:
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
@@ -563,22 +567,18 @@ class InsuranceSimulation:
         current_log[
             "cumulative_unrecovered_claims"
         ] = self.cumulative_unrecovered_claims
-        current_log[
-            "cumulative_claims"
-        ] = self.cumulative_claims  # Log the cumulative claims received so far.
+        # Log the cumulative claims received so far.
+        current_log["cumulative_claims"] = self.cumulative_claims
 
         """ add agent-level data to dict"""
         current_log["insurance_firms_cash"] = insurance_firms
         current_log["reinsurance_firms_cash"] = reinsurance_firms
         current_log["market_diffvar"] = self.compute_market_diffvar()
 
-        current_log["individual_contracts"] = []
-        individual_contracts_no = [
+        current_log["individual_contracts"] = [
             len(insurancefirm.underwritten_contracts)
             for insurancefirm in self.insurancefirms
         ]
-        for i in range(len(individual_contracts_no)):
-            current_log["individual_contracts"].append(individual_contracts_no[i])
 
         """ call to Logger object """
         self.logger.record_data(current_log)
@@ -794,7 +794,7 @@ class InsuranceSimulation:
         if self.reinsurance_off:
             return float("inf")
         max_reduction = 0.1
-        # QUERY: why is this this way?
+        # QUERY: why is this this way? Why no, say, 1.0 - min(max_reduction * np_reinsurance_deductible_fraction)?
         return self.reinsurance_market_premium * (
             1.0 - max_reduction * np_reinsurance_deductible_fraction
         )
@@ -806,6 +806,7 @@ class InsuranceSimulation:
             return float("inf")
         max_reduction = 0.9
         max_cat_bond_surcharge = 0.5
+        # QUERY: again, what does max_reduction represent?
         return self.reinsurance_market_premium * (
             1.0
             + max_cat_bond_surcharge
@@ -824,7 +825,7 @@ class InsuranceSimulation:
         np.random.shuffle(self.reinrisks)
         return self.reinrisks
 
-    def solicit_insurance_requests(self, id, cash, insurer):
+    def solicit_insurance_requests(self, insurer_id, cash, insurer):
 
         risks_to_be_sent = self.risks[: int(self.insurers_weights[insurer.id])]
         self.risks = self.risks[int(self.insurers_weights[insurer.id]) :]

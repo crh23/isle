@@ -82,15 +82,15 @@ def main(
         if simulation.insurance_firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [
                 np.random.choice(simulation.agent_parameters["insurancefirm"])
-            ]  # Which of these should be used?
+            ]  # QUERY Which of these should be used?
             parameters = [
                 simulation.agent_parameters["insurancefirm"][
                     simulation.insurance_entry_index()
                 ]
             ]
-            # As far as I can tell, there are only {no_riskmodels} distinct values for parameters, why does
-            # simulation.agent_parameters["insurancefirm"] need to have length {no_insurancefirms}?
-            # Also why do the new insurers always use the least popular risk model?
+            # QUERY: As far as I can tell, there are only {no_riskmodels} distinct values for parameters, why does
+            #  simulation.agent_parameters["insurancefirm"] need to have length {no_insurancefirms}?
+            #  Also why do the new insurers always use the least popular risk model?
             parameters[0]["id"] = simulation.get_unique_insurer_id()
             new_insurance_firm = simulation.build_agents(
                 insurancefirm.InsuranceFirm,
@@ -106,7 +106,7 @@ def main(
                 np.random.choice(simulation.agent_parameters["reinsurancefirm"])
             ]
             # The reinsurance firms do just pick a random riskmodel when they are created. It is weighted by the initial
-            # distribution, I think # TODO: is this right?
+            # distribution, I think # QUERY: is this right?
             parameters[0]["initial_cash"] = simulation.reinsurance_capital_entry()
             # Since the value of the reinrisks varies overtime it makes sense that the market entry of reinsures
             # depends on those values. The method world.reinsurance_capital_entry() determines the capital
@@ -190,13 +190,15 @@ if __name__ == "__main__":
         "--file",
         action="store",
         help="the file to store the initial randomness in. Will be stored in ./data and appended with .islestore "
-        "(if it is not already)",
+        "(if it is not already). The default filepath is ./data/risk_event_schedules.islestore, which will be "
+        "overwritten event if --overwrite is not passed!",
     )
     parser.add_argument(
         "-r",
         "--replicating",
         action="store_true",
-        help="if this is a simulation run designed to replicate another, override the config file parameter",
+        help="if this is a simulation run designed to replicate another, override the config file parameter. "
+             "You probably want to specify the --file to read from.",
     )
     parser.add_argument(
         "-o",
@@ -237,7 +239,7 @@ if __name__ == "__main__":
         override_no_riskmodels = 1
     if args.riskmodels:
         override_no_riskmodels = args.riskmodels
-    if args.replicid is not None:  # TODO: track down all uses of replicid
+    if args.replicid:  # TODO: track down all uses of replicid
         raise ValueError("--replicid is no longer supported, use --file")
     if args.file:
         filepath = args.file
@@ -264,7 +266,7 @@ if __name__ == "__main__":
     else:
         save_iter = 200
 
-    from setup import SetupSim
+    from setup_simulation import SetupSim
 
     setup = SetupSim()  # Here the setup for the simulation is done.
 
