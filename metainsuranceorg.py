@@ -6,8 +6,6 @@ import math
 from insurancecontract import InsuranceContract
 from reinsurancecontract import ReinsuranceContract
 from riskmodel import RiskModel
-import sys, pdb
-import uuid
 import functools
 
 
@@ -425,7 +423,8 @@ class MetaInsuranceOrg:
         self.obligations = [
             item for item in self.obligations if item["due_time"] > time
         ]
-        # TODO: could this cause a firm to enter illiquidity if it has obligations to non-operational firms?
+        # TODO: could this cause a firm to enter illiquidity if it has obligations to non-operational firms? Such
+        #  firms can't recieve payment, so this possibly shouldn't happen.
         sum_due = sum([item["amount"] for item in due])
         if sum_due > self.cash:
             self.obligations += due
@@ -609,20 +608,19 @@ class MetaInsuranceOrg:
 
         total_cash_reserved_by_categ_post = sum(cash_reserved_by_categ_store)
 
-        if (std_post * total_cash_reserved_by_categ_post / self.cash) <= (
-            self.balance_ratio * mean
+        # Doing a < b*c is about 10% faster than a/c < b
+        if (std_post * total_cash_reserved_by_categ_post) <= (
+            self.balance_ratio * mean * self.cash
         ) or std_post < std_pre:
             # The new risk is accepted if the standard deviation is reduced or the cash reserved by category is very
             # well balanced. (std_post) <= (self.balance_ratio * mean)
-            for i in range(len(cash_left_by_categ)):
-                # The balance condition is not taken into account if the cash reserve is far away from the limit.
-                # (total_cash_employed_by_categ_post/self.cash <<< 1)
-                cash_left_by_categ[i] = self.cash - cash_reserved_by_categ_store[i]
+            # The balance condition is not taken into account if the cash reserve is far away from the limit.
+            # (total_cash_employed_by_categ_post/self.cash <<< 1)
+            cash_left_by_categ = self.cash - cash_reserved_by_categ_store
 
             return True, cash_left_by_categ
         else:
-            for i in range(len(cash_left_by_categ)):
-                cash_left_by_categ[i] = self.cash - cash_reserved_by_categ[i]
+            cash_left_by_categ = self.cash - cash_reserved_by_categ
 
             return False, cash_left_by_categ
 

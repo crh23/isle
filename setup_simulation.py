@@ -14,11 +14,12 @@
         random.random.seed(d["np_seed"])
     """
 
-import argparse
-import scipy.stats
-import pickle
 import math
+
 import os
+import pickle
+import scipy.stats
+
 import isleconfig
 from distributiontruncated import TruncatedDistWrapper
 

@@ -1,7 +1,7 @@
 import math
+
 import numpy as np
-import sys, pdb
-import scipy.stats
+
 import isleconfig
 from distributionreinsurance import ReinsuranceDistWrapper
 
@@ -271,6 +271,7 @@ class RiskModel:
         el_risks = [risk for risk in risks if risk["insurancetype"] == "excess-of-loss"]
         risks = [risk for risk in risks if risk["insurancetype"] == "proportional"]
         # compute liquidity requirements and acceptable risks from existing contract
+        # TODO: Consider edge cases here
         if (offered_risk is not None) or (len(el_risks) > 0):
             cash_left_by_categ, additional_required, var_this_risk = self.evaluate_excess_of_loss(
                 el_risks, cash_left_by_categ, offered_risk

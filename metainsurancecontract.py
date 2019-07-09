@@ -1,7 +1,3 @@
-import numpy as np
-import sys, pdb
-
-
 class MetaInsuranceContract:
     def __init__(
         self,
@@ -60,10 +56,7 @@ class MetaInsuranceContract:
         self.initial_VaR = initial_var
         # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0
-        if deductible_fraction is not None:
-            self.deductible_fraction = deductible_fraction
-        else:
-            self.deductible_fraction = properties.get(
+        self.deductible_fraction = deductible_fraction if deductible_fraction is not None else properties.get(
                 "deductible_fraction", default_deductible_fraction
             )
 
@@ -71,10 +64,7 @@ class MetaInsuranceContract:
 
         # set excess from argument, risk property or default value, whichever first is not None
         default_excess_fraction = 1.0
-        if excess_fraction is not None:
-            self.excess_fraction = excess_fraction
-        else:
-            self.excess_fraction = properties.get(
+        self.excess_fraction = excess_fraction if excess_fraction is not None else properties.get(
                 "excess_fraction", default_excess_fraction
             )
 

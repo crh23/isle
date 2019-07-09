@@ -2,18 +2,16 @@
 # It can be run locally if no argument is passed when called from the terminal.
 # It can be run in the cloud if it is passed as argument the server that will be used.
 import sys
-import random
-import os
-import math
+
 import copy
-import scipy.stats
-import start
-import logger
-import listify
-import isleconfig
-from distributiontruncated import TruncatedDistWrapper
-from setup_simulation import SetupSim
+import os
 from sandman2.api import operation, Session
+
+import isleconfig
+import listify
+import logger
+import start
+from setup_simulation import SetupSim
 
 
 @operation

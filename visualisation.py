@@ -31,6 +31,7 @@ class TimeSeries(object):
             self.axlst = axlst
             self.fig = fig
         else:
+            # noinspection PyTypeChecker
             self.fig, self.axlst = plt.subplots(self.size, sharex=True)
 
         # self.plot() # we create the object when we want the plot so call plot() in the constructor

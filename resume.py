@@ -1,11 +1,8 @@
 # import common packages
-import numpy as np
-import scipy.stats
-import math
-import sys, pdb
 import argparse
-import pickle
 import hashlib
+import numpy as np
+import pickle
 import random
 
 # import config file and apply configuration
@@ -80,9 +77,7 @@ if args.verbose:
 
 # import isle modules
 
-from insurancesimulation import InsuranceSimulation
 from insurancefirm import InsuranceFirm
-from riskmodel import RiskModel
 from reinsurancefirm import ReinsuranceFirm
 
 

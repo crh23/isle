@@ -1,5 +1,3 @@
-import numpy as np
-
 from metainsurancecontract import MetaInsuranceContract
 
 
@@ -78,6 +76,8 @@ class ReinsuranceContract(MetaInsuranceContract):
                 self.insurer.receive_obligation(
                     claim, self.property_holder, time + 1, "claim"
                 )
+            else:
+                raise ValueError(f"Unexpected insurance type {self.insurancetype}")
                 # Reinsurer pays as soon as possible.
             self.insurer.register_claim(
                 claim

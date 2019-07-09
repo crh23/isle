@@ -1,9 +1,6 @@
-import scipy.stats
-import numpy as np
-from math import ceil
-import scipy
-import pdb
 import functools
+import numpy as np
+import scipy.stats
 
 
 class ReinsuranceDistWrapper:

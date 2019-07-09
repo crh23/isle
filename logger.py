@@ -1,7 +1,7 @@
 """Logging class. Handles records of a single simulation run. Can save and reload. """
 
 import numpy as np
-import pdb
+
 import listify
 
 LOG_DEFAULT = (

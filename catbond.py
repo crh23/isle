@@ -1,12 +1,5 @@
 import isleconfig
-import numpy as np
-import scipy.stats
-from insurancecontract import InsuranceContract
-from reinsurancecontract import ReinsuranceContract
 from metainsuranceorg import MetaInsuranceOrg
-from riskmodel import RiskModel
-import sys, pdb
-import uuid
 
 
 class CatBond(MetaInsuranceOrg):
@@ -59,9 +52,11 @@ class CatBond(MetaInsuranceOrg):
         contracts_dissolved = len(maturing)
 
         """effect payments from contracts"""
-        [contract.check_payment_due(time) for contract in self.underwritten_contracts]
+        for contract in self.underwritten_contracts:
+            contract.check_payment_due(time)
 
-        if self.underwritten_contracts == []:
+        if not self.underwritten_contracts:
+            # If there are no contracts left, the bond is matured
             self.mature_bond()  # TODO: mature_bond method should check if operational
 
         # TODO: dividend should only be payed according to pre-arranged schedule,
@@ -82,6 +77,8 @@ class CatBond(MetaInsuranceOrg):
         self.underwritten_contracts.append(contract)
 
     def mature_bond(self):
+        # QUERY: does this ever run when self.operational == False?
+        # assert self.operational
         obligation = {
             "amount": self.cash,
             "recipient": self.simulation,
