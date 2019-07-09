@@ -573,7 +573,9 @@ class MetaInsuranceOrg:
 
         _, std_pre = get_mean_std(tuple(cash_reserved_by_categ))
 
-        cash_reserved_by_categ_store = np.copy(cash_reserved_by_categ)
+        # For some reason just recreating the array is faster than copying it
+        # cash_reserved_by_categ_store = np.copy(cash_reserved_by_categ)
+        cash_reserved_by_categ_store = np.array(cash_reserved_by_categ)
 
         if risk.get("insurancetype") == "excess-of-loss":
             percentage_value_at_risk = self.riskmodel.get_ppf(
