@@ -1,4 +1,3 @@
-
 import math
 import numpy as np
 import sys, pdb
@@ -7,10 +6,12 @@ import isleconfig
 from distributionreinsurance import ReinsuranceDistWrapper
 
 
-class RiskModel():
+class RiskModel:
     def __init__(self, damage_distribution, expire_immediately, cat_separation_distribution, norm_premium, \
                 category_number, init_average_exposure, init_average_risk_factor, init_profit_estimate, \
                 margin_of_safety, var_tail_prob, inaccuracy):
+        """Initialising method for RiskModel class. All accepted arguments are initialised in the __init__ method of
+        insurancesimulation, and are mostly from isleconfig.py.   """
         self.cat_separation_distribution = cat_separation_distribution
         self.norm_premium = norm_premium
         self.var_tail_prob = 0.02
@@ -22,7 +23,7 @@ class RiskModel():
         self.margin_of_safety = margin_of_safety
         """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
-        self.damage_distribution = [damage_distribution for _ in range(self.category_number)] # TODO: separate that category wise? -> DONE.
+        self.damage_distribution = [damage_distribution for _ in range(self.category_number)]
         self.damage_distribution_stack = [[] for _ in range(self.category_number)] 
         self.reinsurance_contract_stack = [[] for _ in range(self.category_number)]
         self.inaccuracy = inaccuracy
@@ -31,28 +32,30 @@ class RiskModel():
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
               categ_id  integer:            category 
-              tailSize  (float >=0, <=1):   quantile
+              tailSize  (float 1=>x=>0):   quantile
            Returns value-at-risk."""
         return self.damage_distribution[categ_id].ppf(1-tailSize)
 
     def get_categ_risks(self, risks, categ_id):
-        #categ_risks2 = [risk for risk in risks if risk["category"]==categ_id]
-        categ_risks = []
-        for risk in risks:
-            if risk["category"]==categ_id:
-                categ_risks.append(risk)
-        #assert categ_risks == categ_risks2
+        """Method takes list of all risks and only returns a list of all the risks belonging to the given category.
+            Accepts:
+                risks: Type List of DataDicts
+                categ_id: Type Integer.
+            Returns:
+                categ_risks: Type List of DataDicts."""
+        categ_risks = [risk for risk in risks if risk["category"] == categ_id]
         return categ_risks
 
     def compute_expectation(self, categ_risks, categ_id):      #TODO: more intuitive name?
-        #average_exposure2 = np.mean([risk["excess"]-risk["deductible"] for risk in categ_risks])
-        #
-        ##average_risk_factor = np.mean([risk["risk_factor"] for risk in categ_risks])
-        #average_risk_factor2 = self.inaccuracy[categ_id] * np.mean([risk["risk_factor"] for risk in categ_risks])
-        #
-        ## compute expected profits from category
-        #mean_runtime2 = np.mean([risk["runtime"] for risk in categ_risks])
-        
+        """Method to compute the average exposure and risk factor as well as the increase in expected profits for the
+        risks in a given category.
+            Accepts:
+                categ_risks: Type List of DataDicts.
+                categ_id: Type Integer.
+            Returns:
+                average_risk_factor: Type Decimal.
+                average_exposure: Type Decimal. Mean risk factor in given category multiplied by inaccuracy.
+                incr_expected_profits: Type Decimal (currently only returns -1)"""
         exposures = []
         risk_factors = []
         runtimes = []
@@ -64,9 +67,6 @@ class RiskModel():
         average_exposure = np.mean(exposures)
         average_risk_factor = self.inaccuracy[categ_id] * np.mean(risk_factors)
         mean_runtime = np.mean(runtimes)
-        #assert average_exposure == average_exposure2
-        #assert average_risk_factor == average_risk_factor2
-        #assert mean_runtime == mean_runtime2
         
         if self.expire_immediately:
             incr_expected_profits = -1
@@ -81,7 +81,18 @@ class RiskModel():
         return average_risk_factor, average_exposure, incr_expected_profits
             
     def evaluate_proportional(self, risks, cash):
-        
+        """Method to evaluate proportional type risks.
+            Accepts:
+                risks: Type List of DataDicts.
+                cash: Type List. Gives cash available for each category.
+            Returns:
+                expected_profits: Type Decimal (Currently returns None)
+                remaining_acceptable_by_category: Type List of Integers. Number of risks that would not be covered by firms cash.
+                cash_left_by_category: Type List of Integers. Firms expected cash left if underwriting the risks from that category.
+                var_per_risk_per_categ: List of Integers. Average VaR per category.
+        This method iterates through the risks in each category and calculates the average VaR, how many could be
+        underwritten according to their average VaR, how much cash would be left per category if all risks were
+        underwritten at average VaR, and the total expected profit (currently always None)."""
         assert len(cash) == self.category_number
 
         # prepare variables
@@ -95,20 +106,16 @@ class RiskModel():
         
         # compute acceptable risks by category
         for categ_id in range(self.category_number):
-            # compute number of acceptable risks of this category 
-            
+            # compute number of acceptable risks of this category
             categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
-            #categ_risks = [risk for risk in risks if risk["category"]==categ_id]
             
             if len(categ_risks) > 0:
                 average_risk_factor, average_exposure, incr_expected_profits = self.compute_expectation(categ_risks=categ_risks, categ_id=categ_id)
             else:
                 average_risk_factor = self.init_average_risk_factor
                 average_exposure = self.init_average_exposure
-
                 incr_expected_profits = -1
                 # TODO: expected profits should only be returned once the expire_immediately == False case is fixed
-                #incr_expected_profits = 0
 
             expected_profits += incr_expected_profits
             
@@ -117,16 +124,9 @@ class RiskModel():
             
             # record liquidity requirement and apply margin of safety for liquidity requirement
             necessary_liquidity += var_per_risk * self.margin_of_safety * len(categ_risks)
-            #print("RISKMODEL: ", self.getPPF(categ_id=categ_id, tailSize=0.01) * average_risk_factor * average_exposure, " = PPF(0.01) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.getPPF(categ_id=categ_id, tailSize=0.01) * average_risk_factor * average_exposure * len(categ_risks))
             if isleconfig.verbose:
                 print(self.inaccuracy)
                 print("RISKMODEL: ", var_per_risk, " = PPF(0.02) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", var_per_risk * len(categ_risks))
-            #print("RISKMODEL: ", self.getPPF(categ_id=categ_id, tailSize=0.05) * average_risk_factor * average_exposure, " = PPF(0.05) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.getPPF(categ_id=categ_id, tailSize=0.05) * average_risk_factor * average_exposure * len(categ_risks))
-            #print("RISKMODEL: ", self.getPPF(categ_id=categ_id, tailSize=0.1) * average_risk_factor * average_exposure, " = PPF(0.1) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.getPPF(categ_id=categ_id, tailSize=0.1) * average_risk_factor * average_exposure * len(categ_risks))
-            #print("RISKMODEL: ", self.getPPF(categ_id=categ_id, tailSize=0.25) * average_risk_factor * average_exposure, " = PPF(0.25) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.getPPF(categ_id=categ_id, tailSize=0.25) * average_risk_factor * average_exposure * len(categ_risks))
-            #print("RISKMODEL: ", self.getPPF(categ_id=categ_id, tailSize=0.5) * average_risk_factor * average_exposure, " = PPF(0.5) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", self.getPPF(categ_id=categ_id, tailSize=0.5) * average_risk_factor * average_exposure * len(categ_risks))
-            #if cash[categ_id] < 0:
-            #    pdb.set_trace()
             try:
                 acceptable = int(math.floor(cash[categ_id] / var_per_risk))
                 remaining = acceptable - len(categ_risks)
@@ -152,17 +152,28 @@ class RiskModel():
         max_cash_by_categ = max(cash_left_by_category)
         floored_cash_by_categ = cash_left_by_category.copy()
         floored_cash_by_categ[floored_cash_by_categ < 0] = 0
-        remaining_acceptable_by_category_old = remaining_acceptable_by_category.copy()
         for categ_id in range(self.category_number):
-            remaining_acceptable_by_category[categ_id] = math.floor(
-                    remaining_acceptable_by_category[categ_id] * pow(
-                        floored_cash_by_categ[categ_id] / max_cash_by_categ, 5))
+            remaining_acceptable_by_category[categ_id] = math.floor(remaining_acceptable_by_category[categ_id] * pow(
+                                                         floored_cash_by_categ[categ_id] / max_cash_by_categ, 5))
         if isleconfig.verbose:
             print("RISKMODEL returns: ", expected_profits, remaining_acceptable_by_category)
+
         return expected_profits, remaining_acceptable_by_category, cash_left_by_category, var_per_risk_per_categ
 
-    def evaluate_excess_of_loss(self, risks, cash, offered_risk = None):
-        
+    def evaluate_excess_of_loss(self, risks, cash, offered_risk=None):
+        """Method to evaluate excess-of-loss type risks.
+                Accepts:
+                    risks: Type List of DataDicts.
+                    cash: Type List. Gives cash available for each category.
+                    offered risk: Type DataDict
+                Returns:
+                    additional_required: Type List of Decimals. Capital required to cover offered risks potential claim
+                                         (including margin of safety) per category. Only one will be non-zero.
+                    cash_left_by_category: Type List of Decimals. Cash left per category if all risks claimed.
+                    var_this_risk: Type Decimal. Expected claim of offered risk.
+        This method iterates through the risks in each category and calculates the cash left in each category if
+        each underwritten contract were to be claimed at expected values. The additional cash required to cover the
+        offered risk (if applicable) is then calculated (should only be one)."""
         cash_left_by_categ = np.copy(cash)
         assert len(cash_left_by_categ) == self.category_number
         
@@ -175,13 +186,11 @@ class RiskModel():
             categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
             
             # TODO: allow for different risk distributions for different categories
-            # TODO: factor in risk_factors
             percentage_value_at_risk = self.getPPF(categ_id=categ_id, tailSize=self.var_tail_prob)
             
             # compute liquidity requirements from existing contracts
             for risk in categ_risks:
-                expected_damage = percentage_value_at_risk * risk["value"] * risk["risk_factor"] \
-                                                                           * self.inaccuracy[categ_id]
+                expected_damage = percentage_value_at_risk * risk["value"] * risk["risk_factor"] * self.inaccuracy[categ_id]
                 expected_claim = min(expected_damage, risk["excess"]) - risk["deductible"]
                 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
@@ -189,8 +198,7 @@ class RiskModel():
             
             # compute additional liquidity requirements from newly offered contract
             if (offered_risk is not None) and (offered_risk.get("category") == categ_id):
-                expected_damage_fraction = percentage_value_at_risk * offered_risk["risk_factor"] \
-                                                                      * self.inaccuracy[categ_id]
+                expected_damage_fraction = percentage_value_at_risk * offered_risk["risk_factor"] * self.inaccuracy[categ_id]
                 expected_claim_fraction = min(expected_damage_fraction, offered_risk["excess_fraction"]) - offered_risk["deductible_fraction"]
                 expected_claim_total = expected_claim_fraction * offered_risk["value"]
                 
@@ -205,6 +213,29 @@ class RiskModel():
         return cash_left_by_categ, additional_required, var_this_risk
 
     def evaluate(self, risks, cash, offered_risk=None):
+        """Method to evaluate given risks and the offered risk.
+            Accepts:
+                risks: List of DataDicts.
+                cash: Type Decimal.
+            Optional:
+                offered_risk: Type DataDict or defaults to None.
+            (offered_risk = None) Returns:
+                expected_profits_proportional: Type Decimal (Currently returns None)
+                remaining_acceptable_by_categ:  Type List of Integers. Number of risks that would not be covered by firms cash.
+                cash_left_by_categ: Type List of Integers. Firms expected cash left if underwriting the risks from that category.
+                var_per_risk_per_categ: List of Integers. Average VaR per category
+                min(cash_left_by_categ): Type Decimal. Minimum
+            (offered_risk != None) Returns:
+                (cash_left_by_categ - additional_required > 0).all(): Type Boolean. Returns True only if all categories have
+                                                                      enough to cover the additional capital to insure risk.
+                cash_left_by_categ: Type List of Decimals. Cash left per category if all risks claimed.
+                var_this_risk: Type Decimal. Expected claim of offered risk.
+                min(cash_left_by_categ): Type Decimal. Minimum value of cash left in a category after covering all expected claims.
+        This method organises all risks by insurance type then delegates then to respective methods
+        (evaluate_prop/evaluate_excess_of_loss). Excess of loss risks are processed one at a time and are admitted using
+        the offered_risk argument, whereas proportional risks are processed all at once leaving offered_risk = 0. This
+        results in two sets of return values being used. These return values are what is used to determine if risks are
+        underwritten or not."""
         # ensure that any risk to be considered supplied directly as argument is non-proportional/excess-of-loss
         assert (offered_risk is None) or offered_risk.get("insurancetype") == "excess-of-loss"
 
@@ -236,6 +267,15 @@ class RiskModel():
             return (cash_left_by_categ - additional_required > 0).all(), cash_left_by_categ, var_this_risk, min(cash_left_by_categ)
 
     def add_reinsurance(self, categ_id, excess_fraction, deductible_fraction, contract):
+        """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
+         distribution to stack of damage distributions per category, then replace with a new distribution. Only used in
+         thad add_reinsurance method of insurancefirm.
+            Accepts:
+                categ_id: Type Integer.
+                excess_fraction: Type Decimal.
+                deductible_fraction: Type Decimal.
+                contract: Type DataDict.
+            No return values."""
         self.damage_distribution_stack[categ_id].append(self.damage_distribution[categ_id])
         self.reinsurance_contract_stack[categ_id].append(contract)
         self.damage_distribution[categ_id] = ReinsuranceDistWrapper(lower_bound=deductible_fraction, \
@@ -243,6 +283,15 @@ class RiskModel():
                                                                     dist=self.damage_distribution[categ_id])
 
     def delete_reinsurance(self, categ_id, excess_fraction, deductible_fraction, contract):
+        """Method to remove any instance of reinsurance to risk models list of reinsurance contracts, and remove its
+        damage distribution from the stack of damage distributions per category. Only used in the delete_reinsurance
+        method of insurancefirm.
+            Accepts:
+                categ_id: Type Integer.
+                excess_fraction: Type Decimal.
+                deductible_fraction: Type Decimal.
+                contract: Type DataDict.
+            No return values."""
         assert self.reinsurance_contract_stack[categ_id][-1] == contract
         self.reinsurance_contract_stack[categ_id].pop()
         self.damage_distribution[categ_id] = self.damage_distribution_stack[categ_id].pop()
