@@ -10,12 +10,13 @@ slim_log = True  # Should logs be small in ensemble runs (only aggregated level 
 
 simulation_parameters = {
     "no_categories": 4,
-    "no_insurancefirms": 20,
-    "no_reinsurancefirms": 4,
-    "no_riskmodels": 2,
-    "riskmodel_inaccuracy_parameter": 2,  # values >=1; inaccuracy higher with higher values
-    "riskmodel_margin_of_safety": 2,
+    "no_insurancefirms": 200,
+    "no_reinsurancefirms": 5,
+    "no_riskmodels": 3,
+    # values >=1; inaccuracy higher with higher values
+    "riskmodel_inaccuracy_parameter": 2,
     # values >=1; factor of additional liquidity beyond value at risk
+    "riskmodel_margin_of_safety": 2,
     "margin_increase": 0,
     # "margin_increase" modifies the margin of safety depending on the number of risks models available in the market.
     # When it is 0 all risk models have the same margin of safety.
@@ -98,5 +99,5 @@ simulation_parameters = {
     "reinsurance_limit": 0.1,
     "upper_price_limit": 1.2,
     "lower_price_limit": 0.85,
-    "no_risks": 20000,
+    "no_risks": 200000,
 }
