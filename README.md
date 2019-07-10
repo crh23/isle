@@ -14,7 +14,7 @@ $ pip install -r requirements.txt
 
 ## Simulation 
 
-Execute the simulation with this command
+Execute a single simulation run with the command:
 
 ```
 $ python3 start.py
@@ -25,9 +25,9 @@ $ python3 start.py
 The ```start.py``` script accepts a number of options. 
 
 ```
-usage: start.py [-h] [--abce] [--oneriskmodel] [--riskmodels {1,2,3,4}]
-                [--replicid REPLICID] [--replicating]
-                [--randomseed RANDOMSEED] [--foreground] [-p] [-v]
+usage: start.py [--oneriskmodel] [--riskmodels {1,2,3,4}] [--replicid REPLICID]
+                [--replicating] [--randomseed RANDOMSEED] [--foreground]
+                [--shownetwork] [-p] [-v] [--save_iterations]
 ```
 
 See the help for more details
@@ -36,17 +36,9 @@ See the help for more details
 python3 start.py --help
 ```
 
-## Graphical simulation runs
-
-abce can be used to run simulations with a graphical interface:
-
-```
-python3 start.py --abce
-```
-
 ## Ensemble simulations
 
-The bash scripts ```starter_*.sh``` can be used to run ensembles of a large number of simulations for settings with 1-4 different riskmodels. ```starter_two.sh``` is set up to generate random seeds and risk event schedules that are - for consistency and comparability - also used by the other scripts (i.e. ```starter_two.sh``` needs to be run first).
+The bash scripts ```starter_*.sh``` can be used to run ensembles of a large number of simulations for settings with 1-4 different risk models. ```starter_two.sh``` is set up to generate random seeds and risk event schedules that are - for consistency and comparability - also used by the other scripts (i.e. ```starter_two.sh``` needs to be run first).
 
 ```
 bash starter_two.sh
@@ -57,5 +49,11 @@ bash starter_three.sh
 
 ## Plotting
 
-Use the scripts ```plotter_pl_timescale.py``` and  ```visualize.py``` for plotting/visualizing single simulation runs. Use  ```.py```,  ```metaplotter_pl_timescale.py```, or  ```metaplotter_pl_timescale_additional_measures.py``` to visualize ensemble runs.
+####Single runs
+Use the script ```plotter.py``` to plot insurer and reinsurer data, or run  
+```visualisation.py [--single]``` from the command line to plot this and visualise the run.
+
+####Ensemble runs
+Use  ```metaplotter_pl_timescale.py```,  ```metaplotter_pl_timescale_additional_measures.py```, 
+or ```visualisation.py [--comparison]``` to visualize ensemble runs.
 
