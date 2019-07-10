@@ -49,11 +49,11 @@ bash starter_three.sh
 
 ## Plotting
 
-####Single runs
+#### Single runs
 Use the script ```plotter.py``` to plot insurer and reinsurer data, or run  
 ```visualisation.py [--single]``` from the command line to plot this and visualise the run.
 
-####Ensemble runs
+#### Ensemble runs
 Use  ```metaplotter_pl_timescale.py```,  ```metaplotter_pl_timescale_additional_measures.py```, 
 or ```visualisation.py [--comparison]``` to visualize ensemble runs.
 
