@@ -1,6 +1,6 @@
 from insurancefirm import InsuranceFirm
-# from riskmodel import RiskModel
 from reinsurancefirm import ReinsuranceFirm
+from centralbank import CentralBank
 from distributiontruncated import TruncatedDistWrapper
 import numpy as np
 import scipy.stats
@@ -71,6 +71,7 @@ class InsuranceSimulation():
         "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.money_supply = self.simulation_parameters["money_supply"]
         self.obligations = []
+        self.bank = CentralBank()
 
         "Set up risk categories"
         self.riskcategories = list(range(self.simulation_parameters["no_categories"]))
@@ -214,7 +215,6 @@ class InsuranceSimulation():
                 time: Integer type, not used
             Returns:
                 None"""
-        # TODO: fix agent id's for late entrants (both firms and catbonds)
         if agent_class_string == "insurancefirm":
             try:
                 self.insurancefirms += agents
@@ -222,7 +222,6 @@ class InsuranceSimulation():
             except:
                 print(sys.exc_info())
                 pdb.set_trace()
-            # fix self.history_logs['individual_contracts'] list
             for agent in agents:
                 self.logger.add_insurance_agent()
             # remove new agent cash from simulation cash to ensure stock flow consistency
@@ -336,10 +335,12 @@ class InsuranceSimulation():
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
 
-        if isleconfig.show_network and t % 40 == 0 and t > 0:
-            RN = visualization_network.ReinsuranceNetwork(self.insurancefirms, self.reinsurancefirms, self.catbonds)
-            RN.compute_measures()
-            RN.visualize()
+        network_division = 2        # How often network is updated.
+        if isleconfig.show_network and t % network_division == 0 and t > 0:
+            if t == network_division:
+                self.RN = visualization_network.ReinsuranceNetwork()    # Only creates once instance so only one figure.
+            self.RN.update(self.insurancefirms, self.reinsurancefirms, self.catbonds)
+            self.RN.visualize()
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the 
@@ -435,7 +436,6 @@ class InsuranceSimulation():
                 Due Time
                 Purpose: Reason for obligation (Interest due)
             Returns None"""
-
         obligation = {"amount": amount, "recipient": recipient, "due_time": due_time, "purpose": purpose}
         self.obligations.append(obligation)
 
@@ -589,7 +589,6 @@ class InsuranceSimulation():
                 np_reinsurance_deductible_fraction: Type Integer
             Returns reinsurance premium (Type: Integer)"""
         # TODO: cut this out of the insurance market premium -> OBSOLETE??
-        # TODO: make premiums dependend on the deductible per value (np_reinsurance_deductible_fraction) -> DONE.
         # TODO: make max_reduction into simulation_parameter ?
         if self.reinsurance_off:
             return float('inf')
@@ -608,7 +607,7 @@ class InsuranceSimulation():
         if self.catbonds_off:
             return float('inf')
         max_reduction = 0.9
-        max_CB_surcharge = 0.5 
+        max_CB_surcharge = 0.5
         return self.reinsurance_market_premium * (1. + max_CB_surcharge - max_reduction * np_reinsurance_deductible_fraction)
         
     def append_reinrisks(self, item):
