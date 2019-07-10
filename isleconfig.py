@@ -1,10 +1,9 @@
-use_abce = False
 oneriskmodel = False
 replicating = False
 force_foreground = False
 verbose = False
 showprogress = True
-show_network = True              # Should network be visualized? This should be False by default, to be overridden by commandline arguments
+show_network = True             # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 slim_log = False                        # Should logs be small in ensemble runs (only aggregated level data)?
                        
 simulation_parameters = {"no_categories": 4,
