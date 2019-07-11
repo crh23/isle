@@ -59,11 +59,8 @@ else:
     save_iter = 200
 
 # import isle modules
-from insurancesimulation import InsuranceSimulation
 from insurancefirm import InsuranceFirm
-from riskmodel import RiskModel
 from reinsurancefirm import ReinsuranceFirm
-
 
 # main function
 def main():
