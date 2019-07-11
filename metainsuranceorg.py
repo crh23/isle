@@ -2,34 +2,30 @@ import isleconfig
 import numpy as np
 import scipy.stats
 import copy
+import math
 from insurancecontract import InsuranceContract
 from reinsurancecontract import ReinsuranceContract
 from riskmodel import RiskModel
-import sys, pdb
-import uuid
-
-if isleconfig.use_abce:
-    from genericagentabce import GenericAgent
-
-    # print("abce imported")
-else:
-    from genericagent import GenericAgent
-
-    # print("abce not imported")
+import functools
 
 
 def get_mean(x):
     return sum(x) / len(x)
 
 
+# A quick check tells me that we don't need a very large cache for this, as it only tends to repeat a couple of times.
+@functools.lru_cache(maxsize=16)
 def get_mean_std(x):
+    # At the moment this is always called with a no_category length array
+    # I have tested the numpy versions of this, they are slower for small arrays but much, much faster for large ones
+    # If we ever let no_category be much larger, might want to use np for this bit
     m = get_mean(x)
-    variance = sum((val - m) ** 2 for val in x)
-    return m, np.sqrt(variance / len(x))
+    std = math.sqrt(sum((val - m) ** 2 for val in x)) / len(x)
+    return m, std
 
 
-class MetaInsuranceOrg(GenericAgent):
-    def init(self, simulation_parameters, agent_parameters):
+class MetaInsuranceOrg:
+    def __init__(self, simulation_parameters, agent_parameters):
         self.simulation = simulation_parameters["simulation"]
         self.simulation_parameters = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
@@ -146,14 +142,14 @@ class MetaInsuranceOrg(GenericAgent):
         self.reinrisks_kept = []
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
-        self.cash_left_by_categ = [
-            self.cash for i in range(self.simulation_parameters["no_categories"])
-        ]
+        # QUERY: Should this have to sum to self.cash
+        self.cash_left_by_categ = self.cash * np.ones(
+            self.simulation_parameters["no_categories"]
+        )
         self.market_permanency_counter = 0
 
-    def iterate(
-        self, time
-    ):  # TODO: split function so that only the sequence of events remains here and everything else is in separate methods
+    def iterate(self, time):
+        # TODO: split up so that only the sequence of events remains here and everything else is in separate methods
 
         """obtain investments yield"""
         self.obtain_yield(time)
@@ -172,22 +168,24 @@ class MetaInsuranceOrg(GenericAgent):
 
         self.make_reinsurance_claims(time)
 
-        """mature contracts"""
-        if isleconfig.verbose:
-            print("Number of underwritten contracts ", len(self.underwritten_contracts))
-        maturing = [
-            contract
-            for contract in self.underwritten_contracts
-            if contract.expiration <= time
-        ]
-        for contract in maturing:
-            self.underwritten_contracts.remove(contract)
-            contract.mature(time)
-        contracts_dissolved = len(maturing)
+        contracts_dissolved = self.mature_contracts(time)
 
         """effect payments from contracts"""
-        [contract.check_payment_due(time) for contract in self.underwritten_contracts]
+        for contract in self.underwritten_contracts:
+            contract.check_payment_due(time)
 
+        self.collect_process_evaluate_risks(time, contracts_dissolved)
+
+        # """adjust liquidity, borrow or invest""" # Not implemented
+        # pass
+
+        self.market_permanency(time)
+
+        self.roll_over(time)
+
+        self.estimate_var()
+
+    def collect_process_evaluate_risks(self, time, contracts_dissolved):
         if self.operational:
 
             """request risks to be considered for underwriting in the next period and collect those for this period"""
@@ -221,32 +219,37 @@ class MetaInsuranceOrg(GenericAgent):
                 and risk["owner"] is not self
             ]
 
-            """deal with non-proportional risks first as they must evaluate each request separatly, then with proportional ones"""
+            """deal with non-proportional risks first as they must evaluate each request separatly,
+             then with proportional ones"""
 
-            [
-                reinrisks_per_categ,
-                number_reinrisks_categ,
-            ] = self.risks_reinrisks_organizer(
+            # Here the new reinrisks are organized by category.
+            reinrisks_per_categ, number_reinrisks_categ = self.risks_reinrisks_organizer(
                 new_nonproportional_risks
-            )  # Here the new reinrisks are organized by category.
+            )
 
-            for repetition in range(
-                self.recursion_limit
-            ):  # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
+            assert self.recursion_limit > 0
+            for repetition in range(self.recursion_limit):
+                # TODO: find an efficient way to stop the loop if there are no more risks to accept or if it is
+                #  not accepting any more over several iterations.
+                # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
                 former_reinrisks_per_categ = copy.copy(reinrisks_per_categ)
                 [
                     reinrisks_per_categ,
                     not_accepted_reinrisks,
                 ] = self.process_newrisks_reinsurer(
                     reinrisks_per_categ, number_reinrisks_categ, time
-                )  # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
-                if (
-                    former_reinrisks_per_categ == reinrisks_per_categ
-                ):  # Stop condition implemented. Might solve the previous TODO.
+                )
+
+                # QUERY: I moved this into the loop - was this correct?
+                #  The loop only runs once in my tests, what needs tweaking to have firms not accept risks?
+                self.simulation.return_reinrisks(not_accepted_reinrisks)
+
+                if former_reinrisks_per_categ == reinrisks_per_categ:
+                    # Stop condition implemented. Might solve the previous TODO.
                     break
 
-            self.simulation.return_reinrisks(not_accepted_reinrisks)
-
+            # QUERY: it's typically dangerous to compare floats with !=, is it okay in this case? Probably, since
+            #  no arithmetic is done
             underwritten_risks = [
                 {
                     "value": contract.value,
@@ -262,22 +265,18 @@ class MetaInsuranceOrg(GenericAgent):
             ]
 
             """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
-            # TODO: Enable reinsurance shares other tan 0.0 and 1.0
+            # TODO: Enable reinsurance shares other than 0.0 and 1.0
             expected_profit, acceptable_by_category, cash_left_by_categ, var_per_risk_per_categ, self.excess_capital = self.riskmodel.evaluate(
                 underwritten_risks, self.cash
             )
             # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions, reinsurers before).
-            #                        This is currently so because it minimizes the number of times we need to run self.riskmodel.evaluate().
-            #                        It would also be more consistent if excess capital would be updated at the end of the iteration.
+            #  This is currently so because it minimizes the number of times we need to run self.riskmodel.evaluate().
+            #  It would also be more consistent if excess capital would be updated at the end of the iteration.
             """handle adjusting capacity target and capacity"""
             max_var_by_categ = self.cash - self.excess_capital
             self.adjust_capacity_target(max_var_by_categ)
             actual_capacity = self.increase_capacity(time, max_var_by_categ)
-            # seek reinsurance
-            # if self.is_insurer:
-            #    # TODO: Why should only insurers be able to get reinsurance (not reinsurers)? (Technically, it should work) --> OBSOLETE
-            #    self.ask_reinsurance(time)
-            #    # TODO: make independent of insurer/reinsurer, but change this to different deductable values
+
             """handle capital market interactions: capital history, dividends"""
             self.cash_last_periods = [self.cash] + self.cash_last_periods[:3]
             self.adjust_dividends(time, actual_capacity)
@@ -301,22 +300,25 @@ class MetaInsuranceOrg(GenericAgent):
                 )
                 acceptable_by_category = np.int64(np.round(acceptable_by_category))
 
+            # Here the new risks are organized by category.
             [risks_per_categ, number_risks_categ] = self.risks_reinrisks_organizer(
                 new_risks
-            )  # Here the new risks are organized by category.
+            )
 
-            for repetition in range(
-                self.recursion_limit
-            ):  # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
+            for repetition in range(self.recursion_limit):
+                # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
                 former_risks_per_categ = copy.copy(risks_per_categ)
-                [risks_per_categ, not_accepted_risks] = self.process_newrisks_insurer(
+                # Here we process all the new risks in order to keep the portfolio as balanced as possible.
+                risks_per_categ, not_accepted_risks = self.process_newrisks_insurer(
                     risks_per_categ,
                     number_risks_categ,
                     acceptable_by_category,
                     var_per_risk_per_categ,
                     cash_left_by_categ,
                     time,
-                )  # Here we process all the new risks in order to keep the portfolio as balanced as possible.
+                )
+                # QUERY: As above, moved inside loop
+                self.simulation.return_risks(not_accepted_risks)
                 if (
                     former_risks_per_categ == risks_per_categ
                 ):  # Stop condition implemented. Might solve the previous TODO.
@@ -324,17 +326,6 @@ class MetaInsuranceOrg(GenericAgent):
 
             # return unacceptables
             # print(self.id, " now has ", len(self.underwritten_contracts), " & returns ", len(not_accepted_risks))
-            self.simulation.return_risks(not_accepted_risks)
-
-            # not implemented
-            # """adjust liquidity, borrow or invest"""
-            # pass
-
-        self.market_permanency(time)
-
-        self.roll_over(time)
-
-        self.estimated_var()
 
     def enter_illiquidity(self, time):
         """Enter_illiquidity Method.
@@ -385,9 +376,11 @@ class MetaInsuranceOrg(GenericAgent):
            next iteration. Finally the type of dissolution is recorded and the operational state is set to false.
            Different class variables are reset during the process: self.risks_kept, self.reinrisks_kept, self.excess_capital
            and self.profits_losses."""
-        [
-            contract.dissolve(time) for contract in self.underwritten_contracts
-        ]  # removing (dissolving) all risks immediately after bankruptcy (may not be realistic, they might instead be bought by another company)
+        for contract in self.underwritten_contracts:
+            contract.dissolve(time)
+        # removing (dissolving) all risks immediately after bankruptcy (may not be realistic,
+        # they might instead be bought by another company)
+        # TODO: implement buyouts
         self.simulation.return_risks(self.risks_kept)
         self.risks_kept = []
         self.reinrisks_kept = []
@@ -424,16 +417,21 @@ class MetaInsuranceOrg(GenericAgent):
         self.obligations.append(obligation)
 
     def effect_payments(self, time):
+        # TODO: don't really want to be reconstructing lists every time (unless the oblications are naturally sorted by
+        #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item["due_time"] <= time]
         self.obligations = [
             item for item in self.obligations if item["due_time"] > time
         ]
+        # TODO: could this cause a firm to enter illiquidity if it has obligations to non-operational firms? Such
+        #  firms can't recieve payment, so this possibly shouldn't happen.
         sum_due = sum([item["amount"] for item in due])
         if sum_due > self.cash:
             self.obligations += due
             self.enter_illiquidity(time)
             self.simulation.record_unrecovered_claims(sum_due - self.cash)
-            # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is impounded and self.cash will also not be paid out for quite some time)?
+            # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is
+            #  impounded and self.cash will also not be paid out for quite some time)?
             # TODO: effect partial payment
         else:
             for obligation in due:
@@ -458,15 +456,24 @@ class MetaInsuranceOrg(GenericAgent):
         self.receive_obligation(self.per_period_dividend, self.owner, time, "dividend")
 
     def obtain_yield(self, time):
-        amount = (
-            self.cash * self.interest_rate
-        )  # TODO: agent should not award her own interest. This interest rate should be taken from self.simulation with a getter method
+        amount = self.cash * self.interest_rate
+        # TODO: agent should not award her own interest.
+        #  This interest rate should be taken from self.simulation with a getter method
         self.simulation.receive_obligation(amount, self, time, "yields")
 
-    def increase_capacity(self):
-        raise AttributeError(
-            "Method is not implemented in MetaInsuranceOrg, just in inheriting InsuranceFirm instances"
-        )
+    def mature_contracts(self, time):
+        # matures all contracts that have expired, returns the number of contracts that matured
+        if isleconfig.verbose:
+            print("Number of underwritten contracts ", len(self.underwritten_contracts))
+        maturing = [
+            contract
+            for contract in self.underwritten_contracts
+            if contract.expiration <= time
+        ]
+        for contract in maturing:
+            self.underwritten_contracts.remove(contract)
+            contract.mature(time)
+        return len(maturing)
 
     def get_cash(self):
         return self.cash
@@ -479,10 +486,12 @@ class MetaInsuranceOrg(GenericAgent):
         self.log("underwritten_contracts", self.underwritten_contracts)
         self.log("operational", self.operational)
 
-    # def zeros(self):
-    #    return 0
+    def log(self, *args):
+        raise NotImplementedError(
+            "The log method should have been overridden by the subclass"
+        )
 
-    def len_underwritten_contracts(self):
+    def number_underwritten_contracts(self):
         return len(self.underwritten_contracts)
 
     def get_operational(self):
@@ -494,11 +503,7 @@ class MetaInsuranceOrg(GenericAgent):
     def get_underwritten_contracts(self):
         return self.underwritten_contracts
 
-    def get_pointer(self):
-        return self
-
-    def estimated_var(self):
-
+    def estimate_var(self):
         self.counter_category = np.zeros(self.simulation_no_risk_categories)
         self.var_category = np.zeros(self.simulation_no_risk_categories)
 
@@ -509,53 +514,45 @@ class MetaInsuranceOrg(GenericAgent):
         if self.operational:
 
             for contract in self.underwritten_contracts:
-                self.counter_category[contract.category] = (
-                    self.counter_category[contract.category] + 1
-                )
-                self.var_category[contract.category] = (
-                    self.var_category[contract.category] + contract.initial_VaR
-                )
+                self.counter_category[contract.category] += 1
+                self.var_category[contract.category] += contract.initial_VaR
 
             for category in range(len(self.counter_category)):
-                self.var_counter = (
-                    self.var_counter
-                    + self.counter_category[category]
+                self.var_counter += (
+                    self.counter_category[category]
                     * self.riskmodel.inaccuracy[category]
                 )
-                self.var_sum = self.var_sum + self.var_category[category]
+                self.var_sum += self.var_category[category]
 
-            if not sum(self.counter_category) == 0:
+            if sum(self.counter_category) != 0:
                 self.var_counter_per_risk = self.var_counter / sum(
                     self.counter_category
                 )
             else:
                 self.var_counter_per_risk = 0
 
-    def increase_capacity(self, time):
-        assert (
-            False
-        ), "Method not implemented. increase_capacity method should be implemented in inheriting classes"
+    def increase_capacity(self, time, var_by_category):
+        raise NotImplementedError(
+            "Method is not implemented in MetaInsuranceOrg, just in inheriting InsuranceFirm instances"
+        )
 
-    def adjust_dividend(self, time):
-        assert (
-            False
-        ), "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
+    def adjust_dividends(self, time, actual_capacity):
+        raise NotImplementedError(
+            "Method not implemented. adjust_dividends method should be implemented in inheriting classes"
+        )
 
     def adjust_capacity_target(self, time):
-        assert (
-            False
-        ), "Method not implemented. adjust_dividend method should be implemented in inheriting classes"
+        raise NotImplementedError(
+            "Method not implemented. adjust_capacity_target method should be implemented in inheriting classes"
+        )
 
-    def risks_reinrisks_organizer(
-        self, new_risks
-    ):  # This method organizes the new risks received by the insurer (or reinsurer)
+    def risks_reinrisks_organizer(self, new_risks):
+        # This method organizes the new risks received by the insurer (or reinsurer)
 
-        risks_per_categ = [
-            [] for x in range(self.simulation_parameters["no_categories"])
-        ]  # This method organizes the new risks received by the insurer (or reinsurer) by category in the nested list "risks_per_categ".
-        number_risks_categ = [
-            [] for x in range(self.simulation_parameters["no_categories"])
-        ]  # This method also counts the new risks received by the insurer (or reinsurer) by category in the list "number_risks_categ".
+        # This method organizes the new risks received by category in the nested list "risks_per_categ".
+        risks_per_categ = [[] for _ in range(self.simulation_parameters["no_categories"])]
+        # This method also counts the new risks received by category in the list "number_risks_categ".
+        number_risks_categ = [0 for _ in range(self.simulation_parameters["no_categories"])]
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
             risks_per_categ[categ_id] = [
@@ -563,26 +560,26 @@ class MetaInsuranceOrg(GenericAgent):
             ]
             number_risks_categ[categ_id] = len(risks_per_categ[categ_id])
 
-        return (
-            risks_per_categ,
-            number_risks_categ,
-        )  # The method returns both risks_per_categ and risks_per_categ.
+        # The method returns both risks_per_categ and number_risks_categ.
+        return risks_per_categ, number_risks_categ
 
-    def balanced_portfolio(
-        self, risk, cash_left_by_categ, var_per_risk
-    ):  # This method decides whether the portfolio is balanced enough to accept a new risk or not. If it is balanced enough return True otherwise False.
+    def balanced_portfolio(self, risk, cash_left_by_categ, var_per_risk):
+        # This method decides whether the portfolio is balanced enough to accept a new risk or not.
+        # If it is balanced enough return True, otherwise False.
         # This method also returns the cash available per category independently the risk is accepted or not.
-        cash_reserved_by_categ = (
-            self.cash - cash_left_by_categ
-        )  # Here it is computed the cash already reserved by category
 
-        _, std_pre = get_mean_std(cash_reserved_by_categ)
+        # Compute the cash already reserved by category
+        cash_reserved_by_categ = self.cash - cash_left_by_categ
 
-        cash_reserved_by_categ_store = np.copy(cash_reserved_by_categ)
+        _, std_pre = get_mean_std(tuple(cash_reserved_by_categ))
+
+        # For some reason just recreating the array is faster than copying it
+        # cash_reserved_by_categ_store = np.copy(cash_reserved_by_categ)
+        cash_reserved_by_categ_store = np.array(cash_reserved_by_categ)
 
         if risk.get("insurancetype") == "excess-of-loss":
-            percentage_value_at_risk = self.riskmodel.getPPF(
-                categ_id=risk["category"], tailSize=self.riskmodel.var_tail_prob
+            percentage_value_at_risk = self.riskmodel.get_ppf(
+                categ_id=risk["category"], tail_size=self.riskmodel.var_tail_prob
             )
             expected_damage = (
                 percentage_value_at_risk
@@ -597,44 +594,49 @@ class MetaInsuranceOrg(GenericAgent):
 
             # record liquidity requirement and apply margin of safety for liquidity requirement
 
+            # Compute how the cash reserved by category would change if the new reinsurance risk was accepted
             cash_reserved_by_categ_store[risk["category"]] += (
                 expected_claim * self.riskmodel.margin_of_safety
-            )  # Here it is computed how the cash reserved by category would change if the new reinsurance risk was accepted
+            )
 
         else:
+            # Compute how the cash reserved by category would change if the new insurance risk was accepted
             cash_reserved_by_categ_store[risk["category"]] += var_per_risk[
                 risk["category"]
-            ]  # Here it is computed how the cash reserved by category would change if the new insurance risk was accepted
+            ]
 
-        mean, std_post = get_mean_std(
-            cash_reserved_by_categ_store
-        )  # Here it is computed the mean, std of the cash reserved by category after the new risk of reinrisk is accepted
+        # Compute the mean, std of the cash reserved by category after the new risk of reinrisk is accepted
+        mean, std_post = get_mean_std(tuple(cash_reserved_by_categ_store))
 
         total_cash_reserved_by_categ_post = sum(cash_reserved_by_categ_store)
 
-        if (std_post * total_cash_reserved_by_categ_post / self.cash) <= (
-            self.balance_ratio * mean
-        ) or std_post < std_pre:  # The new risk is accepted is the standard deviation is reduced or the cash reserved by category is very well balanced. (std_post) <= (self.balance_ratio * mean)
-            for i in range(
-                len(cash_left_by_categ)
-            ):  # The balance condition is not taken into account if the cash reserve is far away from the limit. (total_cash_employed_by_categ_post/self.cash <<< 1)
-                cash_left_by_categ[i] = self.cash - cash_reserved_by_categ_store[i]
+        # Doing a < b*c is about 10% faster than a/c < b
+        if (std_post * total_cash_reserved_by_categ_post) <= (
+            self.balance_ratio * mean * self.cash
+        ) or std_post < std_pre:
+            # The new risk is accepted if the standard deviation is reduced or the cash reserved by category is very
+            # well balanced. (std_post) <= (self.balance_ratio * mean)
+            # The balance condition is not taken into account if the cash reserve is far away from the limit.
+            # (total_cash_employed_by_categ_post/self.cash <<< 1)
+            cash_left_by_categ = self.cash - cash_reserved_by_categ_store
 
             return True, cash_left_by_categ
         else:
-            for i in range(len(cash_left_by_categ)):
-                cash_left_by_categ[i] = self.cash - cash_reserved_by_categ[i]
+            cash_left_by_categ = self.cash - cash_reserved_by_categ
 
             return False, cash_left_by_categ
 
     def process_newrisks_reinsurer(
         self, reinrisks_per_categ, number_reinrisks_categ, time
-    ):  # This method processes one by one the reinrisks contained in reinrisks_per_categ in order to decide whether they should be underwritten or not.
-        # It is done in this way to maintain the portfolio as balanced as possible. For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
+    ):
+        # This method processes one by one the reinrisks contained in reinrisks_per_categ in
+        # order to decide whether they should be underwritten or not.
+        # It is done in this way to maintain the portfolio as balanced as possible.
+        # For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
         for iterion in range(max(number_reinrisks_categ)):
-            for categ_id in range(
-                self.simulation_parameters["no_categories"]
-            ):  # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
+            for categ_id in range(self.simulation_parameters["no_categories"]):
+                # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
+                # risk[C4], risk[C1], risk[C2], ... if possible.
                 if (
                     iterion < number_reinrisks_categ[categ_id]
                     and reinrisks_per_categ[categ_id][iterion] is not None
@@ -655,8 +657,11 @@ class MetaInsuranceOrg(GenericAgent):
                     ]
                     accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
                         underwritten_risks, self.cash, risk_to_insure
-                    )  # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and to account for existing non-proportional risks correctly -> DONE.
+                    )
+                    # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and
+                    #  to account for existing non-proportional risks correctly -> DONE.
                     if accept:
+                        # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
                         per_value_reinsurance_premium = (
                             self.np_reinsurance_premium_share
                             * risk_to_insure["periodized_total_premium"]
@@ -666,10 +671,13 @@ class MetaInsuranceOrg(GenericAgent):
                                 / self.simulation.get_market_premium()
                             )
                             / risk_to_insure["value"]
-                        )  # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
-                        [condition, cash_left_by_categ] = self.balanced_portfolio(
+                        )
+                        # Here it is check whether the portfolio is balanced or not if the reinrisk
+                        # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                        condition, cash_left_by_categ = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, None
-                        )  # Here it is check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                        )
+
                         if condition:
                             contract = ReinsuranceContract(
                                 self,
@@ -681,7 +689,7 @@ class MetaInsuranceOrg(GenericAgent):
                                 expire_immediately=self.simulation_parameters[
                                     "expire_immediately"
                                 ],
-                                initial_VaR=var_this_risk,
+                                initial_var=var_this_risk,
                                 insurancetype=risk_to_insure["insurancetype"],
                             )  # TODO: implement excess of loss for reinsurance contracts
                             self.underwritten_contracts.append(contract)
@@ -704,26 +712,34 @@ class MetaInsuranceOrg(GenericAgent):
         var_per_risk_per_categ,
         cash_left_by_categ,
         time,
-    ):  # This method processes one by one the risks contained in risks_per_categ in order to decide whether they should be underwritten or not.
-        # It is done in this way to maintain the portfolio as balanced as possible. For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
+    ):
+        # This method processes one by one the risks contained in risks_per_categ in order to decide whether they should
+        # be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible. For that
+        # reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
         _cached_rvs = self.contract_runtime_dist.rvs()
-        for iter in range(max(number_risks_categ)):
-            for categ_id in range(
-                len(acceptable_by_category)
-            ):  # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
+        for risk_index in range(max(number_risks_categ)):
+            for categ_id in range(len(acceptable_by_category)):
+                # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
+                # risk[C4], risk[C1], risk[C2], ... if possible.
+
+                # First check that we are actually going to hit a risk
                 if (
-                    iter < number_risks_categ[categ_id]
+                    risk_index < number_risks_categ[categ_id]
                     and acceptable_by_category[categ_id] > 0
-                    and risks_per_categ[categ_id][iter] is not None
+                    and risks_per_categ[categ_id][risk_index] is not None
                 ):
-                    risk_to_insure = risks_per_categ[categ_id][iter]
+                    risk_to_insure = risks_per_categ[categ_id][risk_index]
                     if (
-                        risk_to_insure.get("contract") is not None
+                        "contract" in risk_to_insure
                         and risk_to_insure["contract"].expiration > time
-                    ):  # risk_to_insure["contract"]: # required to rule out contracts that have exploded in the meantime
+                    ):
+                        # In this case the risk being inspected already has a contract, so we are deciding whether to
+                        # give reinsurance for it # QUERY: is this correct?
                         [condition, cash_left_by_categ] = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, None
-                        )  # Here it is check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                        )
+                        # Here we check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is
+                        # underwritten. Return True if it is balanced. False otherwise.
                         if condition:
                             contract = ReinsuranceContract(
                                 self,
@@ -738,13 +754,17 @@ class MetaInsuranceOrg(GenericAgent):
                             )
                             self.underwritten_contracts.append(contract)
                             self.cash_left_by_categ = cash_left_by_categ
-                            risks_per_categ[categ_id][iter] = None
+                            risks_per_categ[categ_id][risk_index] = None
                             # TODO: move this to insurancecontract (ca. line 14) -> DONE
                             # TODO: do not write into other object's properties, use setter -> DONE
                     else:
                         [condition, cash_left_by_categ] = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, var_per_risk_per_categ
-                        )  # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                        )
+                        # In this case there is no contact currently associated with the risk, so we decide whether
+                        # to insure it
+                        # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is
+                        # underwritten. Return True if it is balanced. False otherwise.
                         if condition:
                             contract = InsuranceContract(
                                 self,
@@ -756,16 +776,14 @@ class MetaInsuranceOrg(GenericAgent):
                                 expire_immediately=self.simulation_parameters[
                                     "expire_immediately"
                                 ],
-                                initial_VaR=var_per_risk_per_categ[categ_id],
+                                initial_var=var_per_risk_per_categ[categ_id],
                             )
                             self.underwritten_contracts.append(contract)
                             self.cash_left_by_categ = cash_left_by_categ
-                            risks_per_categ[categ_id][iter] = None
-                    acceptable_by_category[
-                        categ_id
-                    ] -= (
-                        1
-                    )  # TODO: allow different values per risk (i.e. sum over value (and reinsurance_share) or exposure instead of counting)
+                            risks_per_categ[categ_id][risk_index] = None
+                    acceptable_by_category[categ_id] -= 1
+                    # TODO: allow different values per risk (i.e. sum over value (and reinsurance_share) or
+                    #  exposure instead of counting)
 
         not_accepted_risks = []
         for categ_id in range(len(acceptable_by_category)):
@@ -775,9 +793,9 @@ class MetaInsuranceOrg(GenericAgent):
 
         return risks_per_categ, not_accepted_risks
 
-    def market_permanency(
-        self, time
-    ):  # This method determines whether an insurer or reinsurer stays in the market. If it has very few risks underwritten or too much cash left for TOO LONG it eventually leaves the market.
+    def market_permanency(self, time):
+        # This method determines whether an insurer or reinsurer stays in the market.
+        # If it has very few risks underwritten or too much cash left for TOO LONG it eventually leaves the market.
         # If it has very few risks underwritten it cannot balance the portfolio so it makes sense to leave the market.
         if not self.simulation_parameters["market_permanency_off"]:
 
@@ -800,19 +818,18 @@ class MetaInsuranceOrg(GenericAgent):
                         or avg_cash_left / self.cash
                         > self.simulation_parameters["insurance_permanency_ratio_limit"]
                     ):
-                        # Insurers leave the market if they have contracts under the limit or an excess capital over the limit for too long.
+                        # Insurers leave the market if they have contracts under the limit or an excess capital
+                        # over the limit for too long.
                         self.market_permanency_counter += 1
                     else:
-                        self.market_permanency_counter = (
-                            0
-                        )  # All these limits maybe should be parameters in isleconfig.py
-
+                        self.market_permanency_counter = 0
                     if (
                         self.market_permanency_counter
                         >= self.simulation_parameters[
                             "insurance_permanency_time_constraint"
                         ]
-                    ):  # Here we determine how much is too long.
+                    ):
+                        # Here we determine how much is too long.
                         self.market_exit(time)
 
                 if self.is_reinsurer:
@@ -827,11 +844,12 @@ class MetaInsuranceOrg(GenericAgent):
                             "reinsurance_permanency_ratio_limit"
                         ]
                     ):
-                        # Reinsurers leave the market if they have contracts under the limit or an excess capital over the limit for too long.
+                        # Reinsurers leave the market if they have contracts under the limit or an excess capital
+                        # over the limit for too long.
 
-                        self.market_permanency_counter += (
-                            1
-                        )  # Insurers and reinsurers potentially have different reasons to leave the market. That's why the code is duplicated here.
+                        self.market_permanency_counter += 1
+                        # Insurers and reinsurers potentially have different reasons to leave the market.
+                        # That's why the code is duplicated here.
                     else:
                         self.market_permanency_counter = 0
 
@@ -840,19 +858,21 @@ class MetaInsuranceOrg(GenericAgent):
                         >= self.simulation_parameters[
                             "reinsurance_permanency_time_constraint"
                         ]
-                    ):  # Here we determine how much is too long.
+                    ):
+                        # Here we determine how much is too long.
                         self.market_exit(time)
 
-    def register_claim(
-        self, claim
-    ):  # This method records in insurancesimulation.py every claim made. It is called either from insurancecontract.py or reinsurancecontract.py respectively.
+    def register_claim(self, claim):
+        # This method records in insurancesimulation.py every claim made. It is called either from insurancecontract.py
+        # or reinsurancecontract.py respectively.
         self.simulation.record_claims(claim)
 
     def reset_pl(self):
         """Reset_pl Method.
                Accepts no arguments:
                No return value.
-           Reset the profits and losses variable of each firm at the beginning of every iteration. It has to be run in insurancesimulation.py at the beginning of the iterate method"""
+            Reset the profits and losses variable of each firm at the beginning of every iteration.
+            It has to be run in insurancesimulation.py at the beginning of the iterate method"""
         self.profits_losses = 0
 
     def roll_over(self, time):
@@ -873,30 +893,39 @@ class MetaInsuranceOrg(GenericAgent):
             for contract in self.underwritten_contracts
             if contract.expiration == time + 1
         ]
-
-        if self.is_insurer is True:
-            for contract in maturing_next:
-                contract.roll_over_flag = 1
-                if (
-                    np.random.uniform(0, 1, 1)
-                    > self.simulation_parameters["insurance_retention"]
-                ):
-                    self.simulation.return_risks(
-                        [contract.risk_data]
-                    )  # TODO: This is not a retention, so the roll_over_flag might be confusing in this case
-                else:
-                    self.risks_kept.append(contract.risk_data)
-
-        if self.is_reinsurer is True:
-            for reincontract in maturing_next:
-                if reincontract.property_holder.operational:
-                    reincontract.roll_over_flag = 1
-                    reinrisk = reincontract.property_holder.create_reinrisk(
-                        time, reincontract.category
-                    )
+        # QUERY: Is it true to say that no firm underwrites both insurance and reinsurance?
+        # Generate all the rvs at the start
+        if maturing_next:
+            uniform_rvs = np.nditer(np.random.uniform(size=len(maturing_next)))
+            if self.is_insurer is True:
+                for contract in maturing_next:
+                    contract.roll_over_flag = 1
                     if (
-                        np.random.uniform(0, 1, 1)
-                        < self.simulation_parameters["reinsurance_retention"]
+                        next(uniform_rvs)
+                        > self.simulation_parameters["insurance_retention"]
                     ):
-                        if reinrisk is not None:
-                            self.reinrisks_kept.append(reinrisk)
+                        self.simulation.return_risks(
+                            [contract.risk_data]
+                        )  # TODO: This is not a retention, so the roll_over_flag might be confusing in this case
+                    else:
+                        self.risks_kept.append(contract.risk_data)
+
+            if self.is_reinsurer is True:
+                for reincontract in maturing_next:
+                    if reincontract.property_holder.operational:
+                        reincontract.roll_over_flag = 1
+                        reinrisk = reincontract.property_holder.create_reinrisk(
+                            time, reincontract.category
+                        )
+                        if (
+                            next(uniform_rvs)
+                            < self.simulation_parameters["reinsurance_retention"]
+                        ):
+                            if reinrisk is not None:
+                                self.reinrisks_kept.append(reinrisk)
+
+    def make_reinsurance_claims(self, time):
+        raise NotImplementedError(
+            "MetaInsuranceOrg does not implement make_reinsurance_claims, "
+            "it should have been overridden"
+        )

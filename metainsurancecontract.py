@@ -1,7 +1,3 @@
-import numpy as np
-import sys, pdb
-
-
 class MetaInsuranceContract:
     def __init__(
         self,
@@ -12,7 +8,7 @@ class MetaInsuranceContract:
         runtime,
         payment_period,
         expire_immediately,
-        initial_VaR=0.0,
+        initial_var=0.0,
         insurancetype="proportional",
         deductible_fraction=None,
         excess_fraction=None,
@@ -28,7 +24,7 @@ class MetaInsuranceContract:
                     payment_period: Type integer.
                     expire_immediately: Type boolean. True if the contract expires with the first risk event. False
                                        if multiple risk events are covered.
-                    initial_VaR: Type float. Initial value at risk. Used only to compute true and estimated value at risk. 
+                    initial_var: Type float. Initial value at risk. Used only to compute true and estimated value at risk.
                 optional:
                     insurancetype: Type string. The type of this contract, especially "proportional" vs "excess_of_loss"
                     deductible: Type float (or int)
@@ -57,34 +53,21 @@ class MetaInsuranceContract:
         self.expire_immediately = expire_immediately
         self.terminating = False
         self.current_claim = 0
-        self.initial_VaR = initial_VaR
-
+        self.initial_VaR = initial_var
         # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0
-        deductible_fraction_generator = (
-            item
-            for item in [
-                deductible_fraction,
-                properties.get("deductible_fraction"),
-                default_deductible_fraction,
-            ]
-            if item is not None
-        )
-        self.deductible_fraction = next(deductible_fraction_generator)
+        self.deductible_fraction = deductible_fraction if deductible_fraction is not None else properties.get(
+                "deductible_fraction", default_deductible_fraction
+            )
+
         self.deductible = self.deductible_fraction * self.value
 
         # set excess from argument, risk property or default value, whichever first is not None
         default_excess_fraction = 1.0
-        excess_fraction_generator = (
-            item
-            for item in [
-                excess_fraction,
-                properties.get("excess_fraction"),
-                default_excess_fraction,
-            ]
-            if item is not None
-        )
-        self.excess_fraction = next(excess_fraction_generator)
+        self.excess_fraction = excess_fraction if excess_fraction is not None else properties.get(
+                "excess_fraction", default_excess_fraction
+            )
+
         self.excess = self.excess_fraction * self.value
 
         self.reinsurance = reinsurance
@@ -94,21 +77,29 @@ class MetaInsuranceContract:
         # self.is_reinsurancecontract = False
 
         # setup payment schedule
-        # total_premium = premium * (self.excess - self.deductible)   # TODO: excess and deductible should not be considered linearily in premium computation; this should be shifted to the (re)insurer who supplies the premium as argument to the contract's constructor method
+        # TODO: excess and deductible should not be considered linearily in premium computation; this should be
+        #  shifted to the (re)insurer who supplies the premium as argument to the contract's constructor method
+        # total_premium = premium * (self.excess - self.deductible)
         total_premium = premium * self.value
         self.periodized_premium = total_premium / self.runtime
+
+        # N.B.: payment times and values are in reverse, so the earliest time is at the end! This is because popping
+        # items off the end of lists is much easier than popping them off the start.
         self.payment_times = [
-            time + i for i in range(runtime) if i % payment_period == 0
+            time + i for i in range(runtime - 1, -1, -1) if i % payment_period == 0
         ]
-        self.payment_values = total_premium * (
-            np.ones(len(self.payment_times)) / len(self.payment_times)
+        # self.payment_values = total_premium * (
+        #     np.ones(len(self.payment_times)) / len(self.payment_times)
+        # )
+        self.payment_values = [total_premium / len(self.payment_times)] * len(
+            self.payment_times
         )
 
         ## Create obligation for premium payment
         # self.property_holder.receive_obligation(premium * (self.excess - self.deductible), self.insurer, time, 'premium')
 
         # Embed contract in reinsurance network, if applicable
-        if self.contract is not None:
+        if self.contract:
             self.contract.reinsure(
                 reinsurer=self.insurer,
                 reinsurance_share=properties["reinsurance_share"],
@@ -119,16 +110,16 @@ class MetaInsuranceContract:
         self.roll_over_flag = 0
 
     def check_payment_due(self, time):
-        if len(self.payment_times) > 0 and time >= self.payment_times[0]:
+        if len(self.payment_times) > 0 and time >= self.payment_times[-1]:
             # Create obligation for premium payment
-            # self.property_holder.receive_obligation(premium * (self.excess - self.deductible), self.insurer, time, 'premium')
+            # value was premium * (self.excess - self.deductible)
             self.property_holder.receive_obligation(
-                self.payment_values[0], self.insurer, time, "premium"
+                self.payment_values[-1], self.insurer, time, "premium"
             )
 
             # Remove current payment from payment schedule
-            self.payment_times = self.payment_times[1:]
-            self.payment_values = self.payment_values[1:]
+            del self.payment_times[-1]
+            del self.payment_values[-1]
 
     def get_and_reset_current_claim(self):
         current_claim = self.current_claim

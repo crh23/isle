@@ -1,5 +1,3 @@
-import numpy as np
-
 from metainsurancecontract import MetaInsuranceContract
 
 
@@ -20,7 +18,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         runtime,
         payment_period,
         expire_immediately,
-        initial_VaR=0.0,
+        initial_var=0.0,
         insurancetype="proportional",
         deductible_fraction=None,
         excess_fraction=None,
@@ -34,7 +32,7 @@ class ReinsuranceContract(MetaInsuranceContract):
             runtime,
             payment_period,
             expire_immediately,
-            initial_VaR,
+            initial_var,
             insurancetype,
             deductible_fraction,
             excess_fraction,
@@ -42,6 +40,8 @@ class ReinsuranceContract(MetaInsuranceContract):
         )
         # self.is_reinsurancecontract = True
 
+        if self.insurancetype not in ["excess-of-loss", "proportional"]:
+            raise ValueError(f'Unrecognised insurance type "{self.insurancetype}"')
         if self.insurancetype == "excess-of-loss":
             self.property_holder.add_reinsurance(
                 category=self.category,
@@ -63,31 +63,37 @@ class ReinsuranceContract(MetaInsuranceContract):
            Method marks the contract for termination.
             """
 
-        if self.insurancetype == "excess-of-loss" and damage_extent > self.deductible:
-            claim = min(self.excess, damage_extent) - self.deductible
-            self.insurer.receive_obligation(claim, self.property_holder, time, "claim")
-        else:
-            claim = min(self.excess, damage_extent) - self.deductible
-            self.insurer.receive_obligation(
-                claim, self.property_holder, time + 1, "claim"
-            )
-            # Reinsurer pays as soon as possible.
+        # QUERY: What is the difference? Also, what happens if damage_extent = None?
+        if damage_extent > self.deductible:
+            # QUERY: Changed this, for the better?
+            if self.insurancetype == "excess-of-loss":
+                claim = min(self.excess, damage_extent) - self.deductible
+                self.insurer.receive_obligation(
+                    claim, self.property_holder, time, "claim"
+                )
+            elif self.insurancetype == "proportional":
+                claim = min(self.excess, damage_extent) - self.deductible
+                self.insurer.receive_obligation(
+                    claim, self.property_holder, time + 1, "claim"
+                )
+            else:
+                raise ValueError(f"Unexpected insurance type {self.insurancetype}")
+                # Reinsurer pays as soon as possible.
+            self.insurer.register_claim(
+                claim
+            )  # Every reinsurance claim made is immediately registered.
+            if self.expire_immediately:
+                self.current_claim += self.contract.claim
+                # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession?
+                #  If so, reorganize more straightforwardly
 
-        self.insurer.register_claim(
-            claim
-        )  # Every reinsurance claim made is immediately registered.
-        if self.expire_immediately:
-            self.current_claim += (
-                self.contract.claim
-            )  # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession? If so, reorganize more straightforwardly
-
-            self.expiration = time
-            # self.terminating = True
+                self.expiration = time
+                # self.terminating = True
 
     def mature(self, time):
         """Mature method. 
                Accepts arguments
-                    time: Tyoe integer. The current time.
+                    time: Type integer. The current time.
                No return value.
            Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this 
            contract."""

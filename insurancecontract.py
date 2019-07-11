@@ -1,16 +1,7 @@
-import numpy as np
-
 from metainsurancecontract import MetaInsuranceContract
 
 
 class InsuranceContract(MetaInsuranceContract):
-    """ReinsuranceContract class.
-        Inherits from InsuranceContract.
-        Constructor is not currently required but may be used in the future to distinguish InsuranceContract
-            and ReinsuranceContract objects.
-        The signature of this class' constructor is the same as that of the InsuranceContract constructor.
-        The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
-
     def __init__(
         self,
         insurer,
@@ -20,7 +11,7 @@ class InsuranceContract(MetaInsuranceContract):
         runtime,
         payment_period,
         expire_immediately,
-        initial_VaR=0.0,
+        initial_var=0.0,
         insurancetype="proportional",
         deductible_fraction=None,
         excess_fraction=None,
@@ -34,7 +25,7 @@ class InsuranceContract(MetaInsuranceContract):
             runtime,
             payment_period,
             expire_immediately,
-            initial_VaR,
+            initial_var,
             insurancetype,
             deductible_fraction,
             excess_fraction,
@@ -56,7 +47,6 @@ class InsuranceContract(MetaInsuranceContract):
         # np.mean(np.random.beta(1, 1./mu -1, size=90000))
         # if np.random.uniform(0, 1) < self.risk_factor:
         if uniform_value < self.risk_factor:
-            # if True:
             claim = min(self.excess, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(
                 claim

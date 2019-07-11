@@ -1,9 +1,9 @@
+import time
+
+import glob
 import matplotlib.pyplot as plt
 import numpy as np
-import pdb
 import os
-import time
-import glob
 
 
 def read_data():
@@ -364,6 +364,5 @@ plotting(
     plottype1="mean",
     plottype2=None,
 )
-
 
 # pdb.set_trace()

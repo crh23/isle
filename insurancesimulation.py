@@ -1,7 +1,3 @@
-from insurancefirm import InsuranceFirm
-
-# from riskmodel import RiskModel
-from reinsurancefirm import ReinsuranceFirm
 from distributiontruncated import TruncatedDistWrapper
 import numpy as np
 import scipy.stats
@@ -11,19 +7,13 @@ import isleconfig
 import random
 import copy
 import logger
-
-if isleconfig.show_network:
-    import visualization_network
-
-if isleconfig.use_abce:
-    import abce
-
-    # print("abce imported")
-# else:
-#    print("abce not imported")
+import warnings
+import utils
 
 
 class InsuranceSimulation:
+    # Note: if we ever want to have a larger number of categories we should use numpy arrays for all of the
+    # "by_categ"-type variables and then where possible do numpy operations instead of iterating over them.
     def __init__(
         self,
         override_no_riskmodels,
@@ -31,6 +21,11 @@ class InsuranceSimulation:
         simulation_parameters,
         rc_event_schedule,
         rc_event_damage,
+        damage_distribution=TruncatedDistWrapper(
+            lower_bound=0.25,
+            upper_bound=1.0,
+            dist=scipy.stats.pareto(b=2, loc=0, scale=0.25),
+        ),
     ):
         # override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)
         if override_no_riskmodels:
@@ -38,7 +33,7 @@ class InsuranceSimulation:
         self.number_riskmodels = simulation_parameters["no_riskmodels"]
 
         # save parameters
-        if (replic_ID is None) or (isleconfig.force_foreground):
+        if (replic_ID is None) or isleconfig.force_foreground:
             self.background_run = False
         else:
             self.background_run = True
@@ -46,14 +41,7 @@ class InsuranceSimulation:
         self.simulation_parameters = simulation_parameters
 
         # unpack parameters, set up environment (distributions etc.)
-
-        # damage distribution
-        # TODO: control damage distribution via parameters, not directly
-        # self.damage_distribution = scipy.stats.uniform(loc=0, scale=1)
-        non_truncated = scipy.stats.pareto(b=2, loc=0, scale=0.25)
-        self.damage_distribution = TruncatedDistWrapper(
-            lower_bound=0.25, upper_bound=1.0, dist=non_truncated
-        )
+        self.damage_distribution = damage_distribution
 
         # remaining parameters
         self.catbonds_off = simulation_parameters["catbonds_off"]
@@ -61,32 +49,29 @@ class InsuranceSimulation:
         self.cat_separation_distribution = scipy.stats.expon(
             0, simulation_parameters["event_time_mean_separation"]
         )
+        # TODO: research whether this is accurate, is it different for different types of catastrophy?
         self.risk_factor_lower_bound = simulation_parameters["risk_factor_lower_bound"]
         self.risk_factor_spread = (
             simulation_parameters["risk_factor_upper_bound"]
-            - simulation_parameters["risk_factor_lower_bound"]
+            - self.risk_factor_lower_bound
         )
-        self.risk_factor_distribution = scipy.stats.uniform(
-            loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread
-        )
-        if not simulation_parameters["risk_factors_present"]:
-            self.risk_factor_distribution = scipy.stats.uniform(loc=1.0, scale=0)
+        if simulation_parameters["risk_factors_present"]:
+            self.risk_factor_distribution = scipy.stats.uniform(
+                loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread
+            )
+        else:
+            self.risk_factor_distribution = utils.constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
-        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)
+        self.risk_value_distribution = utils.constant(loc=1000)
 
         risk_factor_mean = self.risk_factor_distribution.mean()
-        if np.isnan(
-            risk_factor_mean
-        ):  # unfortunately scipy.stats.mean is not well-defined if scale = 0
-            risk_factor_mean = self.risk_factor_distribution.rvs()
 
         # set initial market price (normalized, i.e. must be multiplied by value or excess-deductible)
         if self.simulation_parameters["expire_immediately"]:
             assert self.cat_separation_distribution.dist.name == "expon"
             expected_damage_frequency = 1 - scipy.stats.poisson(
-                1
+                self.simulation_parameters["mean_contract_runtime"]
                 / self.simulation_parameters["event_time_mean_separation"]
-                * self.simulation_parameters["mean_contract_runtime"]
             ).pmf(0)
         else:
             expected_damage_frequency = (
@@ -101,26 +86,25 @@ class InsuranceSimulation:
         )
 
         self.market_premium = self.norm_premium
-        self.reinsurance_market_premium = (
-            self.market_premium
-        )  # TODO: is this problematic as initial value? (later it is recomputed in every iteration)
+        self.reinsurance_market_premium = self.market_premium
+        # TODO: is this problematic as initial value? (later it is recomputed in every iteration)
+
         self.total_no_risks = simulation_parameters["no_risks"]
 
         # set up monetary system (should instead be with the customers, if customers are modeled explicitly)
         self.money_supply = self.simulation_parameters["money_supply"]
         self.obligations = []
+        # QUERY Why is this a property of the simulation rather than of the obligated parties?
 
         # set up risk categories
+        # QUERY What do risk categories represent? Different types of catastrophes?
         self.riskcategories = list(range(self.simulation_parameters["no_categories"]))
         self.rc_event_schedule = []
         self.rc_event_damage = []
-        self.rc_event_schedule_initial = (
-            []
-        )  # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
-        self.rc_event_damage_initial = (
-            []
-        )  # and damages that will be use in a single run of the model.
-
+        self.rc_event_schedule_initial = []
+        # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
+        # and damages that will be use in a single run of the model.
+        self.rc_event_damage_initial = []
         if (
             rc_event_schedule is not None and rc_event_damage is not None
         ):  # If we have schedules pass as arguments we used them.
@@ -134,10 +118,8 @@ class InsuranceSimulation:
 
         # set up risks
         risk_value_mean = self.risk_value_distribution.mean()
-        if np.isnan(
-            risk_value_mean
-        ):  # unfortunately scipy.stats.mean is not well-defined if scale = 0
-            risk_value_mean = self.risk_value_distribution.rvs()
+
+        # QUERY: What are risk factors? Are "risk_factor" values other than one meaningful at present?
         rrisk_factors = self.risk_factor_distribution.rvs(
             size=self.simulation_parameters["no_risks"]
         )
@@ -203,14 +185,16 @@ class InsuranceSimulation:
         ]
 
         # prepare setting up agents (to be done from start.py)
-        self.agent_parameters = {
-            "insurancefirm": [],
-            "reinsurance": [],
-        }  # TODO: rename reinsurance -> reinsurancefirm (also in start.py and below in method accept_agents
+        # QUERY: What is agent_parameters["insurancefirm"] meant to be? Is it a list of the parameters for the existing
+        #  firms (why can't we just get that from the instances of InsuranceFirm) or a list of the *possible* parameter
+        #  values for insurance firms (in which case why does it have the length it does)?
+        self.agent_parameters = {"insurancefirm": [], "reinsurancefirm": []}
 
         self.insurer_id_counter = 0
         # TODO: collapse the following two loops into one generic one?
         for i in range(simulation_parameters["no_insurancefirms"]):
+            # Set up the parameters for each insurance firm
+            # Determine the level of reinsurance the firm will aim for? #QUERY: is that what this is?
             if simulation_parameters["static_non-proportional_reinsurance_levels"]:
                 insurance_reinsurance_level = simulation_parameters[
                     "default_non-proportional_reinsurance_deductible"
@@ -221,6 +205,8 @@ class InsuranceSimulation:
                     simulation_parameters["insurance_reinsurance_levels_upper_bound"],
                 )
 
+            # The initial set of insurers are cycle over the possible risk models
+            # QUERY: Why don't they pick random risk models?
             riskmodel_config = risk_model_configurations[
                 i % len(risk_model_configurations)
             ]
@@ -270,7 +256,7 @@ class InsuranceSimulation:
             riskmodel_config = risk_model_configurations[
                 i % len(risk_model_configurations)
             ]
-            self.agent_parameters["reinsurance"].append(
+            self.agent_parameters["reinsurancefirm"].append(
                 {
                     "id": self.get_unique_reinsurer_id(),
                     "initial_cash": simulation_parameters["initial_reinagent_cash"],
@@ -302,7 +288,6 @@ class InsuranceSimulation:
             )
 
         # set up remaining list variables
-
         # agent lists
         self.reinsurancefirms = []
         self.insurancefirms = []
@@ -336,40 +321,45 @@ class InsuranceSimulation:
             self.simulation_parameters["no_categories"]
         )
 
+    def add_agents(self, agent_class, agent_class_string):
+        pass
+
     def build_agents(
         self, agent_class, agent_class_string, parameters, agent_parameters
     ):
-        # assert agent_parameters == self.agent_parameters[agent_class_string]       #assert fits only the initial creation of agents, not later additions   # TODO: fix
+        # assert agent_parameters == self.agent_parameters[agent_class_string]
+        # #assert fits only the initial creation of agents, not later additions   # TODO: fix
+        assert parameters == self.simulation_parameters
         agents = []
         for ap in agent_parameters:
             agents.append(agent_class(parameters, ap))
         return agents
 
-    def accept_agents(self, agent_class_string, agents, agent_group=None, time=0):
+    def accept_agents(self, agent_class_string, agents, time=0):
         # TODO: fix agent id's for late entrants (both firms and catbonds)
         if agent_class_string == "insurancefirm":
             try:
                 self.insurancefirms += agents
-                self.insurancefirms_group = agent_group
-            except:
+                self.insurancefirms_group = agents
+            except:  # QUERY: Why?
                 print(sys.exc_info())
                 pdb.set_trace()
             # fix self.history_logs['individual_contracts'] list
             for agent in agents:
                 self.logger.add_insurance_agent()
             # remove new agent cash from simulation cash to ensure stock flow consistency
-            new_agent_cash = sum([agent.cash for agent in agents])
-            self.reduce_money_supply(new_agent_cash)
-        elif agent_class_string == "reinsurance":
+            total_new_agent_cash = sum([agent.cash for agent in agents])
+            self.reduce_money_supply(total_new_agent_cash)
+        elif agent_class_string == "reinsurancefirm":
             try:
                 self.reinsurancefirms += agents
-                self.reinsurancefirms_group = agent_group
+                self.reinsurancefirms_group = agents
             except:
                 print(sys.exc_info())
                 pdb.set_trace()
             # remove new agent cash from simulation cash to ensure stock flow consistency
-            new_agent_cash = sum([agent.cash for agent in agents])
-            self.reduce_money_supply(new_agent_cash)
+            total_new_agent_cash = sum([agent.cash for agent in agents])
+            self.reduce_money_supply(total_new_agent_cash)
         elif agent_class_string == "catbond":
             try:
                 self.catbonds += agents
@@ -377,17 +367,15 @@ class InsuranceSimulation:
                 print(sys.exc_info())
                 pdb.set_trace()
         else:
-            assert False, "Error: Unexpected agent class used {0:s}".format(
-                agent_class_string
-            )
+            raise ValueError(f"Error: Unexpected agent class used {agent_class_string}")
 
     def delete_agents(self, agent_class_string, agents):
         if agent_class_string == "catbond":
             for agent in agents:
                 self.catbonds.remove(agent)
         else:
-            assert False, "Trying to remove unremovable agent, type: {0:s}".format(
-                agent_class_string
+            raise ValueError(
+                f"Trying to remove unremovable agent, type: {agent_class_string}"
             )
 
     def iterate(self, t):
@@ -396,18 +384,14 @@ class InsuranceSimulation:
             print()
             print(t, ": ", len(self.risks))
         if isleconfig.showprogress:
-            print("\rTime: {0:4d}".format(t), end="")
+            print(f"\rTime: {t}", end="")
 
         self.reset_pls()
 
         # adjust market premiums
-        sum_capital = sum(
-            [agent.get_cash() for agent in self.insurancefirms]
-        )  # TODO: include reinsurancefirms
+        sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
         self.adjust_market_premium(capital=sum_capital)
-        sum_capital = sum(
-            [agent.get_cash() for agent in self.reinsurancefirms]
-        )  # TODO: include reinsurancefirms
+        sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
         self.adjust_reinsurance_market_premium(capital=sum_capital)
 
         # pay obligations
@@ -415,11 +399,13 @@ class InsuranceSimulation:
 
         # identify perils and effect claims
         for categ_id in range(len(self.rc_event_schedule)):
-            try:
-                if len(self.rc_event_schedule[categ_id]) > 0:
-                    assert self.rc_event_schedule[categ_id][0] >= t
-            except:
-                print("Something wrong; past events not deleted", file=sys.stderr)
+            if (
+                self.rc_event_schedule[categ_id]
+                and self.rc_event_schedule[categ_id][0] < t
+            ):
+                warnings.warn(
+                    "Something wrong; past events not deleted", RuntimeWarning
+                )
             if (
                 len(self.rc_event_schedule[categ_id]) > 0
                 and self.rc_event_schedule[categ_id][0] == t
@@ -428,10 +414,10 @@ class InsuranceSimulation:
                 damage_extent = copy.copy(
                     self.rc_event_damage[categ_id][0]
                 )  # Schedules of catastrophes and damages must me generated at the same time.
-                self.inflict_peril(
-                    categ_id=categ_id, damage=damage_extent, t=t
-                )  # TODO: consider splitting the following lines from this method and running it with nb.jit
+                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
+                # TODO: Ideally don't want to be taking from the beginning of lists, consider having soonest events at
+                #  the end of the list. Probably fine though, only happens once per iteration
             else:
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
@@ -445,15 +431,8 @@ class InsuranceSimulation:
         # iterate reinsurnace firm agents
         for reinagent in self.reinsurancefirms:
             reinagent.iterate(t)
-        # TODO: is the following necessary for abce to work (log) properly?
-        # if isleconfig.use_abce:
-        #    self.reinsurancefirms_group.iterate(time=t)
-        # else:
-        #    for reinagent in self.reinsurancefirms:
-        #        reinagent.iterate(t)
 
         # remove all non-accepted reinsurance risks
-
         self.reinrisks = []
 
         # reset weights
@@ -462,12 +441,6 @@ class InsuranceSimulation:
         # iterate insurance firm agents
         for agent in self.insurancefirms:
             agent.iterate(t)
-        # TODO: is the following necessary for abce to work (log) properly?
-        # if isleconfig.use_abce:
-        #    self.insurancefirms_group.iterate(time=t)
-        # else:
-        #    for agent in self.insurancefirms:
-        #        agent.iterate(t)
 
         # iterate catbonds
         for agent in self.catbonds:
@@ -477,9 +450,10 @@ class InsuranceSimulation:
             self.simulation_parameters["no_categories"]
         )
 
+        # TODO: this and the next look like they could be cleaner
         for insurer in self.insurancefirms:
-            for i in range(len(self.inaccuracy)):
-                if insurer.operational:
+            if insurer.operational:
+                for i in range(len(self.inaccuracy)):
                     if insurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.insurance_models_counter[i] += 1
 
@@ -494,13 +468,16 @@ class InsuranceSimulation:
                         self.reinsurance_models_counter[i] += 1
 
         # print(isleconfig.show_network)
-        # TODO: use network representation in a more generic way, perhaps only once at the end to characterize the network and use for calibration(?)
+        # TODO: use network representation in a more generic way, perhaps only once at the end to characterize
+        #  the network and use for calibration(?)
         if isleconfig.show_network and t % 40 == 0 and t > 0:
-            RN = visualization_network.ReinsuranceNetwork(
+            import visualization_network
+
+            rn = visualization_network.ReinsuranceNetwork(
                 self.insurancefirms, self.reinsurancefirms, self.catbonds
             )
-            RN.compute_measures()
-            RN.visualize()
+            rn.compute_measures()
+            rn.visualize()
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the 
@@ -567,7 +544,7 @@ class InsuranceSimulation:
         ]
 
         """ prepare dict """
-        current_log = {}
+        current_log = {}  # TODO: rewrite this as a single dictionary literal?
         current_log["total_cash"] = total_cash_no
         current_log["total_excess_capital"] = total_excess_capital
         current_log["total_profitslosses"] = total_profitslosses
@@ -586,33 +563,26 @@ class InsuranceSimulation:
         current_log[
             "cumulative_unrecovered_claims"
         ] = self.cumulative_unrecovered_claims
-        current_log[
-            "cumulative_claims"
-        ] = self.cumulative_claims  # Log the cumulative claims received so far.
+        # Log the cumulative claims received so far.
+        current_log["cumulative_claims"] = self.cumulative_claims
 
         """ add agent-level data to dict"""
         current_log["insurance_firms_cash"] = insurance_firms
         current_log["reinsurance_firms_cash"] = reinsurance_firms
         current_log["market_diffvar"] = self.compute_market_diffvar()
 
-        current_log["individual_contracts"] = []
-        individual_contracts_no = [
+        current_log["individual_contracts"] = [
             len(insurancefirm.underwritten_contracts)
             for insurancefirm in self.insurancefirms
         ]
-        for i in range(len(individual_contracts_no)):
-            current_log["individual_contracts"].append(individual_contracts_no[i])
 
         """ call to Logger object """
         self.logger.record_data(current_log)
 
-    def obtain_log(
-        self, requested_logs=None
-    ):  # This function allows to return in a list all the data generated by the model. There is no other way to transfer it back from the cloud.
+    # This function allows to return in a list all the data generated by the model. There is no other way to transfer
+    # it back from the cloud.
+    def obtain_log(self, requested_logs=None):
         return self.logger.obtain_log(requested_logs)
-
-    def advance_round(self, *args):
-        pass
 
     def finalize(self, *args):
         """Function to handle oberations after the end of the simulation run.
@@ -631,7 +601,7 @@ class InsuranceSimulation:
             if contract.category == categ_id
         ]
         if isleconfig.verbose:
-            print("**** PERIL ", damage)
+            print("**** PERIL", damage)
         damagevalues = np.random.beta(
             1, 1.0 / damage - 1, size=self.risks_counter[categ_id]
         )
@@ -651,24 +621,23 @@ class InsuranceSimulation:
         self.obligations.append(obligation)
 
     def effect_payments(self, time):
-        due = [item for item in self.obligations if item["due_time"] <= time]
-        # print("SIMULATION obligations: ", len(self.obligations), " of which are due: ", len(due))
-        self.obligations = [
-            item for item in self.obligations if item["due_time"] > time
-        ]
-        sum_due = sum([item["amount"] for item in due])
-        for obligation in due:
-            self.pay(obligation)
+        if self.get_operational():
+            due = [item for item in self.obligations if item["due_time"] <= time]
+            # print("SIMULATION obligations: ", len(self.obligations), " of which are due: ", len(due))
+            self.obligations = [
+                item for item in self.obligations if item["due_time"] > time
+            ]
+            # sum_due = sum([item["amount"] for item in due])
+            for obligation in due:
+                self.pay(obligation)
 
     def pay(self, obligation):
         amount = obligation["amount"]
         recipient = obligation["recipient"]
         purpose = obligation["purpose"]
-        try:
-            assert self.money_supply > amount
-        except:
-            print("Something wrong: economy out of money", file=sys.stderr)
-        if self.get_operational() and recipient.get_operational():
+        if not self.money_supply > amount:
+            warnings.warn("Something wrong: economy out of money", RuntimeWarning)
+        if recipient.get_operational():
             self.money_supply -= amount
             recipient.receive(amount)
 
@@ -677,7 +646,8 @@ class InsuranceSimulation:
         self.money_supply += amount
 
     def reduce_money_supply(self, amount):
-        """Method to reduce money supply immediately and without payment recipient (used to adjust money supply to compensate for agent endowment)."""
+        """Method to reduce money supply immediately and without payment recipient (used to adjust money supply
+         to compensate for agent endowment)."""
         self.money_supply -= amount
         assert self.money_supply >= 0
 
@@ -702,7 +672,9 @@ class InsuranceSimulation:
 
         if operational_no > 0:
 
-            if reinrisks_no / operational_no > 1:
+            if (
+                reinrisks_no > operational_no
+            ):  # TODO: verify this - should all risk go to a reinsurer?
                 weights = reinrisks_no / operational_no
                 for reinsurer in self.reinsurancefirms:
                     self.reinsurers_weights[reinsurer.id] = math.floor(weights)
@@ -734,7 +706,7 @@ class InsuranceSimulation:
 
         if operational_no > 0:
 
-            if risks_no / operational_no > 1:
+            if risks_no > operational_no:  # TODO: as above
                 weights = risks_no / operational_no
                 for insurer in self.insurancefirms:
                     self.insurers_weights[insurer.id] = math.floor(weights)
@@ -766,13 +738,10 @@ class InsuranceSimulation:
                 * self.simulation_parameters["no_risks"]
             )
         )
-        if (
-            self.market_premium
-            < self.norm_premium * self.simulation_parameters["lower_price_limit"]
-        ):
-            self.market_premium = (
-                self.norm_premium * self.simulation_parameters["lower_price_limit"]
-            )
+        self.market_premium = max(
+            self.market_premium,
+            self.norm_premium * self.simulation_parameters["lower_price_limit"],
+        )
 
     def adjust_reinsurance_market_premium(self, capital):
         """Adjust_market_premium Method.
@@ -793,13 +762,10 @@ class InsuranceSimulation:
                 * self.simulation_parameters["no_risks"]
             )
         )
-        if (
-            self.reinsurance_market_premium
-            < self.norm_premium * self.simulation_parameters["lower_price_limit"]
-        ):
-            self.reinsurance_market_premium = (
-                self.norm_premium * self.simulation_parameters["lower_price_limit"]
-            )
+        self.reinsurance_market_premium = max(
+            self.reinsurance_market_premium,
+            self.norm_premium * self.simulation_parameters["lower_price_limit"],
+        )
 
     def get_market_premium(self):
         """Get_market_premium Method.
@@ -824,40 +790,45 @@ class InsuranceSimulation:
         if self.reinsurance_off:
             return float("inf")
         max_reduction = 0.1
+        # QUERY: why is this this way? Why no, say, 1.0 - min(max_reduction * np_reinsurance_deductible_fraction)?
         return self.reinsurance_market_premium * (
             1.0 - max_reduction * np_reinsurance_deductible_fraction
         )
 
     def get_cat_bond_price(self, np_reinsurance_deductible_fraction):
         # TODO: implement function dependent on total capital in cat bonds and on deductible ()
-        # TODO: make max_reduction and max_CB_surcharge into simulation_parameters ?
+        # TODO: make max_reduction and max_cat_bond_surcharge into simulation_parameters ?
         if self.catbonds_off:
             return float("inf")
         max_reduction = 0.9
-        max_CB_surcharge = 0.5
+        max_cat_bond_surcharge = 0.5
+        # QUERY: again, what does max_reduction represent?
         return self.reinsurance_market_premium * (
-            1.0 + max_CB_surcharge - max_reduction * np_reinsurance_deductible_fraction
+            1.0
+            + max_cat_bond_surcharge
+            - max_reduction * np_reinsurance_deductible_fraction
         )
 
     def append_reinrisks(self, item):
-        if len(item) > 0:
+        if item:
             self.reinrisks.append(item)
 
     def remove_reinrisks(self, risko):
-        if risko != None:
+        if risko is not None:
             self.reinrisks.remove(risko)
 
     def get_reinrisks(self):
         np.random.shuffle(self.reinrisks)
         return self.reinrisks
 
-    def solicit_insurance_requests(self, id, cash, insurer):
+    def solicit_insurance_requests(self, insurer_id, cash, insurer):
 
         risks_to_be_sent = self.risks[: int(self.insurers_weights[insurer.id])]
         self.risks = self.risks[int(self.insurers_weights[insurer.id]) :]
         for risk in insurer.risks_kept:
             risks_to_be_sent.append(risk)
 
+        # QUERY: what actuall is insurancefirm.risks_kept?
         insurer.risks_kept = []
 
         np.random.shuffle(risks_to_be_sent)
@@ -885,6 +856,7 @@ class InsuranceSimulation:
     def return_reinrisks(self, not_accepted_risks):
         self.not_accepted_reinrisks += not_accepted_risks
 
+    # QUERY: What does this represent?
     def get_all_riskmodel_combinations(self, n, rm_factor):
         riskmodels = []
         for i in range(self.simulation_parameters["no_categories"]):
@@ -895,6 +867,7 @@ class InsuranceSimulation:
             riskmodels.append(riskmodel_combination.tolist())
         return riskmodels
 
+    # TODO: could make an Event() class with time, damage, etc.
     def setup_risk_categories(self):
         for i in self.riskcategories:
             event_schedule = []
@@ -905,21 +878,18 @@ class InsuranceSimulation:
                 total += int(math.ceil(separation_time))
                 if total < self.simulation_parameters["max_time"]:
                     event_schedule.append(total)
-                    event_damage.append(
-                        self.damage_distribution.rvs()
-                    )  # Schedules of catastrophes and damages must me generated at the same time. Reason: replication across different risk models.
+                    event_damage.append(self.damage_distribution.rvs())
+            # Schedules of catastrophes and damages must me generated at the same time. Reason: replication
+            # across different risk models.
             self.rc_event_schedule.append(event_schedule)
             self.rc_event_damage.append(event_damage)
 
-        self.rc_event_schedule_initial = copy.copy(
-            self.rc_event_damage
-        )  # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
-        self.rc_event_damage_initial = copy.copy(
-            self.rc_event_damage
-        )  # and damages that will be use in a single run of the model.
+        # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
+        # and damages that will be use in a single run of the model.
+        self.rc_event_schedule_initial = copy.copy(self.rc_event_damage)
+        self.rc_event_damage_initial = copy.copy(self.rc_event_damage)
 
     def setup_risk_categories_caller(self):
-        # if self.background_run:
         if self.replic_ID is not None:
             if isleconfig.replicating:
                 self.restore_state_and_risk_categories()
@@ -937,46 +907,41 @@ class InsuranceSimulation:
             .replace("array", "np.array")
             .replace("uint32", "np.uint32")
         )
-        wfile = open("data/replication_randomseed.dat", "a")
-        wfile.write(mersennetwoster_randomseed + "\n")
-        wfile.close()
+        with open("data/replication_randomseed.dat", "a") as wfile:
+            wfile.write(mersennetwoster_randomseed + "\n")
         # save event schedule
-        wfile = open("data/replication_rc_event_schedule.dat", "a")
-        wfile.write(str(self.rc_event_schedule) + "\n")
-        wfile.close()
+        with open("data/replication_rc_event_schedule.dat", "a") as wfile:
+            wfile.write(str(self.rc_event_schedule) + "\n")
 
     def restore_state_and_risk_categories(self):
-        rfile = open("data/replication_rc_event_schedule.dat", "r")
-        found = False
-        for i, line in enumerate(rfile):
-            # print(i, self.replic_ID)
-            if i == self.replic_ID:
-                self.rc_event_schedule = eval(line)
-                found = True
-        rfile.close()
-        assert (
-            found
-        ), "rc event schedule for current replication ID number {0:d} not found in data file. Exiting.".format(
-            self.replic_ID
-        )
-        rfile = open("data/replication_randomseed.dat", "r")
-        found = False
-        for i, line in enumerate(rfile):
-            # print(i, self.replic_ID)
-            if i == self.replic_ID:
-                mersennetwister_randomseed = eval(line)
-                found = True
-        rfile.close()
-        np.random.set_state(mersennetwister_randomseed)
-        assert (
-            found
-        ), "mersennetwister randomseed for current replication ID number {0:d} not found in data file. Exiting.".format(
-            self.replic_ID
-        )
+        with open("data/replication_rc_event_schedule.dat", "r") as rfile:
+            found = False
+            for i, line in enumerate(rfile):
+                # print(i, self.replic_ID)
+                if i == self.replic_ID:
+                    self.rc_event_schedule = eval(
+                        line
+                    )  # TODO: eval could be considered dangerous
+                    found = True
+        if not found:
+            raise Exception(
+                f"rc event schedule for current replication ID number {self.replic_ID} not found in data file."
+            )
 
-    def insurance_firm_market_entry(
-        self, prob=-1, agent_type="InsuranceFirm"
-    ):  # TODO: replace method name with a more descriptive one
+        with open("data/replication_randomseed.dat", "r") as rfile:
+            found = False
+            for i, line in enumerate(rfile):
+                # print(i, self.replic_ID)
+                if i == self.replic_ID:
+                    mersennetwister_randomseed = eval(line)
+                    found = True
+        if not found:
+            raise Exception(
+                f"mersennetwister randomseed for current replication ID number {self.replic_ID} not found in data file. Exiting."
+            )
+        np.random.set_state(mersennetwister_randomseed)
+
+    def insurance_firm_enters_market(self, prob=-1, agent_type="InsuranceFirm"):
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters[
@@ -987,15 +952,10 @@ class InsuranceSimulation:
                     "reinsurance_firm_market_entry_probability"
                 ]
             else:
-                assert (
-                    False
-                ), "Unknown agent type. Simulation requested to create agent of type {0:s}".format(
-                    agent_type
+                raise ValueError(
+                    f"Unknown agent type. Simulation requested to create agent of type {agent_type}"
                 )
-        if np.random.random() < prob:
-            return True
-        else:
-            return False
+        return np.random.random() < prob
 
     def record_bankruptcy(self):
         """Record_bankruptcy Method.
@@ -1016,39 +976,36 @@ class InsuranceSimulation:
     def record_unrecovered_claims(self, loss):
         self.cumulative_unrecovered_claims += loss
 
-    def record_claims(
-        self, claims
-    ):  # This method records every claim made to insurers and reinsurers. It is called from both insurers and reinsurers (metainsuranceorg.py).
+    def record_claims(self, claims):
+        # This method records every claim made to insurers and reinsurers.
+        # It is called from both insurers and reinsurers (metainsuranceorg.py).
         self.cumulative_claims += claims
 
     def log(self):
         self.logger.save_log(self.background_run)
 
     def compute_market_diffvar(self):
+        totalina = sum(
+            [
+                firm.var_counter_per_risk
+                for firm in self.insurancefirms
+                if firm.operational
+            ]
+        )
 
-        varsfirms = []
-        for firm in self.insurancefirms:
-            if firm.operational:
-                varsfirms.append(firm.var_counter_per_risk)
-        totalina = sum(varsfirms)
+        totalreal = len([firm for firm in self.insurancefirms if firm.operational])
 
-        varsfirms = []
-        for firm in self.insurancefirms:
-            if firm.operational:
-                varsfirms.append(1)
-        totalreal = sum(varsfirms)
+        totalina += sum(
+            [
+                reinfirm.var_counter_per_risk
+                for reinfirm in self.reinsurancefirms
+                if reinfirm.operational
+            ]
+        )
 
-        varsreinfirms = []
-        for reinfirm in self.reinsurancefirms:
-            if reinfirm.operational:
-                varsreinfirms.append(reinfirm.var_counter_per_risk)
-        totalina = totalina + sum(varsreinfirms)
-
-        varsreinfirms = []
-        for reinfirm in self.reinsurancefirms:
-            if reinfirm.operational:
-                varsreinfirms.append(1)
-        totalreal = totalreal + sum(varsreinfirms)
+        totalreal += len(
+            [reinfirm for reinfirm in self.reinsurancefirms if reinfirm.operational]
+        )
 
         totaldiff = totalina - totalreal
 
@@ -1056,6 +1013,7 @@ class InsuranceSimulation:
         # self.history_logs['market_diffvar'].append(totaldiff)
 
     def count_underwritten_and_reinsured_risks_by_category(self):
+        # QUERY does this do anything? It doesn't return anything and doesn't look like it changes any variables
         underwritten_risks = 0
         reinsured_risks = 0
         underwritten_per_category = np.zeros(
@@ -1064,7 +1022,7 @@ class InsuranceSimulation:
         reinsured_per_category = np.zeros(self.simulation_parameters["no_categories"])
         for firm in self.insurancefirms:
             if firm.operational:
-                underwritten_by_category += firm.counter_category
+                underwritten_per_category += firm.counter_category
                 if (
                     self.simulation_parameters["simulation_reinsurance_type"]
                     == "non-proportional"
@@ -1098,21 +1056,22 @@ class InsuranceSimulation:
         ].argmin()
 
     def get_operational(self):
+        # QUERY: because the simulation can recieve money so is always operational?
         return True
 
-    def reinsurance_capital_entry(
-        self
-    ):  # This method determines the capital market entry of reinsurers. It is only run in start.py.
+    def reinsurance_capital_entry(self):
+        # This method determines the capital market entry (initial cash) of reinsurers. It is only run in start.py.
         capital_per_non_re_cat = []
 
         for reinrisk in self.not_accepted_reinrisks:
-            capital_per_non_re_cat.append(
-                reinrisk["value"]
-            )  # It takes all the values of the reinsurance risks NOT REINSURED.
+            capital_per_non_re_cat.append(reinrisk["value"])
+        # It takes all the values of the reinsurance risks NOT REINSURED.
 
-        if (
-            len(capital_per_non_re_cat) > 0
-        ):  # We only perform this action if there are reinsurance contracts that has not been reinsured in the last period of time.
+        # If there are any non-reinsured risks going, take a sample of them and have starting capital equal to twice
+        # the maximum value among that sample.  # QUERY: why this particular value?
+        if len(capital_per_non_re_cat) > 0:
+            # We only perform this action if there are reinsurance contracts that have
+            # not been reinsured in the last time period.
             capital_per_non_re_cat = np.random.choice(
                 capital_per_non_re_cat, 10
             )  # Only 10 values sampled randomly are considered. (Too low?)

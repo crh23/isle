@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 """Data"""
 
 """Bloomberg size data for US firms"""

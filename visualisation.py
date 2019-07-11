@@ -31,6 +31,7 @@ class TimeSeries(object):
             self.axlst = axlst
             self.fig = fig
         else:
+            # noinspection PyTypeChecker
             self.fig, self.axlst = plt.subplots(self.size, sharex=True)
 
         # self.plot() # we create the object when we want the plot so call plot() in the constructor
@@ -135,8 +136,11 @@ class visualisation(object):
         fig=None,
         title="Insurer",
         colour="black",
-        percentiles=[25, 75],
+        percentiles=None,
     ):
+        # Default values shouldn't be mutable
+        if percentiles is None:
+            percentiles = [25, 75]
         # runs should be a list of the indexes you want included in the ensemble for consideration
         if runs:
             data = [self.history_logs_list[x] for x in runs]
@@ -215,8 +219,10 @@ class visualisation(object):
         fig=None,
         title="Reinsurer",
         colour="black",
-        percentiles=[25, 75],
+        percentiles=None,
     ):
+        if percentiles is None:
+            percentiles = [25, 75]
         # runs should be a list of the indexes you want included in the ensemble for consideration
         if runs:
             data = [self.history_logs_list[x] for x in runs]
@@ -367,15 +373,19 @@ class compare_riskmodels(object):
         self.vis_list = vis_list
         self.colour_list = colour_list
 
-    def create_insurer_timeseries(self, fig=None, axlst=None, percentiles=[25, 75]):
+    def create_insurer_timeseries(self, fig=None, axlst=None, percentiles=None):
         # create the time series for each object in turn and superpose them?
+        if percentiles is None:
+            percentiles = [25, 75]
         fig = axlst = None
         for vis, colour in zip(self.vis_list, self.colour_list):
             (fig, axlst) = vis.insurer_time_series(
                 fig=fig, axlst=axlst, colour=colour, percentiles=percentiles
             )
 
-    def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=[25, 75]):
+    def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=None):
+        if percentiles is None:
+            percentiles = [25, 75]
         # create the time series for each object in turn and superpose them?
         fig = axlst = None
         for vis, colour in zip(self.vis_list, self.colour_list):
@@ -409,7 +419,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.single:
-
         # load in data from the history_logs dictionarywith open("data/history_logs.dat","r") as rfile:
         with open("data/history_logs.dat", "r") as rfile:
             history_logs_list = [eval(k) for k in rfile]  # one dict on each line

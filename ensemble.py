@@ -2,18 +2,16 @@
 # It can be run locally if no argument is passed when called from the terminal.
 # It can be run in the cloud if it is passed as argument the server that will be used.
 import sys
-import random
-import os
-import math
+
 import copy
-import scipy.stats
-import start
-import logger
-import listify
-import isleconfig
-from distributiontruncated import TruncatedDistWrapper
-from setup import SetupSim
+import os
 from sandman2.api import operation, Session
+
+import isleconfig
+import listify
+import logger
+import start
+from setup_simulation import SetupSim
 
 
 @operation
@@ -23,7 +21,6 @@ def agg(*outputs):
 
 
 def rake(hostname):
-
     jobs = []
 
     """Configuration of the ensemble"""
@@ -90,7 +87,7 @@ def rake(hostname):
     directory = os.getcwd() + dir_prefix
     try:  # Here it is checked whether the directory to collect the results exists or not. If not it is created.
         os.stat(directory)
-    except:
+    except FileNotFoundError:
         os.mkdir(directory)
 
     """Clear old dict saving files (*_history_logs.dat)"""
@@ -100,34 +97,29 @@ def rake(hostname):
             os.remove(filename)
 
     """Setup of the simulations"""
-
-    setup = SetupSim()  # Here the setup for the simulation is done.
+    # Here the setup for the simulation is done.
+    # Since this script is used to carry out simulations in the cloud will usually have more than 1 replication.
+    setup = SetupSim()
     [
         general_rc_event_schedule,
         general_rc_event_damage,
         np_seeds,
         random_seeds,
-    ] = setup.obtain_ensemble(
-        replications
-    )  # Since this script is used to carry out simulations in the cloud will usually have more than 1 replication..
-    save_iter = (
-        isleconfig.simulation_parameters["max_time"] + 2
-    )  # never save simulation state in ensemble runs (resuming is impossible anyway)
+    ] = setup.obtain_ensemble(replications)
+    # never save simulation state in ensemble runs (resuming is impossible anyway)
+    save_iter = isleconfig.simulation_parameters["max_time"] + 2
 
-    for (
-        i
-    ) in (
-        riskmodels
-    ):  # In this loop the parameters, schedules and random seeds for every run are prepared. Different risk models will be run with the same schedule, damage size and random seed for a fair comparison.
+    for i in riskmodels:
+        # In this loop the parameters, schedules and random seeds for every run are prepared. Different risk models will
+        # be run with the same schedule, damage size and random seed for a fair comparison.
 
-        simulation_parameters = copy.copy(
-            parameters
-        )  # Here the parameters used for the simulation are loaded. Clone is needed otherwise all the runs will be carried out with the last number of thee loop.
-        simulation_parameters[
-            "no_riskmodels"
-        ] = (
-            i
-        )  # Since we want to obtain ensembles for different number of risk models, we vary here the number of risks models.
+        # Here the parameters used for the simulation are loaded. Clone is needed otherwise all the runs will be carried
+        # out with the last number of the loop.
+        simulation_parameters = copy.copy(parameters)
+        # Since we want to obtain ensembles for different number of risk models, we vary the number of risks models.
+        simulation_parameters["no_riskmodels"] = i
+        # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
+        # simulation state save interval (never, i.e. longer than max_time), and list of requested logs.
         job = [
             m(
                 simulation_parameters,
@@ -139,16 +131,15 @@ def rake(hostname):
                 list(requested_logs.keys()),
             )
             for x in range(replications)
-        ]  # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds, simulation state save interval (never, i.e. longer than max_time), and list of requested logs.
+        ]
         jobs.append(job)  # All jobs are collected in the jobs list.
 
     """Here the jobs are submitted"""
 
     with Session(host=hostname, default_cb_to_stdout=True) as sess:
 
-        for (
-            job
-        ) in jobs:  # If there are 4 risk models jobs will be a list with 4 elements.
+        for job in jobs:
+            # If there are 4 risk models jobs will be a list with 4 elements.
 
             """Run simulation and obtain result"""
             result = sess.submit(job)
@@ -189,6 +180,7 @@ def rake(hostname):
                         + requested_logs[name]
                     )
 
+            # TODO: write to the files one at a time with a 'with ... as ... :'
             for name in logfile_dict:
                 wfiles_dict[name] = open(logfile_dict[name], "w")
 

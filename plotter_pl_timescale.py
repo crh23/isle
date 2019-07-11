@@ -70,7 +70,6 @@ for i in range(len(contracts[0])):  # for every time period i
     p_s = np.median([item[i] for item in premium])
     p_e.append(p_s)
 
-
 maxlen_plots = max(len(pl_s), len(pl_re), len(o_s), len(o_re), len(p_e))
 xticks = np.arange(200, maxlen_plots, step=120)
 fig0 = plt.figure()
@@ -101,9 +100,7 @@ ax9.set_xlabel("Years")
 ax9.set_xticks(xticks)
 ax9.set_xticklabels(["${0:d}$".format(int((xtc - 200) / 12)) for xtc in xticks])
 
-
 plt.savefig("data/single_replication_new.pdf")
 plt.show()
-
 
 raise SystemExit

@@ -1,11 +1,10 @@
-import scipy.stats
+import functools
 import numpy as np
-from math import ceil
-import scipy
-import pdb
+import scipy.stats
 
 
 class ReinsuranceDistWrapper:
+    # QUERY: Is this the distribution of the risk when excess of loss reinsurance is applied?
     def __init__(self, dist, lower_bound=None, upper_bound=None):
         assert lower_bound is not None or upper_bound is not None
         self.dist = dist
@@ -18,6 +17,7 @@ class ReinsuranceDistWrapper:
         assert self.upper_bound > self.lower_bound
         self.redistributed_share = dist.cdf(upper_bound) - dist.cdf(lower_bound)
 
+    @functools.lru_cache(maxsize=512)
     def pdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
@@ -33,6 +33,7 @@ class ReinsuranceDistWrapper:
             r = float(r)
         return r
 
+    @functools.lru_cache(maxsize=512)
     def cdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
@@ -46,6 +47,7 @@ class ReinsuranceDistWrapper:
             r = float(r)
         return r
 
+    @functools.lru_cache(maxsize=512)
     def ppf(self, x):
         x = np.array(x, ndmin=1)
         assert (x >= 0).all() and (x <= 1).all()
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         lower_bound=0.9, upper_bound=1.1, dist=non_truncated
     )
 
-    x = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
+    x1 = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
     x2 = np.linspace(truncated.ppf(0.01), truncated.ppf(0.99), 100)
 
     # pdb.set_trace()
