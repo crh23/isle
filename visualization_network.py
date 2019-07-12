@@ -25,7 +25,8 @@ class ReinsuranceNetwork:
         # is_connected = nx.is_strongly_connected(self.network)  # must always be False
         try:
             node_centralities = nx.eigenvector_centrality(self.network)
-        except:
+        except nx.NetworkXException:
+            # TODO: be more specific about this exception if possible
             node_centralities = nx.betweenness_centrality(self.network)
         # TODO: and more, choose more meaningful ones...
 

@@ -82,10 +82,10 @@ class InsuranceFirmAnimation(object):
         for timestep in self.data:
             casharr = []
             idarr = []
-            for (cash, id, operational) in timestep:
+            for (cash, firm_id, operational) in timestep:
                 if operational:
                     casharr.append(cash)
-                    idarr.append(id)
+                    idarr.append(firm_id)
             yield casharr, idarr
 
     def update(self, i):

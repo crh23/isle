@@ -11,6 +11,6 @@ class ReinsuranceFirm(InsuranceFirm):
                    Signature is identical to constructor method of parent class.
            Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of 
            the object."""
-        super(ReinsuranceFirm, self).__init__(simulation_parameters, agent_parameters)
+        super().__init__(simulation_parameters, agent_parameters)
         self.is_insurer = False
         self.is_reinsurer = True

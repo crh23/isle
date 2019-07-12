@@ -30,7 +30,7 @@ class CalibrationScore:
     def test_all(self):
         """Method to test all calibration tests.
             No arguments.
-            Returns combined calibration score as float \in [0,1]."""
+            Returns combined calibration score as float in [0,1]."""
 
         """Compute score components"""
         scores = {

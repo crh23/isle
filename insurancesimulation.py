@@ -5,7 +5,6 @@ import reinsurancefirm
 import numpy as np
 import scipy.stats
 import math
-import sys, pdb
 import isleconfig
 import random
 import copy
@@ -343,10 +342,18 @@ class InsuranceSimulation:
                     agent_parameters = self.agent_parameters["insurancefirm"]
                 else:
                     # We are adding new agents to an existing simulation
-                    agent_parameters = [self.agent_parameters["insurancefirm"][self.insurance_entry_index()] for _ in range(n)]
+                    agent_parameters = [
+                        self.agent_parameters["insurancefirm"][
+                            self.insurance_entry_index()
+                        ]
+                        for _ in range(n)
+                    ]
                     for ap in agent_parameters:
                         ap["id"] = self.get_unique_insurer_id()
-                agents = [agent_class(self.simulation_parameters, ap) for ap in agent_parameters]
+                agents = [
+                    agent_class(self.simulation_parameters, ap)
+                    for ap in agent_parameters
+                ]
                 # We've made the agents, add them to the simulation
                 self.insurancefirms += agents
                 for agent in agents:
@@ -358,12 +365,20 @@ class InsuranceSimulation:
                     assert len(self.agent_parameters["reinsurancefirm"]) == n
                     agent_parameters = self.agent_parameters["reinsurancefirm"]
                 else:
-                    agent_parameters = [self.agent_parameters["reinsurancefirm"][self.reinsurance_entry_index()] for _ in range(n)]
+                    agent_parameters = [
+                        self.agent_parameters["reinsurancefirm"][
+                            self.reinsurance_entry_index()
+                        ]
+                        for _ in range(n)
+                    ]
                     for ap in agent_parameters:
                         ap["id"] = self.get_unique_reinsurer_id()
                         # QUERY: This was written but not actually used in the original implementation - should it be?
                         # ap["initial_cash"] = self.reinsurance_capital_entry()
-                agents = [agent_class(self.simulation_parameters, ap) for ap in agent_parameters]
+                agents = [
+                    agent_class(self.simulation_parameters, ap)
+                    for ap in agent_parameters
+                ]
                 self.reinsurancefirms += agents
 
             elif agent_class_string == "catbond":
@@ -401,14 +416,10 @@ class InsuranceSimulation:
             print(f"\rTime: {t}", end="")
 
         if self.firm_enters_market(agent_type="InsuranceFirm"):
-            self.add_agents(insurancefirm.InsuranceFirm,
-                                  "insurancefirm",
-                                  n=1)
+            self.add_agents(insurancefirm.InsuranceFirm, "insurancefirm", n=1)
 
         if self.firm_enters_market(agent_type="ReinsuranceFirm"):
-            self.add_agents(reinsurancefirm.ReinsuranceFirm,
-                                  "reinsurancefirm",
-                                  n=1)
+            self.add_agents(reinsurancefirm.ReinsuranceFirm, "reinsurancefirm", n=1)
 
         self.reset_pls()
 
@@ -512,8 +523,8 @@ class InsuranceSimulation:
         )
         total_excess_capital = sum(
             [
-                insurancefirm.get_excess_capital()
-                for insurancefirm in self.insurancefirms
+                firm.get_excess_capital()
+                for firm in self.insurancefirms
             ]
         )
         total_profitslosses = sum(
@@ -521,47 +532,47 @@ class InsuranceSimulation:
         )
         total_contracts_no = sum(
             [
-                len(insurancefirm.underwritten_contracts)
-                for insurancefirm in self.insurancefirms
+                len(firm.underwritten_contracts)
+                for firm in self.insurancefirms
             ]
         )
         total_reincash_no = sum(
-            [reinsurancefirm.cash for reinsurancefirm in self.reinsurancefirms]
+            [firm.cash for firm in self.reinsurancefirms]
         )
         total_reinexcess_capital = sum(
             [
-                reinsurancefirm.get_excess_capital()
-                for reinsurancefirm in self.reinsurancefirms
+                firm.get_excess_capital()
+                for firm in self.reinsurancefirms
             ]
         )
         total_reinprofitslosses = sum(
             [
-                reinsurancefirm.get_profitslosses()
-                for reinsurancefirm in self.reinsurancefirms
+                firm.get_profitslosses()
+                for firm in self.reinsurancefirms
             ]
         )
         total_reincontracts_no = sum(
             [
-                len(reinsurancefirm.underwritten_contracts)
-                for reinsurancefirm in self.reinsurancefirms
+                len(firm.underwritten_contracts)
+                for firm in self.reinsurancefirms
             ]
         )
         operational_no = sum(
-            [insurancefirm.operational for insurancefirm in self.insurancefirms]
+            [firm.operational for firm in self.insurancefirms]
         )
         reinoperational_no = sum(
-            [reinsurancefirm.operational for reinsurancefirm in self.reinsurancefirms]
+            [firm.operational for firm in self.reinsurancefirms]
         )
         catbondsoperational_no = sum([catbond.operational for catbond in self.catbonds])
 
         """ collect agent-level data """
         insurance_firms = [
-            (insurancefirm.cash, insurancefirm.id, insurancefirm.operational)
-            for insurancefirm in self.insurancefirms
+            (firm.cash, firm.id, firm.operational)
+            for firm in self.insurancefirms
         ]
         reinsurance_firms = [
-            (reinsurancefirm.cash, reinsurancefirm.id, reinsurancefirm.operational)
-            for reinsurancefirm in self.reinsurancefirms
+            (firm.cash, firm.id, firm.operational)
+            for firm in self.reinsurancefirms
         ]
 
         """ prepare dict """
@@ -593,8 +604,8 @@ class InsuranceSimulation:
         current_log["market_diffvar"] = self.compute_market_diffvar()
 
         current_log["individual_contracts"] = [
-            len(insurancefirm.underwritten_contracts)
-            for insurancefirm in self.insurancefirms
+            len(firm.underwritten_contracts)
+            for firm in self.insurancefirms
         ]
 
         """ call to Logger object """
@@ -631,7 +642,7 @@ class InsuranceSimulation:
         if isleconfig.verbose:
             print("**** PERIL", damage)
         damagevalues = np.random.beta(
-            1, 1.0 / damage - 1, size=self.risks_counter[categ_id]
+            a=1, b=1.0 / damage - 1, size=self.risks_counter[categ_id]
         )
         uniformvalues = np.random.uniform(0, 1, size=self.risks_counter[categ_id])
         [
@@ -907,7 +918,7 @@ class InsuranceSimulation:
 
         return risks_to_be_sent
 
-    def solicit_reinsurance_requests(self, id, cash, reinsurer):
+    def solicit_reinsurance_requests(self, cash, reinsurer):
         """Method for determining which reinsurance risks are to be assessed by firms based on reinsurer weights
                            Accepts:
                                id: Type integer

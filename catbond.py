@@ -3,9 +3,7 @@ from metainsuranceorg import MetaInsuranceOrg
 
 
 class CatBond(MetaInsuranceOrg):
-    def __init__(
-        self, simulation, per_period_premium, owner, interest_rate=0
-    ):
+    def __init__(self, simulation, per_period_premium, owner, interest_rate=0):
         """Initialising methods.
             Accepts:
                 simulation: Type class

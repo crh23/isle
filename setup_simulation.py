@@ -135,16 +135,6 @@ class SetupSim:
         with open("./data/" + self.filepath, "wb") as wfile:
             pickle.dump(event_schedules, wfile, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # with open("./data/risk_event_schedules.txt", "w") as wfile: # QUERY: what's this for? Why do we need the txt?
-        #     for rep_schedule in event_schedules:
-        #         wfile.write(
-        #             str(rep_schedule)
-        #             .replace("\n", "")
-        #             .replace("array", "np.array")
-        #             .replace("uint32", "np.uint32")
-        #             + "\n"
-        #         )
-
     def recall(self):
         assert (
             self.np_seed
@@ -177,7 +167,7 @@ class SetupSim:
             # Not replicating another run, so we are writing to the file given
             self.replications = replications
             if filepath is None and not self.overwrite:
-                print("No explicit path given, automatically overwriting default path")
+                print("No explicit path given, automatically overwriting default path for initial state")
                 self.overwrite = True
             self.schedule(replications)
             self.seeds(replications)

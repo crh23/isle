@@ -3,10 +3,11 @@ replicating = False
 force_foreground = False
 verbose = False
 showprogress = False
-show_network = (
-    False
-)  # Should network be visualized? This should be False by default, to be overridden by commandline arguments
-slim_log = True  # Should logs be small in ensemble runs (only aggregated level data)?
+# Should network be visualized? This should be False by default, to be overridden by commandline arguments
+show_network = False
+# Should logs be small in ensemble runs (only aggregated level data)?
+slim_log = True
+
 
 simulation_parameters = {
     "no_categories": 4,

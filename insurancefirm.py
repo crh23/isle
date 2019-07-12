@@ -15,7 +15,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                    Signature is identical to constructor method of parent class.
            Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of
            the object."""
-        super(InsuranceFirm, self).__init__(simulation_parameters, agent_parameters)
+        super().__init__(simulation_parameters, agent_parameters)
         self.is_insurer = True
         self.is_reinsurer = False
 
@@ -114,10 +114,14 @@ class InsuranceFirm(MetaInsuranceOrg):
         market premium is above its average premium, otherwise firm is 'forced' to get a catbond or reinsurance. Only
         implemented for non-proportional(excess of loss) reinsurance. Only issues one reinsurance or catbond per
         iteration unless not enough capacity to meet target."""
-        assert self.simulation_reinsurance_type == 'non-proportional'
-        '''get prices'''
-        reinsurance_price = self.simulation.get_reinsurance_premium(self.np_reinsurance_deductible_fraction)
-        cat_bond_price = self.simulation.get_cat_bond_price(self.np_reinsurance_deductible_fraction)
+        assert self.simulation_reinsurance_type == "non-proportional"
+        """get prices"""
+        reinsurance_price = self.simulation.get_reinsurance_premium(
+            self.np_reinsurance_deductible_fraction
+        )
+        cat_bond_price = self.simulation.get_cat_bond_price(
+            self.np_reinsurance_deductible_fraction
+        )
         capacity = None
         if not reinsurance_price == cat_bond_price == float("inf"):
             categ_ids = [
@@ -130,8 +134,16 @@ class InsuranceFirm(MetaInsuranceOrg):
             while len(categ_ids) >= 1:
                 categ_id = categ_ids.pop()
                 capacity = self.get_capacity(max_var)
-                if self.capacity_target < capacity: # just one per iteration, unless capital target is unmatched
-                    if self.increase_capacity_by_category(time, categ_id, reinsurance_price=reinsurance_price, cat_bond_price=cat_bond_price, force=False):
+                if (
+                    self.capacity_target < capacity
+                ):  # just one per iteration, unless capital target is unmatched
+                    if self.increase_capacity_by_category(
+                        time,
+                        categ_id,
+                        reinsurance_price=reinsurance_price,
+                        cat_bond_price=cat_bond_price,
+                        force=False,
+                    ):
                         categ_ids = []
                 else:
                     self.increase_capacity_by_category(

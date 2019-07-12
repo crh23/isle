@@ -5,15 +5,16 @@ import numpy as np
 import os
 import pickle
 import random
+import copy
 
 import calibrationscore
 import insurancefirm
 import insurancesimulation
+
 # import config file and apply configuration
 import isleconfig
 import logger
 import reinsurancefirm
-import copy
 
 simulation_parameters = isleconfig.simulation_parameters
 filepath = None
@@ -39,36 +40,54 @@ def main(
     save_iter: int,
     replic_ID,
     requested_logs=None,
+    resume=False,
 ):
-    np.random.seed(np_seed)
-    random.seed(random_seed)
+    if not resume:
+        np.random.seed(np_seed)
+        random.seed(random_seed)
 
-    simulation_parameters[
-        "simulation"
-    ] = simulation = insurancesimulation.InsuranceSimulation(
-        override_no_riskmodels,
-        replic_ID,
-        simulation_parameters,
-        rc_event_schedule,
-        rc_event_damage,
-    )
+        simulation_parameters[
+            "simulation"
+        ] = simulation = insurancesimulation.InsuranceSimulation(
+            override_no_riskmodels,
+            replic_ID,
+            simulation_parameters,
+            rc_event_schedule,
+            rc_event_damage,
+        )
 
-    simulation.add_agents(insurancefirm.InsuranceFirm,
-                          "insurancefirm",
-                          n=simulation_parameters["no_insurancefirms"])
-    simulation.add_agents(reinsurancefirm.ReinsuranceFirm,
-                          "reinsurancefirm",
-                          n=simulation_parameters["no_reinsurancefirms"])
-
-    for t in range(simulation_parameters["max_time"]):
+        simulation.add_agents(
+            insurancefirm.InsuranceFirm,
+            "insurancefirm",
+            n=simulation_parameters["no_insurancefirms"],
+        )
+        simulation.add_agents(
+            reinsurancefirm.ReinsuranceFirm,
+            "reinsurancefirm",
+            n=simulation_parameters["no_reinsurancefirms"],
+        )
+        time = 0
+    else:
+        d = load_simulation()
+        np.random.set_state(d["np_seed"])
+        random.setstate(d["random_seed"])
+        time = d["time"]
+        simulation = d["simulation"]
+        simulation_parameters = d["simulation_parameters"]
+        for key in d["isleconfig"]:
+            isleconfig.__dict__[key] = d["isleconfig"][key]
+    simulation = copy.deepcopy(simulation)
+    for t in range(time, simulation_parameters["max_time"]):
         # Main time iteration loop
         simulation.iterate(t)
 
         # log data
         simulation.save_data()
 
-        if t % save_iter == 0 and t > 0:
-            save_simulation(t, simulation, simulation_parameters, exit_now=False)
+        # Don't save at t=0 or if the simulation has just finished
+        if t % save_iter == 0 and 0 < t < simulation_parameters["max_time"]:
+            # Need to use t+1 as resume will start at time saved
+            save_simulation(t + 1, simulation, simulation_parameters, exit_now=False)
 
     # Finish simulation, write logs
     simulation.finalize()
@@ -77,7 +96,6 @@ def main(
     return simulation.obtain_log(requested_logs)
 
 
-# save function
 def save_simulation(t, sim, sim_param, exit_now=False):
     d = {
         "np_seed": np.random.get_state(),
@@ -85,18 +103,32 @@ def save_simulation(t, sim, sim_param, exit_now=False):
         "time": t,
         "simulation": sim,
         "simulation_parameters": sim_param,
+        "isleconfig": {},
     }
+    for key in isleconfig.__dict__:
+        if not key.startswith("__"):
+            d["isleconfig"][key] = isleconfig.__dict__[key]
+
     with open("data/simulation_save.pkl", "bw") as wfile:
         pickle.dump(d, wfile, protocol=pickle.HIGHEST_PROTOCOL)
     with open("data/simulation_save.pkl", "br") as rfile:
         file_contents = rfile.read()
-    # print("\nSimulation hashes: ", hashlib.sha512(str(d).encode()).hexdigest(), "; ",  hashlib.sha512(str(file_contents).encode()).hexdigest())
-    # note that the hash over the dict is for some reason not identical between runs. The hash over the state saved to the file is.
-    print(
-        "\nSimulation hash: ", hashlib.sha512(str(file_contents).encode()).hexdigest()
-    )
+    print("\nSaved simulation with hash:", hashlib.sha512(str(file_contents).encode()).hexdigest())
+
     if exit_now:
         exit(0)
+
+
+def load_simulation():
+    # TODO: Fix! This doesn't work, the retrieved file is different to the saved one.
+    with open("data/simulation_save.pkl", "br") as rfile:
+        print(
+            "\nLoading simulation with hash:",
+            hashlib.sha512(str(rfile.read()).encode()).hexdigest(),
+        )
+        rfile.seek(0)
+        file_contents = pickle.load(rfile)
+    return file_contents
 
 
 # main entry point
@@ -106,6 +138,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model the Insurance sector")
     parser.add_argument(
         "--abce", action="store_true", help="[REMOVED] ABCE no longer supported"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume the simulation from a previous save in ./data/simulation_save.pkl. "
+        "All other arguments will be ignored",
     )
     parser.add_argument(
         "--oneriskmodel",
@@ -133,7 +171,7 @@ if __name__ == "__main__":
         "--replicating",
         action="store_true",
         help="if this is a simulation run designed to replicate another, override the config file parameter. "
-             "You probably want to specify the --file to read from.",
+        "You probably want to specify the --file to read from.",
     )
     parser.add_argument(
         "-o",
@@ -199,19 +237,25 @@ if __name__ == "__main__":
     if args.save_iterations:
         save_iter = args.save_iterations
     else:
-        save_iter = 200
+        save_iter = 100
 
-    from setup_simulation import SetupSim
+    if not args.resume:
+        from setup_simulation import SetupSim
 
-    setup = SetupSim()  # Here the setup for the simulation is done.
+        setup = SetupSim()  # Here the setup for the simulation is done.
 
-    [
-        general_rc_event_schedule,
-        general_rc_event_damage,
-        np_seeds,
-        random_seeds,
-    ] = setup.obtain_ensemble(1, filepath, overwrite)
-    # Only one ensemble. This part will only be run locally (laptop).
+        # Only one ensemble. This part will only be run locally (laptop).
+        [
+            general_rc_event_schedule,
+            general_rc_event_damage,
+            np_seeds,
+            random_seeds,
+        ] = setup.obtain_ensemble(1, filepath, overwrite)
+    else:
+        # We are resuming, so all of the necessary setup will be loaded from a file
+        general_rc_event_schedule = (
+            general_rc_event_damage
+        ) = np_seeds = random_seeds = [None]
 
     # Run the main program
     # Note that we pass the filepath as the replic_ID
@@ -222,7 +266,8 @@ if __name__ == "__main__":
         np_seeds[0],
         random_seeds[0],
         save_iter,
-        filepath,
+        replic_ID=1,
+        resume=args.resume,
     )
 
     replic_ID = filepath

@@ -56,17 +56,21 @@ class MetaInsuranceContract:
         self.initial_VaR = initial_var
         # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0
-        self.deductible_fraction = deductible_fraction if deductible_fraction is not None else properties.get(
-                "deductible_fraction", default_deductible_fraction
-            )
+        self.deductible_fraction = (
+            deductible_fraction
+            if deductible_fraction is not None
+            else properties.get("deductible_fraction", default_deductible_fraction)
+        )
 
         self.deductible = self.deductible_fraction * self.value
 
         # set excess from argument, risk property or default value, whichever first is not None
         default_excess_fraction = 1.0
-        self.excess_fraction = excess_fraction if excess_fraction is not None else properties.get(
-                "excess_fraction", default_excess_fraction
-            )
+        self.excess_fraction = (
+            excess_fraction
+            if excess_fraction is not None
+            else properties.get("excess_fraction", default_excess_fraction)
+        )
 
         self.excess = self.excess_fraction * self.value
 

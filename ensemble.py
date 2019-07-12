@@ -5,6 +5,7 @@ import sys
 
 import copy
 import os
+
 # noinspection PyUnresolvedReferences
 from sandman2.api import operation, Session
 

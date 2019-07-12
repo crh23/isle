@@ -149,7 +149,9 @@ class MetaInsuranceOrg:
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
         # QUERY: Should this have to sum to self.cash
-        self.cash_left_by_categ = self.cash * np.ones(self.simulation_parameters["no_categories"])
+        self.cash_left_by_categ = self.cash * np.ones(
+            self.simulation_parameters["no_categories"]
+        )
         self.market_permanency_counter = 0
 
     def iterate(self, time):
@@ -188,7 +190,6 @@ class MetaInsuranceOrg:
 
         """adjust liquidity, borrow or invest"""
         # Not implemented
-
 
         self.market_permanency(time)
 
@@ -509,16 +510,6 @@ class MetaInsuranceOrg:
             Returns agents excess capital"""
         return self.excess_capital
 
-    def logme(self):
-        self.log("cash", self.cash)
-        self.log("underwritten_contracts", self.underwritten_contracts)
-        self.log("operational", self.operational)
-
-    def log(self, *args):
-        raise NotImplementedError(
-            "The log method should have been overridden by the subclass"
-        )
-
     def number_underwritten_contracts(self):
         return len(self.underwritten_contracts)
 
@@ -587,9 +578,7 @@ class MetaInsuranceOrg:
                 self.id, self.cash, self
             )
         if self.is_reinsurer:
-            new_risks += self.simulation.solicit_reinsurance_requests(
-                self.id, self.cash, self
-            )
+            new_risks += self.simulation.solicit_reinsurance_requests(self.cash, self)
 
         new_nonproportional_risks = [
             risk
@@ -604,7 +593,6 @@ class MetaInsuranceOrg:
             and risk["owner"] is not self
         ]
         return new_nonproportional_risks, new_risks
-
 
     def increase_capacity(self, time, var_by_category):
         raise NotImplementedError(
@@ -621,24 +609,24 @@ class MetaInsuranceOrg:
             "Method not implemented. adjust_capacity_target method should be implemented in inheriting classes"
         )
 
-    def risks_reinrisks_organizer(self, new_risks):  #This method organizes the new risks received by the insurer (or reinsurer)
+    def risks_reinrisks_organizer(self, new_risks):
         """This method organizes the new risks received by the insurer (or reinsurer) by category.
                     Accepts:
                         new_risks: Type list of DataDicts
                     Returns:
-                        risks_per_catgegory: Type list of categories, each contains risks originating from that category.
+                        risks_by_category: Type list of categories, each contains risks originating from that category.
                         number_risks_categ: Type list, elements are integers of total risks in each category"""
-        risks_per_categ = [[] for x in range(self.simulation_parameters["no_categories"])]      #This method organizes the new risks received by the insurer (or reinsurer) by category in the nested list "risks_per_categ".
-        number_risks_categ = [[] for x in range(self.simulation_parameters["no_categories"])]   #This method also counts the new risks received by the insurer (or reinsurer) by category in the list "number_risks_categ".
+        risks_by_category = [[] for _ in range(self.simulation_parameters["no_categories"])]
+        number_risks_categ = np.zeros(self.simulation_parameters["no_categories"], dtype=np.int_)
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
-            risks_per_categ[categ_id] = [
+            risks_by_category[categ_id] = [
                 risk for risk in new_risks if risk["category"] == categ_id
             ]
-            number_risks_categ[categ_id] = len(risks_per_categ[categ_id])
+            number_risks_categ[categ_id] = len(risks_by_category[categ_id])
 
-        # The method returns both risks_per_categ and number_risks_categ.
-        return risks_per_categ, number_risks_categ
+        # The method returns both risks_by_category and number_risks_categ.
+        return risks_by_category, number_risks_categ
 
     def balanced_portfolio(self, risk, cash_left_by_categ, var_per_risk):
         """This method decides whether the portfolio is balanced enough to accept a new risk or not. If it is balanced
@@ -725,8 +713,13 @@ class MetaInsuranceOrg:
            risks are accepted then a contract is written."""
 
         for iterion in range(max(number_reinrisks_categ)):
-            for categ_id in range(self.simulation_parameters["no_categories"]):   #Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
-                if iterion < number_reinrisks_categ[categ_id] and reinrisks_per_categ[categ_id][iterion] is not None:
+            for categ_id in range(
+                self.simulation_parameters["no_categories"]
+            ):  # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
+                if (
+                    iterion < number_reinrisks_categ[categ_id]
+                    and reinrisks_per_categ[categ_id][iterion] is not None
+                ):
                     risk_to_insure = reinrisks_per_categ[categ_id][iterion]
                     underwritten_risks = [
                         {
