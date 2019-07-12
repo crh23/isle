@@ -24,7 +24,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         excess_fraction=None,
         reinsurance=0,
     ):
-        super(ReinsuranceContract, self).__init__(
+        super().__init__(
             insurer,
             properties,
             time,

@@ -128,7 +128,7 @@ def main(
         # log data
         simulation.save_data()
 
-        if t % 50 == save_iter:
+        if t % save_iter == 0 and t > 0:
             save_simulation(t, simulation, simulation_parameters, exit_now=False)
 
     # finish simulation, write logs

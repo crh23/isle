@@ -7,6 +7,8 @@ import random
 
 # import config file and apply configuration
 import isleconfig
+# TODO: this whole module could be an argument for start.py
+
 
 simulation_parameters = isleconfig.simulation_parameters
 replic_ID = None
@@ -82,7 +84,7 @@ from reinsurancefirm import ReinsuranceFirm
 
 
 # main function
-def main():  # TODO: this script should probably be an argument for start.py
+def main():
     with open("data/simulation_save.pkl", "br") as rfile:
         d = pickle.load(rfile)
         simulation = d["simulation"]
@@ -105,7 +107,7 @@ def main():  # TODO: this script should probably be an argument for start.py
         # abce time step
         simulation.advance_round(t)
 
-        # create new agents             # TODO: write method for this; this code block is executed almost identically 4 times
+        # create new agents    # TODO: write method for this; this code block is executed almost identically 4 times
         if world.insurance_firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [np.random.choice(world.agent_parameters["insurancefirm"])]
             parameters[0]["id"] = world.get_unique_insurer_id()
