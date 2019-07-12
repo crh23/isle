@@ -1,5 +1,7 @@
 from distributiontruncated import TruncatedDistWrapper
 import visualization_network
+import insurancefirm
+import reinsurancefirm
 import numpy as np
 import scipy.stats
 import math
@@ -316,69 +318,62 @@ class InsuranceSimulation:
                 }
             )
 
-    def add_agents(self, agent_class, agent_class_string):
-        # TODO: implement this to merge build_agents and accept_agents
-        pass
-
-    def build_agents(
-        self, agent_class, agent_class_string, parameters, agent_parameters
-    ):
-        """Method for building new agents, only used for re/insurance firms. Loops through the agent parameters for each
-            initialised agent to create an instance of them using re/insurancefirm.
-            Accepts:
-                Agent_class: class of agent, either InsuranceFirm or ReinsuranceFirm.
-                agent_class_string: String Type containing string of agent class. Not used.
-                parameters: DataDict, contains config parameters.
-                agent_parameters: DataDict of agent parameters.
-            Returns:
-                agents: List Type, list of agent class instances created by loop"""
-        assert parameters == self.simulation_parameters
-        agents = []
-        for ap in agent_parameters:
-            agents.append(agent_class(parameters, ap))
-        return agents
-
-    def accept_agents(self, agent_class_string, agents, time=0):
-        """Method to 'accept' agents in that it adds agent to relevant list of agents kept by simulation
-            instance, also adds agent to logger. Also takes created agents initial cash out of economy.
-            Accepts:
-                agent_class_string: String Type.
-                agents: List type of agent class instances.
-                agent_group: List type of agent class instances.
-                time: Integer type, not used
-            Returns:
-                None"""
-        if agent_class_string == "insurancefirm":
-            try:
-                self.insurancefirms += agents
-                self.insurancefirms_group = agents
-            except:  # QUERY: Why?
-                print(sys.exc_info())
-                pdb.set_trace()
-            # fix self.history_logs['individual_contracts'] list
-            for agent in agents:
-                self.logger.add_insurance_agent()
-            # remove new agent cash from simulation cash to ensure stock flow consistency
-            total_new_agent_cash = sum([agent.cash for agent in agents])
-            self._reduce_money_supply(total_new_agent_cash)
-        elif agent_class_string == "reinsurancefirm":
-            try:
-                self.reinsurancefirms += agents
-                self.reinsurancefirms_group = agents
-            except:
-                print(sys.exc_info())
-                pdb.set_trace()
-            # remove new agent cash from simulation cash to ensure stock flow consistency
-            total_new_agent_cash = sum([agent.cash for agent in agents])
-            self._reduce_money_supply(total_new_agent_cash)
-        elif agent_class_string == "catbond":
-            try:
+    def add_agents(self, agent_class, agent_class_string, agents=None, n=1):
+        """Method for building agents and adding them to the simulation. Can also add pre-made catbond agents directly
+        Accepts:
+            agent_class: class of the agent, InsuranceFirm, ReinsuranceFirm or CatBond
+            agent_class_string: string of the same, "insurancefirm", "reinsurancefirm" or "catbond"
+            agents: if adding directly, a list of the agents to add
+            n: int of number of agents to add
+        Returns:
+            None"""
+        if agents:
+            # We're probably just adding a catbond
+            if agent_class_string == "catbond":
+                assert len(agents) == n
                 self.catbonds += agents
-            except:
-                print(sys.exc_info())
-                pdb.set_trace()
+            else:
+                raise ValueError("Only catbonds may be passed directly")
         else:
-            raise ValueError(f"Error: Unexpected agent class used {agent_class_string}")
+            # We need to create and input the agents
+            if agent_class_string == "insurancefirm":
+                if not self.insurancefirms:
+                    # There aren't any other firms yet, add the first ones
+                    assert len(self.agent_parameters["insurancefirm"]) == n
+                    agent_parameters = self.agent_parameters["insurancefirm"]
+                else:
+                    # We are adding new agents to an existing simulation
+                    agent_parameters = [self.agent_parameters["insurancefirm"][self.insurance_entry_index()] for _ in range(n)]
+                    for ap in agent_parameters:
+                        ap["id"] = self.get_unique_insurer_id()
+                agents = [agent_class(self.simulation_parameters, ap) for ap in agent_parameters]
+                # We've made the agents, add them to the simulation
+                self.insurancefirms += agents
+                for agent in agents:
+                    self.logger.add_insurance_agent()
+
+            elif agent_class_string == "reinsurancefirm":
+                # Much the same as above
+                if not self.reinsurancefirms:
+                    assert len(self.agent_parameters["reinsurancefirm"]) == n
+                    agent_parameters = self.agent_parameters["reinsurancefirm"]
+                else:
+                    agent_parameters = [self.agent_parameters["reinsurancefirm"][self.reinsurance_entry_index()] for _ in range(n)]
+                    for ap in agent_parameters:
+                        ap["id"] = self.get_unique_reinsurer_id()
+                        # QUERY: This was written but not actually used in the original implementation - should it be?
+                        # ap["initial_cash"] = self.reinsurance_capital_entry()
+                agents = [agent_class(self.simulation_parameters, ap) for ap in agent_parameters]
+                self.reinsurancefirms += agents
+
+            elif agent_class_string == "catbond":
+                raise ValueError(f"Catbonds must be built before being added")
+            else:
+                raise ValueError(f"Unrecognised agent type {agent_class_string}")
+
+            # Keep the total amount of money constant
+            total_new_agent_cash = sum([agent.cash for agent in agents])
+            self._reduce_money_supply(total_new_agent_cash)
 
     def delete_agents(self, agent_class_string, agents):
         """Method for deleting catbonds as it is only agent that is allowed to be removed
@@ -404,6 +399,16 @@ class InsuranceSimulation:
             print(t, ": ", len(self.risks))
         if isleconfig.showprogress:
             print(f"\rTime: {t}", end="")
+
+        if self.firm_enters_market(agent_type="InsuranceFirm"):
+            self.add_agents(insurancefirm.InsuranceFirm,
+                                  "insurancefirm",
+                                  n=1)
+
+        if self.firm_enters_market(agent_type="ReinsuranceFirm"):
+            self.add_agents(reinsurancefirm.ReinsuranceFirm,
+                                  "reinsurancefirm",
+                                  n=1)
 
         self.reset_pls()
 

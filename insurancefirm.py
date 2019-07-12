@@ -1,5 +1,5 @@
 from metainsuranceorg import MetaInsuranceOrg
-from catbond import CatBond
+import catbond
 import numpy as np
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
@@ -397,13 +397,13 @@ class InsuranceFirm(MetaInsuranceOrg):
                 ]
             )  # TODO: or is it range(1, risk["runtime"]+1)?
             # catbond = CatBond(self.simulation, per_period_premium)
-            catbond = CatBond(
+            new_catbond = catbond.CatBond(
                 self.simulation, per_period_premium, self.interest_rate
             )  # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like self.interest_rate from instance to instance and from class to class
 
             """add contract; contract is a quasi-reinsurance contract"""
             contract = ReinsuranceContract(
-                catbond,
+                new_catbond,
                 risk,
                 time,
                 0,
@@ -415,20 +415,20 @@ class InsuranceFirm(MetaInsuranceOrg):
             )
             # per_value_reinsurance_premium = 0 because the insurance firm does not continue to make payments to the cat bond. Only once.
 
-            catbond.set_contract(contract)
+            new_catbond.set_contract(contract)
             """sell cat bond (to self.simulation)"""
             self.simulation.receive_obligation(var_this_risk, self, time, "bond")
-            catbond.set_owner(self.simulation)
+            new_catbond.set_owner(self.simulation)
             """hand cash over to cat bond such that var_this_risk is covered"""
             obligation = {
                 "amount": var_this_risk + total_premium,
-                "recipient": catbond,
+                "recipient": new_catbond,
                 "due_time": time,
                 "purpose": "bond",
             }
             self.pay(obligation)  # TODO: is var_this_risk the correct amount?
             """register catbond"""
-            self.simulation.accept_agents("catbond", [catbond], time=time)
+            self.simulation.add_agents(catbond.CatBond, "catbond", [new_catbond])
 
     def make_reinsurance_claims(self, time):
         """Method to make reinsurance claims.
