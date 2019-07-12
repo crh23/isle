@@ -2,6 +2,12 @@ from metainsurancecontract import MetaInsuranceContract
 
 
 class InsuranceContract(MetaInsuranceContract):
+    """ReinsuranceContract class.
+        Inherits from InsuranceContract.
+        Constructor is not currently required but may be used in the future to distinguish InsuranceContract
+            and ReinsuranceContract objects.
+        The signature of this class' constructor is the same as that of the InsuranceContract constructor.
+        The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
     def __init__(
         self,
         insurer,

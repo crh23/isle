@@ -26,6 +26,12 @@ def get_mean_std(x):
 
 class MetaInsuranceOrg:
     def __init__(self, simulation_parameters, agent_parameters):
+        """Constructor method.
+                    Accepts:
+                        Simulation_parameters: Type DataDict
+                        agent_parameters:   Type DataDict
+                    Constructor creates general instance of an insurance company which is inherited by the reinsurance and
+                    insurance firm classes. Initialises all necessary values provided by config file."""
         self.simulation = simulation_parameters["simulation"]
         self.simulation_parameters = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
@@ -143,13 +149,20 @@ class MetaInsuranceOrg:
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
         # QUERY: Should this have to sum to self.cash
-        self.cash_left_by_categ = self.cash * np.ones(
+        self.cash_left_by_categ =
+            self.cash * np.ones(
             self.simulation_parameters["no_categories"]
         )
         self.market_permanency_counter = 0
 
     def iterate(self, time):
-        # TODO: split up so that only the sequence of events remains here and everything else is in separate methods
+        """Method that iterates each firm by one time step.
+                    Accepts:
+                        Time: Type Integer
+                    No return value
+                    For each time step this method obtains every firms interest payments, pays obligations, claim reinsurance,
+                    matures necessary contracts. Check condition for operational firms (as never removed) so only operational
+                    firms receive new risks to evaluate, pay dividends, adjust capacity."""
 
         """obtain investments yield"""
         self.obtain_yield(time)
@@ -176,8 +189,9 @@ class MetaInsuranceOrg:
 
         self.collect_process_evaluate_risks(time, contracts_dissolved)
 
-        # """adjust liquidity, borrow or invest""" # Not implemented
-        # pass
+        """adjust liquidity, borrow or invest"""
+        # Not implemented
+
 
         self.market_permanency(time)
 
@@ -189,15 +203,7 @@ class MetaInsuranceOrg:
         if self.operational:
 
             """request risks to be considered for underwriting in the next period and collect those for this period"""
-            new_risks = []
-            if self.is_insurer:
-                new_risks += self.simulation.solicit_insurance_requests(
-                    self.id, self.cash, self
-                )
-            if self.is_reinsurer:
-                new_risks += self.simulation.solicit_reinsurance_requests(
-                    self.id, self.cash, self
-                )
+            new_nonproportional_risks, new_risks = self.get_newrisks_by_type()
             contracts_offered = len(new_risks)
             if isleconfig.verbose and contracts_offered < 2 * contracts_dissolved:
                 print(
@@ -205,19 +211,6 @@ class MetaInsuranceOrg:
                         self.id, contracts_offered, 2 * contracts_dissolved
                     )
                 )
-
-            new_nonproportional_risks = [
-                risk
-                for risk in new_risks
-                if risk.get("insurancetype") == "excess-of-loss"
-                and risk["owner"] is not self
-            ]
-            new_risks = [
-                risk
-                for risk in new_risks
-                if risk.get("insurancetype") in ["proportional", None]
-                and risk["owner"] is not self
-            ]
 
             """deal with non-proportional risks first as they must evaluate each request separatly,
              then with proportional ones"""
@@ -276,6 +269,7 @@ class MetaInsuranceOrg:
             max_var_by_categ = self.cash - self.excess_capital
             self.adjust_capacity_target(max_var_by_categ)
             actual_capacity = self.increase_capacity(time, max_var_by_categ)
+            # TODO: make independent of insurer/reinsurer, but change this to different deductible values
 
             """handle capital market interactions: capital history, dividends"""
             self.cash_last_periods = [self.cash] + self.cash_last_periods[:3]
@@ -283,11 +277,6 @@ class MetaInsuranceOrg:
             self.pay_dividends(time)
 
             """make underwriting decisions, category-wise"""
-            # if expected_profit * 1./self.cash < self.profit_target:
-            #    self.acceptance_threshold = ((self.acceptance_threshold - .4) * 5. * self.acceptance_threshold_friction) / 5. + .4
-            # else:
-            #    self.acceptance_threshold = (1 - self.acceptance_threshold_friction * (1 - (self.acceptance_threshold - .4) * 5.)) / 5. + .4
-
             growth_limit = max(
                 50, 2 * len(self.underwritten_contracts) + contracts_dissolved
             )
@@ -324,7 +313,6 @@ class MetaInsuranceOrg:
                 ):  # Stop condition implemented. Might solve the previous TODO.
                     break
 
-            # return unacceptables
             # print(self.id, " now has ", len(self.underwritten_contracts), " & returns ", len(not_accepted_risks))
 
     def enter_illiquidity(self, time):
@@ -408,6 +396,15 @@ class MetaInsuranceOrg:
         self.operational = False
 
     def receive_obligation(self, amount, recipient, due_time, purpose):
+        """Method for receiving obligations that the firm will have to pay.
+                    Accepts:
+                        amount: Type integer, how much will be payed
+                        recipient: Type Class instance, who will be payed
+                        due_time: Type Integer, what time value they will be payed
+                        purpose: Type string, why they are being payed
+                    No return value
+                    Adds obligation (Type DataDict) to list of obligations owed by the firm."""
+
         obligation = {
             "amount": amount,
             "recipient": recipient,
@@ -416,7 +413,13 @@ class MetaInsuranceOrg:
         }
         self.obligations.append(obligation)
 
-    def effect_payments(self, time):
+    def effect_payments(self, time):"""Method for checking if any payments are due.
+            Accepts:
+                time: Type Integer
+            No return value
+            Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
+            does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
+
         # TODO: don't really want to be reconstructing lists every time (unless the oblications are naturally sorted by
         #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item["due_time"] <= time]
@@ -438,6 +441,11 @@ class MetaInsuranceOrg:
                 self.pay(obligation)
 
     def pay(self, obligation):
+        """Method to pay other class instances.
+            Accepts:
+                Obligation: Type DataDict
+            No return value
+            Method removes value payed from the agents cash and adds it to recipient agents cash."""
         amount = obligation["amount"]
         recipient = obligation["recipient"]
         purpose = obligation["purpose"]
@@ -448,21 +456,38 @@ class MetaInsuranceOrg:
             recipient.receive(amount)
 
     def receive(self, amount):
-        """Method to accept cash payments."""
+        """Method to accept cash payments.
+            Accepts:
+                amount: Type Integer
+            No return value"""
         self.cash += amount
         self.profits_losses += amount
 
     def pay_dividends(self, time):
+        """Method to receive dividend obligation.
+                    Accepts:
+                        time: Type integer
+                    No return value
+                    If firm has positive profits will pay percentage of them as dividends. Currently pays to simulation."""
+
         self.receive_obligation(self.per_period_dividend, self.owner, time, "dividend")
 
     def obtain_yield(self, time):
+        """Method to obtain intereset on cash reserves
+        Accepts:
+            time: Type integer
+            No return value"""
         amount = self.cash * self.interest_rate
         # TODO: agent should not award her own interest.
         #  This interest rate should be taken from self.simulation with a getter method
         self.simulation.receive_obligation(amount, self, time, "yields")
 
     def mature_contracts(self, time):
-        # matures all contracts that have expired, returns the number of contracts that matured
+        """Method to mature contracts that have expired
+        Accepts:
+            time: Type integer
+            Returns:
+                number of contracts maturing: Type integer"""
         if isleconfig.verbose:
             print("Number of underwritten contracts ", len(self.underwritten_contracts))
         maturing = [
@@ -476,9 +501,16 @@ class MetaInsuranceOrg:
         return len(maturing)
 
     def get_cash(self):
+        """Method to return agents cash. Only used to calculate total sum of capital to recalculate market premium
+            each iteration.
+           No accepted values.
+           No return values."""
         return self.cash
 
     def get_excess_capital(self):
+        """Method to get agents excess capital. Only used for saving data. Called by simulation.
+            No Accepted values.
+            Returns agents excess capital"""
         return self.excess_capital
 
     def logme(self):
@@ -494,16 +526,31 @@ class MetaInsuranceOrg:
     def number_underwritten_contracts(self):
         return len(self.underwritten_contracts)
 
-    def get_operational(self):
-        return self.operational
-
-    def get_profitslosses(self):
-        return self.profits_losses
-
     def get_underwritten_contracts(self):
         return self.underwritten_contracts
 
+    def get_profitslosses(self):
+        """Method to get agents profit or loss. Only used for saving data. Called by simulation.
+            No Accepted values.
+            Returns agents profits/losses"""
+        return self.profits_losses
+
+    def get_operational(self):
+        """Method to return boolean of if agent is operational. Only used as check for payments.
+            No accepted values
+            Returns Boolean"""
+        return self.operational
+
+    def get_pointer(self):
+        """Method to get pointer. Returns self so renduant? Called only by resume.py"""
+        return self
+
     def estimate_var(self):
+        """Method to estimate Value at Risk.
+            No Accepted arguments.
+            No return values
+           Calculates value at risk per category and overall, based on underwritten contracts initial value at risk.
+           Assigns it to agent instance. Called at the end of each agents iteration cycle."""
         self.counter_category = np.zeros(self.simulation_no_risk_categories)
         self.var_category = np.zeros(self.simulation_no_risk_categories)
 
@@ -531,6 +578,38 @@ class MetaInsuranceOrg:
             else:
                 self.var_counter_per_risk = 0
 
+    def get_newrisks_by_type(self):
+        """Method for soliciting new risks from insurance simulation then organising them based if non-proportional
+            or not.
+            No accepted Values.
+            Returns:
+                new_non_proportional_risks: Type list of DataDicts.
+                new_risks: Type list of DataDicts."""
+        new_risks = []
+        if self.is_insurer:
+            new_risks += self.simulation.solicit_insurance_requests(
+                self.id, self.cash, self
+            )
+        if self.is_reinsurer:
+            new_risks += self.simulation.solicit_reinsurance_requests(
+                self.id, self.cash, self
+            )
+
+        new_nonproportional_risks = [
+            risk
+            for risk in new_risks
+            if risk.get("insurancetype") == "excess-of-loss"
+            and risk["owner"] is not self
+        ]
+        new_risks = [
+            risk
+            for risk in new_risks
+            if risk.get("insurancetype") in ["proportional", None]
+            and risk["owner"] is not self
+        ]
+        return new_nonproportional_risks, new_risks
+
+
     def increase_capacity(self, time, var_by_category):
         raise NotImplementedError(
             "Method is not implemented in MetaInsuranceOrg, just in inheriting InsuranceFirm instances"
@@ -546,13 +625,15 @@ class MetaInsuranceOrg:
             "Method not implemented. adjust_capacity_target method should be implemented in inheriting classes"
         )
 
-    def risks_reinrisks_organizer(self, new_risks):
-        # This method organizes the new risks received by the insurer (or reinsurer)
-
-        # This method organizes the new risks received by category in the nested list "risks_per_categ".
-        risks_per_categ = [[] for _ in range(self.simulation_parameters["no_categories"])]
-        # This method also counts the new risks received by category in the list "number_risks_categ".
-        number_risks_categ = [0 for _ in range(self.simulation_parameters["no_categories"])]
+    def risks_reinrisks_organizer(self, new_risks):  #This method organizes the new risks received by the insurer (or reinsurer)
+        """This method organizes the new risks received by the insurer (or reinsurer) by category.
+                    Accepts:
+                        new_risks: Type list of DataDicts
+                    Returns:
+                        risks_per_catgegory: Type list of categories, each contains risks originating from that category.
+                        number_risks_categ: Type list, elements are integers of total risks in each category"""
+        risks_per_categ = [[] for x in range(self.simulation_parameters["no_categories"])]      #This method organizes the new risks received by the insurer (or reinsurer) by category in the nested list "risks_per_categ".
+        number_risks_categ = [[] for x in range(self.simulation_parameters["no_categories"])]   #This method also counts the new risks received by the insurer (or reinsurer) by category in the list "number_risks_categ".
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
             risks_per_categ[categ_id] = [
@@ -564,9 +645,16 @@ class MetaInsuranceOrg:
         return risks_per_categ, number_risks_categ
 
     def balanced_portfolio(self, risk, cash_left_by_categ, var_per_risk):
-        # This method decides whether the portfolio is balanced enough to accept a new risk or not.
-        # If it is balanced enough return True, otherwise False.
-        # This method also returns the cash available per category independently the risk is accepted or not.
+        """This method decides whether the portfolio is balanced enough to accept a new risk or not. If it is balanced
+            enough return True otherwise False. This method also returns the cash available per category independently
+            the risk is accepted or not.
+           Accepts:
+                risk: Type DataDict
+                cash_left_by_category: Type List, contains list of available cash per category
+                var_per_risk: Type list of integers contains VaR for each category defined in getPPF from riskmodel.py
+            Returns:
+                Boolean
+                cash_left_by_categ: Type list of integers"""
 
         # Compute the cash already reserved by category
         cash_reserved_by_categ = self.cash - cash_left_by_categ
@@ -629,18 +717,20 @@ class MetaInsuranceOrg:
     def process_newrisks_reinsurer(
         self, reinrisks_per_categ, number_reinrisks_categ, time
     ):
-        # This method processes one by one the reinrisks contained in reinrisks_per_categ in
-        # order to decide whether they should be underwritten or not.
-        # It is done in this way to maintain the portfolio as balanced as possible.
-        # For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
+        """Method to decide if new risks are underwritten for the reinsurance firm.
+            Accepts:
+                reinrisks_per_categ: Type List of lists containing new reinsurance risks.
+                number_reinrisks_per_categ: Type List of integers, contains number of new reinsurance risks per category.
+                time: Type integer
+            No return values.
+           This method processes one by one the reinrisks contained in reinrisks_per_categ in order to decide whether
+           they should be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible.
+           For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth. If
+           risks are accepted then a contract is written."""
+
         for iterion in range(max(number_reinrisks_categ)):
-            for categ_id in range(self.simulation_parameters["no_categories"]):
-                # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
-                # risk[C4], risk[C1], risk[C2], ... if possible.
-                if (
-                    iterion < number_reinrisks_categ[categ_id]
-                    and reinrisks_per_categ[categ_id][iterion] is not None
-                ):
+            for categ_id in range(self.simulation_parameters["no_categories"]):   #Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
+                if iterion < number_reinrisks_categ[categ_id] and reinrisks_per_categ[categ_id][iterion] is not None:
                     risk_to_insure = reinrisks_per_categ[categ_id][iterion]
                     underwritten_risks = [
                         {
@@ -713,16 +803,24 @@ class MetaInsuranceOrg:
         cash_left_by_categ,
         time,
     ):
-        # This method processes one by one the risks contained in risks_per_categ in order to decide whether they should
-        # be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible. For that
-        # reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth.
-        _cached_rvs = self.contract_runtime_dist.rvs()
+        """Method to decide if new risks are underwritten for the insurance firm.
+            Accepts:
+                risks_per_categ: Type List of lists containing new risks.
+                number_risks_categ: Type List of integers, contains number of new risks per category.
+                acceptable_per_category:
+                var_per_risk_per_categ: Type list of integers contains VaR for each category defined in getPPF.
+                cash_left_by_categ:  Type List, contains list of available cash per category
+                time: Type integer.
+            Returns:
+                risks_per_categ: Type list of list, same as above however with None where contracts were accepted.
+                not_accepted_risks: Type List of DataDicts
+        This method processes one by one the reinrisks contained in reinrisks_per_categ in order to decide whether
+        they should be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible.
+        For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth. If
+        risks are accepted then a contract is written."""
+_cached_rvs = self.contract_runtime_dist.rvs()
         for risk_index in range(max(number_risks_categ)):
             for categ_id in range(len(acceptable_by_category)):
-                # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
-                # risk[C4], risk[C1], risk[C2], ... if possible.
-
-                # First check that we are actually going to hit a risk
                 if (
                     risk_index < number_risks_categ[categ_id]
                     and acceptable_by_category[categ_id] > 0
@@ -794,9 +892,12 @@ class MetaInsuranceOrg:
         return risks_per_categ, not_accepted_risks
 
     def market_permanency(self, time):
-        # This method determines whether an insurer or reinsurer stays in the market.
-        # If it has very few risks underwritten or too much cash left for TOO LONG it eventually leaves the market.
-        # If it has very few risks underwritten it cannot balance the portfolio so it makes sense to leave the market.
+        """Method determining if firm stays in market.
+            Accepts:
+                Time: Type Integer
+            No return values. This method determines whether an insurer or reinsurer stays in the market.
+        If it has very few risks underwritten or too much cash left for TOO LONG it eventually leaves the market.
+        If it has very few risks underwritten it cannot balance the portfolio so it makes sense to leave the market."""
         if not self.simulation_parameters["market_permanency_off"]:
 
             cash_left_by_categ = np.asarray(self.cash_left_by_categ)
@@ -863,16 +964,20 @@ class MetaInsuranceOrg:
                         self.market_exit(time)
 
     def register_claim(self, claim):
-        # This method records in insurancesimulation.py every claim made. It is called either from insurancecontract.py
-        # or reinsurancecontract.py respectively.
+        """Method to register claims.
+            Accepts:
+                claim: Type Integer, value of claim.
+            No return values.
+        This method records in insurancesimulation.py every claim made. It is called either from insurancecontract.py
+        or reinsurancecontract.py respectively."""
         self.simulation.record_claims(claim)
 
     def reset_pl(self):
         """Reset_pl Method.
                Accepts no arguments:
                No return value.
-            Reset the profits and losses variable of each firm at the beginning of every iteration.
-            It has to be run in insurancesimulation.py at the beginning of the iterate method"""
+           Reset the profits and losses variable of each firm at the beginning of every iteration. It has to be run in
+           insurancesimulation.py at the beginning of the iterate method"""
         self.profits_losses = 0
 
     def roll_over(self, time):
@@ -897,7 +1002,7 @@ class MetaInsuranceOrg:
         # Generate all the rvs at the start
         if maturing_next:
             uniform_rvs = np.nditer(np.random.uniform(size=len(maturing_next)))
-            if self.is_insurer is True:
+            if self.is_insurer:
                 for contract in maturing_next:
                     contract.roll_over_flag = 1
                     if (
@@ -910,7 +1015,7 @@ class MetaInsuranceOrg:
                     else:
                         self.risks_kept.append(contract.risk_data)
 
-            if self.is_reinsurer is True:
+            if self.is_reinsurer:
                 for reincontract in maturing_next:
                     if reincontract.property_holder.operational:
                         reincontract.roll_over_flag = 1

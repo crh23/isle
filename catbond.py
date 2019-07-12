@@ -2,10 +2,16 @@ import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
 
 
+
 class CatBond(MetaInsuranceOrg):
     def __init__(
-        self, simulation, per_period_premium, owner, interest_rate=0
-    ):  # do we need simulation parameters
+        self, simulation, per_period_premium, owner):
+        """Initialising methods.
+            Accepts:
+                simulation: Type class
+                per_period_premium: Type decimal
+                owner: Type class
+        This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
         self.id = 0
         self.underwritten_contracts = []
@@ -24,10 +30,13 @@ class CatBond(MetaInsuranceOrg):
     # old parent class init, cat bond class should be much smaller
 
     def iterate(self, time):
-        """obtain investments yield"""
-        self.obtain_yield(time)
-
-        """realize due payments"""
+        """Method to perform CatBond duties for each time iteration.
+            Accepts:
+                time: Type Integer
+            No return values
+        For each time iteration this is called from insurancesimulation to perform duties: interest payments,
+        pay obligations, mature the contract if ended, make payments."""
+        self.simulation.bank.award_interest(self, self.cash)
         self.effect_payments(time)
         if isleconfig.verbose:
             print(
@@ -49,7 +58,6 @@ class CatBond(MetaInsuranceOrg):
         for contract in maturing:
             self.underwritten_contracts.remove(contract)
             contract.mature(time)
-        contracts_dissolved = len(maturing)
 
         """effect payments from contracts"""
         for contract in self.underwritten_contracts:
@@ -68,24 +76,37 @@ class CatBond(MetaInsuranceOrg):
         # self.estimate_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
 
     def set_owner(self, owner):
+        """Method to set owner of the Cat Bond.
+            Accepts:
+                owner: Type class
+            No return values."""
         self.owner = owner
         if isleconfig.verbose:
             print("SOLD")
-        # pdb.set_trace()
 
     def set_contract(self, contract):
+        """Method to record new instances of CatBonds.
+            Accepts:
+                owner: Type class
+            No return values
+        Only one contract is ever added to the list of underwritten contracts as each CatBond is a contract itself."""
         self.underwritten_contracts.append(contract)
 
     def mature_bond(self):
-        # QUERY: does this ever run when self.operational == False?
-        # assert self.operational
-        obligation = {
-            "amount": self.cash,
-            "recipient": self.simulation,
-            "due_time": 1,
-            "purpose": "mature",
-        }
-
-        self.pay(obligation)
-        self.simulation.delete_agents("catbond", [self])
-        self.operational = False
+        """Method to mature CatBond.
+            No accepted values
+            No return values
+        When the catbond contract matures this is called which pays the value of the catbond to the simulation, and is
+        then deleted from the list of agents."""
+        if self.operational:
+            obligation = {
+                "amount": self.cash,
+                "recipient": self.simulation,
+                "due_time": 1,
+                "purpose": "mature",
+            }
+            self.pay(obligation)
+            self.simulation.delete_agents("catbond", [self])
+            self.operational = False
+        else:
+            print("CatBond is not operational so cannot mature")

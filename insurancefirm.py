@@ -20,17 +20,29 @@ class InsuranceFirm(MetaInsuranceOrg):
         self.is_reinsurer = False
 
     def adjust_dividends(self, time, actual_capacity):
-        # TODO: Implement algorithm from flowchart
+        """Method to adjust dividends firm pays to investors.
+            Accepts:
+                time: Type Integer. Not used.
+                actual_capacity: Type Decimal.
+            No return values.
+        Method is called from MetaInsuranceOrg iterate method between evaluating reinsurance and insurance risks to
+        calculate dividend to be payed if the firm has made profit and has achieved capital targets."""
+
         profits = self.get_profitslosses()
         self.per_period_dividend = max(0, self.dividend_share_of_profits * profits)
         # max function ensures that no negative dividends are paid
-        # if profits < 0:  # no dividends when losses are written
-        #    self.per_period_dividend = 0
         if actual_capacity < self.capacity_target:
             # no dividends if firm misses capital target
             self.per_period_dividend = 0
 
     def get_reinsurance_var_estimate(self, max_var):
+        """Method to estimate the VaR if another reinsurance contract were to be taken.
+            Accepts:
+                max_var: Type Decimal. Max value at risk
+            Returns:
+                reinsurance_VaR_estimate: Type Decimal.
+        This method takes the max VaR and mulitiplies it by a factor that estimates the VaR if another reinsurance
+        contract was to be taken. Called by the adjust_target_capacity and get_capacity methods."""
         reinsurance_factor_estimate = (
             len(
                 [
@@ -46,6 +58,12 @@ class InsuranceFirm(MetaInsuranceOrg):
         return reinsurance_var_estimate
 
     def adjust_capacity_target(self, max_var):
+        """Method to adjust capacity target.
+                   Accepts:
+                       max_var: Type Decimal.
+                   No return values.
+               This method decides to increase/decrease the capacity target dependant on if the ratio of capacity target to max
+               VaR is above/below a predetermined limit."""
         reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
         if max_var + reinsurance_var_estimate == 0:
             # TODO: why is this being called with max_var = 0 anyway?
@@ -69,7 +87,14 @@ class InsuranceFirm(MetaInsuranceOrg):
         return
 
     def get_capacity(self, max_var):
-        # ensure presence of sufficiently much cash to cover VaR
+        """Method to get capacity of firm.
+                    Accepts:
+                        max_var: Type Decimal.
+                    Returns:
+                        self.cash (+ reinsurance_VaR_estimate): Type Decimal.
+                This method is called by increase_capacity to get the real capacity of the firm. If the firm has enough money to
+                cover its max value at risk then its capacity is its cash + the reinsurance VaR estimate, otherwise the firm is
+                recovering from some losses and so capacity is just cash."""
         if max_var < self.cash:
             reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
             return self.cash + reinsurance_var_estimate
@@ -77,16 +102,22 @@ class InsuranceFirm(MetaInsuranceOrg):
         return self.cash
 
     def increase_capacity(self, time, max_var):
-        """This is implemented for non-proportional reinsurance only.
-        Otherwise the price comparison is not meaningful. Assert non-proportional mode."""
-        assert self.simulation_reinsurance_type == "non-proportional"
-        """get prices"""
-        reinsurance_price = self.simulation.get_reinsurance_premium(
-            self.np_reinsurance_deductible_fraction
-        )
-        cat_bond_price = self.simulation.get_cat_bond_price(
-            self.np_reinsurance_deductible_fraction
-        )
+        """Method to increase the capacity of the firm.
+            Accepts:
+                time: Type Integer.
+                max_var: Type Decimal.
+            Returns:
+                capacity: Type Decimal.
+        This method is called from the main iterate method in metainsuranceorg and gets prices for cat bonds and
+        reinsurance then checks if each category needs it. Passes a random category and the prices to the
+        increase_capacity_by_category method. If a firms capacity is above its target then it will only issue one if the
+        market premium is above its average premium, otherwise firm is 'forced' to get a catbond or reinsurance. Only
+        implemented for non-proportional(excess of loss) reinsurance. Only issues one reinsurance or catbond per
+        iteration unless not enough capacity to meet target."""
+        assert self.simulation_reinsurance_type == 'non-proportional'
+        '''get prices'''
+        reinsurance_price = self.simulation.get_reinsurance_premium(self.np_reinsurance_deductible_fraction)
+        cat_bond_price = self.simulation.get_cat_bond_price(self.np_reinsurance_deductible_fraction)
         capacity = None
         if not reinsurance_price == cat_bond_price == float("inf"):
             categ_ids = [
@@ -99,16 +130,8 @@ class InsuranceFirm(MetaInsuranceOrg):
             while len(categ_ids) >= 1:
                 categ_id = categ_ids.pop()
                 capacity = self.get_capacity(max_var)
-                if (
-                    self.capacity_target < capacity
-                ):  # just one per iteration, unless capital target is unmatched
-                    if self.increase_capacity_by_category(
-                        time,
-                        categ_id,
-                        reinsurance_price=reinsurance_price,
-                        cat_bond_price=cat_bond_price,
-                        force=False,
-                    ):
+                if self.capacity_target < capacity: # just one per iteration, unless capital target is unmatched
+                    if self.increase_capacity_by_category(time, categ_id, reinsurance_price=reinsurance_price, cat_bond_price=cat_bond_price, force=False):
                         categ_ids = []
                 else:
                     self.increase_capacity_by_category(
@@ -126,9 +149,20 @@ class InsuranceFirm(MetaInsuranceOrg):
     def increase_capacity_by_category(
         self, time, categ_id, reinsurance_price, cat_bond_price, force=False
     ):
+        """Method to increase capacity. Only called by increase_capacity.
+            Accepts:
+                time: Type Integer>
+                categ_id: Type integer.
+                reinsurance_price: Type Decimal.
+                cat_bond_price: Type Decimal.
+                force: Type Boolean. Forces firm to get reinsurance/catbond or not.
+            Returns Boolean to stop loop if firm has enough capacity.
+        This method is given a category and prices of reinsurance/catbonds and will issue whichever one is cheaper to a
+        firm for the given category. This is forced if firm does not have enough capacity to meet target otherwise will
+        only issue if market premium is greater than firms average premium."""
         if isleconfig.verbose:
             print(
-                f"IF {0:d} increasing capacity in period {1:d}, cat bond price: {2:f}, reinsurance premium {3:f}".format(
+                "IF {0:d} increasing capacity in period {1:d}, cat bond price: {2:f}, reinsurance premium {3:f}".format(
                     self.id, time, cat_bond_price, reinsurance_price
                 )
             )
@@ -151,6 +185,11 @@ class InsuranceFirm(MetaInsuranceOrg):
         return True
 
     def get_average_premium(self, categ_id):
+        """Method to calculate and return the firms average premium for all currently underwritten contracts.
+            Accepts:
+                categ_id: Type Integer.
+            Returns:
+                premium payments left/total value of contracts: Type Decimal"""
         weighted_premium_sum = 0
         total_weight = 0
         for contract in self.underwritten_contracts:
@@ -163,6 +202,11 @@ class InsuranceFirm(MetaInsuranceOrg):
         return weighted_premium_sum * 1.0 / total_weight
 
     def ask_reinsurance(self, time):
+        """Method called specifically to call relevant reinsurance function for simulations reinsurance type. Only
+           non-proportional type is used as this is the one mainly used in reality.
+            Accepts:
+                time: Type Integer.
+            No return values."""
         if self.simulation_reinsurance_type == "proportional":
             self.ask_reinsurance_proportional()
         elif self.simulation_reinsurance_type == "non-proportional":
@@ -176,9 +220,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             reinsurance risk that may then be underwritten by a reinsurance firm.
             Arguments: 
                 time: integer
-            Returns None.
-            
-        """
+            Returns None."""
         """Evaluate by risk category"""
         for categ_id in range(self.simulation_no_risk_categories):
             """Seek reinsurance only with probability 10% if not already reinsured"""
@@ -188,6 +230,16 @@ class InsuranceFirm(MetaInsuranceOrg):
                 self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
     def characterize_underwritten_risks_by_category(self, time, categ_id):
+        """Method to characterise associated risks in a given category in terms of value, number, avg risk factor, and
+        total premium per iteration.
+            Accepts:
+                time: Type Integer. Not used..
+                categ_id: Type Integer. The given category for characterising risks.
+            Returns:
+                total_value: Type Decimal. Total value of all contracts in the category.
+                avg_risk_facotr: Type Decimal. Avg risk factor of all contracted risks in category.
+                number_risks: Type Integer. Total number of contracted risks in category.
+                periodised_total_premium: Total value per month of all contracts premium payments."""
         total_value = 0
         avg_risk_factor = 0
         number_risks = 0
@@ -202,8 +254,21 @@ class InsuranceFirm(MetaInsuranceOrg):
             avg_risk_factor /= number_risks
         return total_value, avg_risk_factor, number_risks, periodized_total_premium
 
-    def ask_reinsurance_non_proportional_by_category(self, time, categ_id):
-        """Proceed with creation of reinsurance risk only if category is not empty."""
+    def ask_reinsurance_non_proportional_by_category(
+        self, time, categ_id, purpose="newrisk"
+    ):
+        """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
+        capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.
+            Accepts:
+                time: Type Integer.
+                categ_id: Type Integer.
+                purpose: Type String. Needed for when called from roll_over method as the risk is then returned.
+            Returns:
+                risk: Type DataDict. Only returned when method used for roll_over.
+        This method is given a category, then characterises all the underwritten risks in that category for the firm
+        and, assuming firms has underwritten risks in category, creates new reinsurance risk with values based on firms
+        existing underwritten risks. If the method was called to create a new risks then it is appended to list of
+        'reinrisks', otherwise used for creating the risk when a reinsurance contract rolls over."""
         total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(
             time, categ_id
         )
@@ -212,7 +277,6 @@ class InsuranceFirm(MetaInsuranceOrg):
                 "value": total_value,
                 "category": categ_id,
                 "owner": self,
-                # "identifier": uuid.uuid1(),
                 "insurancetype": "excess-of-loss",
                 "number_risks": number_risks,
                 "deductible_fraction": self.np_reinsurance_deductible_fraction,
@@ -222,10 +286,17 @@ class InsuranceFirm(MetaInsuranceOrg):
                 "expiration": time + 12,
                 "risk_factor": avg_risk_factor,
             }  # TODO: make runtime into a parameter
-
-            self.simulation.append_reinrisks(risk)
+            if purpose == "newrisk":
+                self.simulation.append_reinrisks(risk)
+            elif purpose == "rollover":
+                return risk
+        elif number_risks == 0 and purpose == "rollover":
+            return None
 
     def ask_reinsurance_proportional(self):
+        """Method to create proportional reinsurance risk. Not used in code as not really used in reality.
+                    No accepted values.
+                    No return values."""
         nonreinsured = [
             contract
             for contract in self.underwritten_contracts
@@ -254,33 +325,51 @@ class InsuranceFirm(MetaInsuranceOrg):
                         "risk_factor": contract.risk_factor,
                     }
 
-                    # print("CREATING", risk["expiration"], contract.expiration, risk["contract"].expiration, risk["identifier"])
                     self.simulation.append_reinrisks(risk)
                     counter += 1
                 else:
                     break
 
     def add_reinsurance(self, category, excess_fraction, deductible_fraction, contract):
+        """Method called by reinsurancecontract to add the reinsurance contract to the firms counter for the given
+        category, normally used so only one reinsurance contract is issued per category at a time.
+            Accepts:
+                category: Type Integer.
+                excess_fraction: Type Decimal. Value of excess.
+                deductible_fraction: Type Decimal. Value of deductible.
+                contract: Type Class. Reinsurance contract issued to firm.
+            No return values."""
         self.riskmodel.add_reinsurance(
             category, excess_fraction, deductible_fraction, contract
         )
         self.category_reinsurance[category] = contract
-        # pass
 
     def delete_reinsurance(
         self, category, excess_fraction, deductible_fraction, contract
     ):
+        """Method called by reinsurancecontract to delete the reinsurance contract from the firms counter for the given
+        category, used so that another reinsurance contract can be issued for that category if needed.
+            Accepts:
+                category: Type Integer.
+                excess_fraction: Type Decimal. Value of excess.
+                deductible_fraction: Type Decimal. Value of deductible.
+                contract: Type Class. Reinsurance contract issued to firm.
+            No return values."""
         self.riskmodel.delete_reinsurance(
             category, excess_fraction, deductible_fraction, contract
         )
         self.category_reinsurance[category] = None
-        # pass
 
     def issue_cat_bond(self, time, categ_id, per_value_per_period_premium=0):
-        # premium is for usual reinsurance contracts paid using per value market premium
-        # for the quasi-contract for the cat bond, nothing is paid, everything is already paid at the beginning.
-        # per_value_reinsurance_premium = self.np_reinsurance_premium_share * risk["periodized_total_premium"] * risk["runtime"] / risk["value"]            #TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
-        """ create catbond """
+        """Method to issue cat bond to given firm for given category.
+            Accepts:
+                time: Type Integer.
+                categ_id: Type Integer.
+                per_value_per_period_premium: Type Integer.
+            No return values.
+        Method is only called by increase_capacity_by_category method when CatBond prices are lower than reinsurance. It
+        then creates the CatBond as a quasi-reinsurance contract that is paid for immediately (by simulation) with no
+        premium payments."""
         total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(
             time, categ_id
         )
@@ -342,7 +431,13 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.simulation.accept_agents("catbond", [catbond], time=time)
 
     def make_reinsurance_claims(self, time):
-        """collect and effect reinsurance claims"""
+        """Method to make reinsurance claims.
+            Accepts:
+                time: Type Integer.
+            No return values.
+        This method calculates the total amount of claims this iteration per category, and explodes (see reinsurance
+        contracts) any reinsurance contracts present for one of the contracts (currently always zero). Then, for a
+        category with reinsurance and claims, the applicable reinsurance contract is exploded."""
         # TODO: reorganize this with risk category ledgers
         # TODO: Put facultative insurance claims here
         claims_this_turn = np.zeros(self.simulation_no_risk_categories)
@@ -363,6 +458,11 @@ class InsuranceFirm(MetaInsuranceOrg):
                 )
 
     def get_excess_of_loss_reinsurance(self):
+        """Method to return list containing the reinsurance for each category interms of the reinsurer, value of
+        contract and category. Only used for network visualisation.
+            No accepted values.
+            Returns:
+                reinsurance: Type list of DataDicts."""
         reinsurance = []
         for categ_id in range(self.simulation_no_risk_categories):
             if self.category_reinsurance[categ_id] is not None:
@@ -383,11 +483,11 @@ class InsuranceFirm(MetaInsuranceOrg):
             time, categ_id
         )
         if number_risks > 0:
+            # TODO: make runtime into a parameter
             risk = {
                 "value": total_value,
                 "category": categ_id,
                 "owner": self,
-                # "identifier": uuid.uuid1(),
                 "insurancetype": "excess-of-loss",
                 "number_risks": number_risks,
                 "deductible_fraction": self.np_reinsurance_deductible_fraction,
@@ -396,7 +496,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                 "runtime": 12,
                 "expiration": time + 12,
                 "risk_factor": avg_risk_factor,
-            }  # TODO: make runtime into a parameter
+            }
             return risk
         else:
             return None

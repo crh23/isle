@@ -1,4 +1,3 @@
-# from metainsuranceorg import MetaInsuranceOrg
 from insurancefirm import InsuranceFirm
 
 
