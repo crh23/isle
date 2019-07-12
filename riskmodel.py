@@ -205,7 +205,7 @@ class RiskModel:
         )
 
     def evaluate_excess_of_loss(self, risks, cash, offered_risk=None):
-    """Method to evaluate excess-of-loss type risks.
+        """Method to evaluate excess-of-loss type risks.
                 Accepts:
                     risks: Type List of DataDicts.
                     cash: Type List. Gives cash available for each category.

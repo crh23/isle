@@ -1,4 +1,5 @@
 from distributiontruncated import TruncatedDistWrapper
+import visualization_network
 import numpy as np
 import scipy.stats
 import math
@@ -165,7 +166,7 @@ class InsuranceSimulation:
                 self.risks_counter[item["category"]] + 1
             )
 
-        self.inaccuracy = self.get_all_riskmodel_combinations(
+        self.inaccuracy = self._get_all_riskmodel_combinations(
             self.simulation_parameters["no_categories"],
             self.simulation_parameters["riskmodel_inaccuracy_parameter"],
         )
@@ -408,12 +409,12 @@ class InsuranceSimulation:
 
         # adjust market premiums
         sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
-        self.adjust_market_premium(capital=sum_capital)
+        self._adjust_market_premium(capital=sum_capital)
         sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
-        self.adjust_reinsurance_market_premium(capital=sum_capital)
+        self._adjust_reinsurance_market_premium(capital=sum_capital)
 
         # Pay obligations
-        self.effect_payments(t)
+        self._effect_payments(t)
 
         # identify perils and effect claims
         for categ_id in range(len(self.rc_event_schedule)):

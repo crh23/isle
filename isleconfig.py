@@ -10,9 +10,9 @@ slim_log = True  # Should logs be small in ensemble runs (only aggregated level 
 
 simulation_parameters = {
     "no_categories": 4,
-    "no_insurancefirms": 200,
-    "no_reinsurancefirms": 5,
-    "no_riskmodels": 3,
+    "no_insurancefirms": 20,
+    "no_reinsurancefirms": 4,
+    "no_riskmodels": 2,
     # values >=1; inaccuracy higher with higher values
     "riskmodel_inaccuracy_parameter": 2,
     # values >=1; factor of additional liquidity beyond value at risk
@@ -28,7 +28,7 @@ simulation_parameters = {
     "mean_contract_runtime": 12,
     "contract_runtime_halfspread": 2,
     "default_contract_payment_period": 3,
-    "max_time": 1000,
+    "max_time": 300,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
     "expire_immediately": False,
@@ -99,5 +99,5 @@ simulation_parameters = {
     "reinsurance_limit": 0.1,
     "upper_price_limit": 1.2,
     "lower_price_limit": 0.85,
-    "no_risks": 200000,
+    "no_risks": 20000,
 }

@@ -2,10 +2,10 @@ import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
 
 
-
 class CatBond(MetaInsuranceOrg):
     def __init__(
-        self, simulation, per_period_premium, owner):
+        self, simulation, per_period_premium, owner, interest_rate=0
+    ):
         """Initialising methods.
             Accepts:
                 simulation: Type class
@@ -36,7 +36,8 @@ class CatBond(MetaInsuranceOrg):
             No return values
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
         pay obligations, mature the contract if ended, make payments."""
-        self.simulation.bank.award_interest(self, self.cash)
+        # QUERY: Shouldn't the interest on the cat bond be paid by the issuer, not the bank/market?
+        self.obtain_yield(time)
         self.effect_payments(time)
         if isleconfig.verbose:
             print(

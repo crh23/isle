@@ -149,10 +149,7 @@ class MetaInsuranceOrg:
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
         # QUERY: Should this have to sum to self.cash
-        self.cash_left_by_categ =
-            self.cash * np.ones(
-            self.simulation_parameters["no_categories"]
-        )
+        self.cash_left_by_categ = self.cash * np.ones(self.simulation_parameters["no_categories"])
         self.market_permanency_counter = 0
 
     def iterate(self, time):
@@ -412,13 +409,13 @@ class MetaInsuranceOrg:
         }
         self.obligations.append(obligation)
 
-    def effect_payments(self, time):"""Method for checking if any payments are due.
+    def effect_payments(self, time):
+        """Method for checking if any payments are due.
             Accepts:
                 time: Type Integer
             No return value
             Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
             does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
-
         # TODO: don't really want to be reconstructing lists every time (unless the oblications are naturally sorted by
         #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item["due_time"] <= time]
@@ -817,7 +814,7 @@ class MetaInsuranceOrg:
         they should be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible.
         For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth. If
         risks are accepted then a contract is written."""
-_cached_rvs = self.contract_runtime_dist.rvs()
+        _cached_rvs = self.contract_runtime_dist.rvs()
         for risk_index in range(max(number_risks_categ)):
             for categ_id in range(len(acceptable_by_category)):
                 if (
