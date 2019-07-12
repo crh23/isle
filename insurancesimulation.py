@@ -1,6 +1,3 @@
-from insurancefirm import InsuranceFirm
-#from riskmodel import RiskModel
-from reinsurancefirm import ReinsuranceFirm
 from distributiontruncated import TruncatedDistWrapper
 import numpy as np
 import scipy.stats
@@ -15,8 +12,17 @@ import utils
 
 
 class InsuranceSimulation:
-    # Note: if we ever want to have a larger number of categories we should use numpy arrays for all of the
-    # "by_categ"-type variables and then where possible do numpy operations instead of iterating over them.
+    """ Simulation object that is responsible for handling all aspects of the world.
+
+    Tracks all agents (firms, catbonds) as well as acting as the insurance market. Iterates other objects,
+    distributes risks, pays premiums, recieves claims, tracks and inflicts perils, etc. Also contains functionality
+    to log the state of the simulation.
+
+    Each insurer is given a set of inaccuracy values, on for each category. This is a factor that is inserted when the
+    insurer calculates the expected damage from a catastophe. In the current configuration, this uses the
+    riskmodel_inaccuracy_parameter in the configuration - a randomly chosen category has its inaccuracy set to the
+    inverse of that parameter, and the others are set to that parameter."""
+
     def __init__(
         self,
         override_no_riskmodels,
@@ -41,9 +47,10 @@ class InsuranceSimulation:
         "Override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)"
         if override_no_riskmodels:
             simulation_parameters["no_riskmodels"] = override_no_riskmodels
+        # QUERY: why do we keep duplicates of so many simulation parameters (and then not use many of them)?
         self.number_riskmodels = simulation_parameters["no_riskmodels"]
 
-        "Save parameters, sets parameters of sim according to isleconfig.py"
+        # save parameters
         if (replic_ID is None) or isleconfig.force_foreground:
             self.background_run = False
         else:
@@ -56,10 +63,10 @@ class InsuranceSimulation:
 
         self.catbonds_off = simulation_parameters["catbonds_off"]
         self.reinsurance_off = simulation_parameters["reinsurance_off"]
+        # TODO: research whether this is accurate, is it different for different types of catastrophy?
         self.cat_separation_distribution = scipy.stats.expon(
             0, simulation_parameters["event_time_mean_separation"]
         )
-        # TODO: research whether this is accurate, is it different for different types of catastrophy?
         self.risk_factor_lower_bound = simulation_parameters["risk_factor_lower_bound"]
         self.risk_factor_spread = (
             simulation_parameters["risk_factor_upper_bound"]
@@ -106,8 +113,8 @@ class InsuranceSimulation:
         self.obligations = []
         # QUERY Why is this a property of the simulation rather than of the obligated parties?
 
-        # set up risk categories
-        "Set up risk categories"
+        "set up risk categories"
+        # QUERY What do risk categories represent? Different types of catastrophes?
         self.riskcategories = list(range(self.simulation_parameters["no_categories"]))
         self.rc_event_schedule = []
         self.rc_event_damage = []
@@ -124,7 +131,7 @@ class InsuranceSimulation:
             self.rc_event_damage = copy.copy(rc_event_damage)
             self.rc_event_damage_initial = copy.copy(rc_event_damage)
         else:  # Otherwise the schedules and damages are generated.
-            self.setup_risk_categories_caller()
+            raise Exception("No event schedules and damages supplied")
 
         "Set up risks"
         risk_value_mean = self.risk_value_distribution.mean()
@@ -261,6 +268,8 @@ class InsuranceSimulation:
             reinsurance_level_upperbound = simulation_parameters[
                 "reinsurance_reinsurance_levels_upper_bound"
             ]
+        else:
+            raise ValueError(f"Firm type {firmtype} not recognised")
 
         for i in range(no_firms):
             if simulation_parameters["static_non-proportional_reinsurance_levels"]:
@@ -306,8 +315,8 @@ class InsuranceSimulation:
                 }
             )
 
-
     def add_agents(self, agent_class, agent_class_string):
+        # TODO: implement this to merge build_agents and accept_agents
         pass
 
     def build_agents(
@@ -350,7 +359,7 @@ class InsuranceSimulation:
                 self.logger.add_insurance_agent()
             # remove new agent cash from simulation cash to ensure stock flow consistency
             total_new_agent_cash = sum([agent.cash for agent in agents])
-            self.reduce_money_supply(total_new_agent_cash)
+            self._reduce_money_supply(total_new_agent_cash)
         elif agent_class_string == "reinsurancefirm":
             try:
                 self.reinsurancefirms += agents
@@ -360,7 +369,7 @@ class InsuranceSimulation:
                 pdb.set_trace()
             # remove new agent cash from simulation cash to ensure stock flow consistency
             total_new_agent_cash = sum([agent.cash for agent in agents])
-            self.reduce_money_supply(total_new_agent_cash)
+            self._reduce_money_supply(total_new_agent_cash)
         elif agent_class_string == "catbond":
             try:
                 self.catbonds += agents
@@ -423,7 +432,7 @@ class InsuranceSimulation:
                 damage_extent = copy.copy(
                     self.rc_event_damage[categ_id][0]
                 )  # Schedules of catastrophes and damages must me generated at the same time.
-                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
+                self._inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
                 # TODO: Ideally don't want to be taking from the beginning of lists, consider having soonest events at
                 #  the end of the list. Probably fine though, only happens once per iteration
@@ -432,10 +441,10 @@ class InsuranceSimulation:
                     print("Next peril ", self.rc_event_schedule[categ_id])
 
         # Shuffle risks (insurance and reinsurance risks)
-        self.shuffle_risks()
+        self._shuffle_risks()
 
         # Reset reinweights
-        self.reset_reinsurance_weights()
+        self._reset_reinsurance_weights()
 
         # Iterate reinsurnace firm agents
         for reinagent in self.reinsurancefirms:
@@ -445,7 +454,7 @@ class InsuranceSimulation:
         self.reinrisks = []
 
         # Reset weights
-        self.reset_insurance_weights()
+        self._reset_insurance_weights()
 
         # Iterate insurance firm agents
         for agent in self.insurancefirms:
@@ -599,7 +608,7 @@ class InsuranceSimulation:
            """
         pass
 
-    def inflict_peril(self, categ_id, damage, t):
+    def _inflict_peril(self, categ_id, damage, t):
         """Method that calculates percentage damage done to each underwritten risk that is affected in the category
                     that event happened in. Passes values to allow calculation contracts to be resolved.
                     Arguments:
@@ -641,7 +650,7 @@ class InsuranceSimulation:
         }
         self.obligations.append(obligation)
 
-    def effect_payments(self, time):
+    def _effect_payments(self, time):
         """Method for checking and paying obligation if due.
                     Arguments
                         Current time to allow check if due
@@ -653,9 +662,9 @@ class InsuranceSimulation:
             ]
             # sum_due = sum([item["amount"] for item in due])
             for obligation in due:
-                self.pay(obligation)
+                self._pay(obligation)
 
-    def pay(self, obligation):
+    def _pay(self, obligation):
         """Method for paying obligations called from effect_payments
             Accepts:
                 Obligation: Type DataDict with categories amount, recipient, due time, purpose.
@@ -676,7 +685,7 @@ class InsuranceSimulation:
             Returns None"""
         self.money_supply += amount
 
-    def reduce_money_supply(self, amount):
+    def _reduce_money_supply(self, amount):
         """Method to reduce money supply immediately and without payment recipient (used to adjust money supply
          to compensate for agent endowment).
          Accepts:
@@ -684,7 +693,7 @@ class InsuranceSimulation:
         self.money_supply -= amount
         assert self.money_supply >= 0
 
-    def reset_reinsurance_weights(self):
+    def _reset_reinsurance_weights(self):
         """Method for clearing and setting reinsurance weights dependant on how many reinsurance companies exist and
             how many offered reinsurance risks there are."""
         self.not_accepted_reinrisks = []
@@ -719,7 +728,7 @@ class InsuranceSimulation:
         else:
             self.not_accepted_reinrisks = self.reinrisks
 
-    def reset_insurance_weights(self):
+    def _reset_insurance_weights(self):
         """Method for clearing and setting insurance weights dependant on how many insurance companies exist and
             how many insurance risks are offered. This determined which risks are sent to metainsuranceorg
             iteration."""
@@ -751,12 +760,12 @@ class InsuranceSimulation:
                     s = math.floor(np.random.uniform(0, len(operational_firms), 1))
                     self.insurers_weights[operational_firms[s].id] += 1
 
-    def shuffle_risks(self):
+    def _shuffle_risks(self):
         """Method for shuffling risks."""
         np.random.shuffle(self.reinrisks)
         np.random.shuffle(self.risks)
 
-    def adjust_market_premium(self, capital):
+    def _adjust_market_premium(self, capital):
         """Adjust_market_premium Method.
                Accepts arguments
                    capital: Type float. The total capital (cash) available in the insurance market (insurance only).
@@ -780,7 +789,7 @@ class InsuranceSimulation:
             self.norm_premium * self.simulation_parameters["lower_price_limit"],
         )
 
-    def adjust_reinsurance_market_premium(self, capital):
+    def _adjust_reinsurance_market_premium(self, capital):
         """Adjust_market_premium Method.
                Accepts arguments
                    capital: Type float. The total capital (cash) available in the reinsurance market (reinsurance only).
@@ -813,6 +822,7 @@ class InsuranceSimulation:
         return self.market_premium
 
     def get_market_reinpremium(self):
+        # QUERY: What's the difference between this and get_reinsurance_premium?
         """Get_market_reinpremium Method.
                Accepts no arguments.
                Returns:
@@ -830,7 +840,7 @@ class InsuranceSimulation:
         if self.reinsurance_off:
             return float("inf")
         max_reduction = 0.1
-        # QUERY: why is this this way? Why no, say, 1.0 - min(max_reduction * np_reinsurance_deductible_fraction)?
+        # QUERY: why is this this way? Why not, say, 1.0 - min(max_reduction * np_reinsurance_deductible_fraction)?
         return self.reinsurance_market_premium * (
             1.0 - max_reduction * np_reinsurance_deductible_fraction
         )
@@ -884,7 +894,7 @@ class InsuranceSimulation:
         for risk in insurer.risks_kept:
             risks_to_be_sent.append(risk)
 
-        # QUERY: what actually is insurancefirm.risks_kept?
+        # QUERY: what actually is InsuranceFirm.risks_kept?
         insurer.risks_kept = []
 
         np.random.shuffle(risks_to_be_sent)
@@ -929,7 +939,7 @@ class InsuranceSimulation:
         self.not_accepted_reinrisks += not_accepted_risks
 
     # QUERY: What does this represent?
-    def get_all_riskmodel_combinations(self, n, rm_factor):
+    def _get_all_riskmodel_combinations(self, n, rm_factor):
         """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
                     used purely to assign inaccuracy. Currently all equal and overwritten immediately.
                     Accepts:
@@ -945,94 +955,15 @@ class InsuranceSimulation:
             riskmodels.append(riskmodel_combination.tolist())
         return riskmodels
 
-    # TODO: could make an Event() class with time, damage, etc.
-    def setup_risk_categories(self):
-        """Method for generating the schedule of events and the percentage damage/severity caused by the event.
-            Only called if risk categories have not already been set as want to keep equal to allow for comparison.
-                Both must also be calculated at the same time to allow for replication.
-                    Event schedule and damage based on distributions set in __init__."""
-        for i in self.riskcategories:
-            event_schedule = []
-            event_damage = []
-            total = 0
-            while total < self.simulation_parameters["max_time"]:
-                separation_time = self.cat_separation_distribution.rvs()
-                total += int(math.ceil(separation_time))
-                if total < self.simulation_parameters["max_time"]:
-                    event_schedule.append(total)
-                    event_damage.append(self.damage_distribution.rvs())
-            # Schedules of catastrophes and damages must me generated at the same time. Reason: replication
-            # across different risk models.
-            self.rc_event_schedule.append(event_schedule)
-            self.rc_event_damage.append(event_damage)
-
-        # For debugging (cloud debugging) purposes is good to store the initial schedule of catastrophes
-        # and damages that will be use in a single run of the model.
-        self.rc_event_schedule_initial = copy.copy(self.rc_event_damage)
-        self.rc_event_damage_initial = copy.copy(self.rc_event_damage)
-
-    def setup_risk_categories_caller(self):
-        """Method for calling setup_risk_categories. If conditions are set such that the system is replicating it is
-            not called otherwise calls setup."""
-        if self.replic_ID is not None:
-            if isleconfig.replicating:
-                self.restore_state_and_risk_categories()
-            else:
-                self.setup_risk_categories()
-                self.save_state_and_risk_categories()
-        else:
-            self.setup_risk_categories()
-
-    def save_state_and_risk_categories(self):
-        """Method to save numpy Mersenne Twister state and event schedule to allow for replication and continuation."""
-        mersennetwoster_randomseed = str(np.random.get_state())
-        mersennetwoster_randomseed = (
-            mersennetwoster_randomseed.replace("\n", "")
-            .replace("array", "np.array")
-            .replace("uint32", "np.uint32")
-        )
-        with open("data/replication_randomseed.dat", "a") as wfile:
-            wfile.write(mersennetwoster_randomseed + "\n")
-        # save event schedule
-        with open("data/replication_rc_event_schedule.dat", "a") as wfile:
-            wfile.write(str(self.rc_event_schedule) + "\n")
-
-    def restore_state_and_risk_categories(self):
-        with open("data/replication_rc_event_schedule.dat", "r") as rfile:
-            found = False
-            for i, line in enumerate(rfile):
-                # print(i, self.replic_ID)
-                if i == self.replic_ID:
-                    self.rc_event_schedule = eval(
-                        line
-                    )  # TODO: eval could be considered dangerous
-                    found = True
-        if not found:
-            raise Exception(
-                f"rc event schedule for current replication ID number {self.replic_ID} not found in data file."
-            )
-
-        with open("data/replication_randomseed.dat", "r") as rfile:
-            found = False
-            for i, line in enumerate(rfile):
-                # print(i, self.replic_ID)
-                if i == self.replic_ID:
-                    mersennetwister_randomseed = eval(line)
-                    found = True
-        if not found:
-            raise Exception(
-                f"mersennetwister randomseed for current replication ID number {self.replic_ID} not found in data file. Exiting."
-            )
-        np.random.set_state(mersennetwister_randomseed)
-
-    def insurance_firm_enters_market(self, prob=-1, agent_type="InsuranceFirm"):
+    def firm_enters_market(self, prob=-1, agent_type="InsuranceFirm"):
         """Method to determine if re/insurance firm enters the market based on set entry probabilities and a random
-                    integer generated between 0, 1.
-                    Accepts:
-                        agent_type: Type String
-                    Returns:
-                         True if firm can enter market
-                         False if firm cannot enter market"""
+                            integer generated between 0, 1.
+                            Accepts:
+                                agent_type: Type String
+                            Returns:
+                                 True if firm can enter market
+                                 False if firm cannot enter market"""
+        # TODO: Do firms really enter the market randomly, with at most one in each timestep?
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters[

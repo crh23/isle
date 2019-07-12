@@ -84,7 +84,7 @@ from reinsurancefirm import ReinsuranceFirm
 
 
 # main function
-def main():
+def main():  # TODO: this script should probably be an argument for start.py
     with open("data/simulation_save.pkl", "br") as rfile:
         d = pickle.load(rfile)
         simulation = d["simulation"]
@@ -107,8 +107,8 @@ def main():
         # abce time step
         simulation.advance_round(t)
 
-        # create new agents    # TODO: write method for this; this code block is executed almost identically 4 times
-        if world.insurance_firm_enters_market(agent_type="InsuranceFirm"):
+        # create new agents             # TODO: write method for this; this code block is executed almost identically 4 times
+        if world.firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [np.random.choice(world.agent_parameters["insurancefirm"])]
             parameters[0]["id"] = world.get_unique_insurer_id()
             new_insurance_firm = simulation.build_agents(
@@ -121,7 +121,7 @@ def main():
             new_insurancefirm_pointer = new_insurance_firm
             world.accept_agents("insurancefirm", new_insurancefirm_pointer, time=t)
 
-        if world.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
+        if world.firm_enters_market(agent_type="ReinsuranceFirm"):
             parameters = [np.random.choice(world.agent_parameters["reinsurancefirm"])]
             parameters[0]["id"] = world.get_unique_reinsurer_id()
             new_reinsurance_firm = simulation.build_agents(

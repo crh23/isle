@@ -241,8 +241,7 @@ class MetaInsuranceOrg:
                     # Stop condition implemented. Might solve the previous TODO.
                     break
 
-            # QUERY: it's typically dangerous to compare floats with !=, is it okay in this case? Probably, since
-            #  no arithmetic is done
+            # TODO: This takes up about 8% of processing time. Can we update the list instead of rebuilding it?
             underwritten_risks = [
                 {
                     "value": contract.value,
@@ -321,7 +320,7 @@ class MetaInsuranceOrg:
                    time: Type integer. The current time.
                No return value.
            This method is called when a firm does not have enough cash to pay all its obligations. It is only called from
-           the method self.effect_payments() which is called at the beginning of the self.iterate() method of this class.
+           the method self._effect_payments() which is called at the beginning of the self.iterate() method of this class.
            This method formalizes the bankruptcy through the method self.enter_bankruptcy()."""
         self.enter_bankruptcy(time)
 
@@ -331,7 +330,7 @@ class MetaInsuranceOrg:
                    time: Type integer. The current time.
                No return value.
            This method is used when a firm does not have enough cash to pay all its obligations. It is only called from
-           the method self.enter_illiquidity() which is only called from the method self.effect_payments(). This method
+           the method self.enter_illiquidity() which is only called from the method self._effect_payments(). This method
            dissolves the firm through the method self.dissolve()."""
         self.dissolve(time, "record_bankruptcy")
 
@@ -863,6 +862,8 @@ _cached_rvs = self.contract_runtime_dist.rvs()
                         # to insure it
                         # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is
                         # underwritten. Return True if it is balanced. False otherwise.
+                        # QUERY: Why is the premium always the market premium? Isn't the setting of premiums an
+                        #  important part of the risk model? No
                         if condition:
                             contract = InsuranceContract(
                                 self,

@@ -35,7 +35,7 @@ def main(
     rc_event_damage,
     np_seed,
     random_seed,
-    save_iter,
+        save_iter: int,
     replic_ID,
     requested_logs=None,
 ):
@@ -75,7 +75,7 @@ def main(
     for t in range(simulation_parameters["max_time"]):
         # create new agents        # TODO: write method for this; this code block is executed almost identically 4 times
         # In fact this should probably all go in insurancesimulation.py, as part of simulation.iterate(t)
-        if simulation.insurance_firm_enters_market(agent_type="InsuranceFirm"):
+        if simulation.firm_enters_market(agent_type="InsuranceFirm"):
             parameters = [
                 np.random.choice(simulation.agent_parameters["insurancefirm"])
             ]  # QUERY Which of these should be used?
@@ -97,7 +97,7 @@ def main(
             insurancefirms_group += new_insurance_firm
             simulation.accept_agents("insurancefirm", new_insurance_firm, time=t)
 
-        if simulation.insurance_firm_enters_market(agent_type="ReinsuranceFirm"):
+        if simulation.firm_enters_market(agent_type="ReinsuranceFirm"):
             parameters = [
                 np.random.choice(simulation.agent_parameters["reinsurancefirm"])
             ]
@@ -282,8 +282,8 @@ if __name__ == "__main__":
         general_rc_event_damage[0],
         np_seeds[0],
         random_seeds[0],
-        filepath,
         save_iter,
+        filepath,
     )
 
     replic_ID = filepath
