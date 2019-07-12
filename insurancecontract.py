@@ -11,11 +11,35 @@ class InsuranceContract(MetaInsuranceContract):
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
         The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
 
-    def __init__(self, insurer, properties, time, premium, runtime, payment_period, expire_immediately, initial_VaR=0.,\
-                 insurancetype="proportional", deductible_fraction=None, excess_fraction=None, reinsurance=0):
-        super(InsuranceContract, self).__init__(insurer, properties, time, premium, runtime, payment_period, \
-                                                  expire_immediately, initial_VaR, insurancetype, deductible_fraction,
-                                                  excess_fraction, reinsurance)
+    def __init__(
+        self,
+        insurer,
+        properties,
+        time,
+        premium,
+        runtime,
+        payment_period,
+        expire_immediately,
+        initial_VaR=0.0,
+        insurancetype="proportional",
+        deductible_fraction=None,
+        excess_fraction=None,
+        reinsurance=0,
+    ):
+        super(InsuranceContract, self).__init__(
+            insurer,
+            properties,
+            time,
+            premium,
+            runtime,
+            payment_period,
+            expire_immediately,
+            initial_VaR,
+            insurancetype,
+            deductible_fraction,
+            excess_fraction,
+            reinsurance,
+        )
 
         self.risk_data = properties
 
@@ -34,10 +58,14 @@ class InsuranceContract(MetaInsuranceContract):
         if uniform_value < self.risk_factor:
             # if True:
             claim = min(self.excess, damage_extent * self.value) - self.deductible
-            self.insurer.register_claim(claim)       #Every insurance claim made is immediately registered.
+            self.insurer.register_claim(
+                claim
+            )  # Every insurance claim made is immediately registered.
 
             self.current_claim += claim
-            self.insurer.receive_obligation(claim, self.property_holder, time + 2, 'claim')
+            self.insurer.receive_obligation(
+                claim, self.property_holder, time + 2, "claim"
+            )
             # Insurer pays one time step after reinsurer to avoid bankruptcy.
             # TODO: Is this realistic? Change this?
             if self.expire_immediately:
@@ -51,10 +79,9 @@ class InsuranceContract(MetaInsuranceContract):
                No return value.
            Returns risk to simulation as contract terminates. Calls terminate_reinsurance to dissolve any reinsurance
            contracts."""
-        #self.terminating = True
+        # self.terminating = True
 
         self.terminate_reinsurance(time)
 
         if not self.roll_over_flag:
             self.property_holder.return_risks([self.risk_data])
-

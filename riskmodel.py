@@ -7,9 +7,20 @@ from distributionreinsurance import ReinsuranceDistWrapper
 
 
 class RiskModel:
-    def __init__(self, damage_distribution, expire_immediately, cat_separation_distribution, norm_premium, \
-                category_number, init_average_exposure, init_average_risk_factor, init_profit_estimate, \
-                margin_of_safety, var_tail_prob, inaccuracy):
+    def __init__(
+        self,
+        damage_distribution,
+        expire_immediately,
+        cat_separation_distribution,
+        norm_premium,
+        category_number,
+        init_average_exposure,
+        init_average_risk_factor,
+        init_profit_estimate,
+        margin_of_safety,
+        var_tail_prob,
+        inaccuracy,
+    ):
         """Initialising method for RiskModel class. All accepted arguments are initialised in the __init__ method of
         insurancesimulation, and are mostly from isleconfig.py.   """
         self.cat_separation_distribution = cat_separation_distribution
@@ -23,18 +34,20 @@ class RiskModel:
         self.margin_of_safety = margin_of_safety
         """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
-        self.damage_distribution = [damage_distribution for _ in range(self.category_number)]
-        self.damage_distribution_stack = [[] for _ in range(self.category_number)] 
+        self.damage_distribution = [
+            damage_distribution for _ in range(self.category_number)
+        ]
+        self.damage_distribution_stack = [[] for _ in range(self.category_number)]
         self.reinsurance_contract_stack = [[] for _ in range(self.category_number)]
         self.inaccuracy = inaccuracy
-    
+
     def getPPF(self, categ_id, tailSize):
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
               categ_id  integer:            category 
               tailSize  (float 1=>x=>0):   quantile
            Returns value-at-risk."""
-        return self.damage_distribution[categ_id].ppf(1-tailSize)
+        return self.damage_distribution[categ_id].ppf(1 - tailSize)
 
     def get_categ_risks(self, risks, categ_id):
         """Method takes list of all risks and only returns a list of all the risks belonging to the given category.
@@ -46,7 +59,7 @@ class RiskModel:
         categ_risks = [risk for risk in risks if risk["category"] == categ_id]
         return categ_risks
 
-    def compute_expectation(self, categ_risks, categ_id):      #TODO: more intuitive name?
+    def compute_expectation(self, categ_risks, categ_id):  # TODO: more intuitive name?
         """Method to compute the average exposure and risk factor as well as the increase in expected profits for the
         risks in a given category.
             Accepts:
@@ -61,25 +74,25 @@ class RiskModel:
         runtimes = []
         for risk in categ_risks:
             # TODO: factor in excess instead of value?
-            exposures.append(risk["value"]-risk["deductible"])
+            exposures.append(risk["value"] - risk["deductible"])
             risk_factors.append(risk["risk_factor"])
             runtimes.append(risk["runtime"])
         average_exposure = np.mean(exposures)
         average_risk_factor = self.inaccuracy[categ_id] * np.mean(risk_factors)
         mean_runtime = np.mean(runtimes)
-        
+
         if self.expire_immediately:
             incr_expected_profits = -1
             # TODO: fix the norm_premium estimation
-            #incr_expected_profits = (self.norm_premium - (1 - scipy.stats.poisson(1 / self.cat_separation_distribution.mean() * \
+            # incr_expected_profits = (self.norm_premium - (1 - scipy.stats.poisson(1 / self.cat_separation_distribution.mean() * \
             #                    mean_runtime).pmf(0)) * self.damage_distribution[categ_id].mean() * average_risk_factor) * average_exposure * len(categ_risks)
         else:
             incr_expected_profits = -1
             # TODO: expected profits should only be returned once the expire_immediately == False case is fixed
-            #incr_expected_profits = (self.norm_premium - mean_runtime / self.cat_separation_distribution[categ_id].mean() * self.damage_distribution.mean() * average_risk_factor) * average_exposure * len(categ_risks)
-        
+            # incr_expected_profits = (self.norm_premium - mean_runtime / self.cat_separation_distribution[categ_id].mean() * self.damage_distribution.mean() * average_risk_factor) * average_exposure * len(categ_risks)
+
         return average_risk_factor, average_exposure, incr_expected_profits
-            
+
     def evaluate_proportional(self, risks, cash):
         """Method to evaluate proportional type risks.
             Accepts:
@@ -101,16 +114,18 @@ class RiskModel:
         cash_left_by_category = np.copy(cash)
         expected_profits = 0
         necessary_liquidity = 0
-        
+
         var_per_risk_per_categ = np.zeros(self.category_number)
-        
+
         # compute acceptable risks by category
         for categ_id in range(self.category_number):
             # compute number of acceptable risks of this category
             categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
-            
+
             if len(categ_risks) > 0:
-                average_risk_factor, average_exposure, incr_expected_profits = self.compute_expectation(categ_risks=categ_risks, categ_id=categ_id)
+                average_risk_factor, average_exposure, incr_expected_profits = self.compute_expectation(
+                    categ_risks=categ_risks, categ_id=categ_id
+                )
             else:
                 average_risk_factor = self.init_average_risk_factor
                 average_exposure = self.init_average_exposure
@@ -118,15 +133,33 @@ class RiskModel:
                 # TODO: expected profits should only be returned once the expire_immediately == False case is fixed
 
             expected_profits += incr_expected_profits
-            
+
             # compute value at risk
-            var_per_risk = self.getPPF(categ_id=categ_id, tailSize=self.var_tail_prob) * average_risk_factor * average_exposure * self.margin_of_safety
-            
+            var_per_risk = (
+                self.getPPF(categ_id=categ_id, tailSize=self.var_tail_prob)
+                * average_risk_factor
+                * average_exposure
+                * self.margin_of_safety
+            )
+
             # record liquidity requirement and apply margin of safety for liquidity requirement
-            necessary_liquidity += var_per_risk * self.margin_of_safety * len(categ_risks)
+            necessary_liquidity += (
+                var_per_risk * self.margin_of_safety * len(categ_risks)
+            )
             if isleconfig.verbose:
                 print(self.inaccuracy)
-                print("RISKMODEL: ", var_per_risk, " = PPF(0.02) * ", average_risk_factor, " * ", average_exposure, " vs. cash: ", cash[categ_id], "TOTAL_RISK_IN_CATEG: ", var_per_risk * len(categ_risks))
+                print(
+                    "RISKMODEL: ",
+                    var_per_risk,
+                    " = PPF(0.02) * ",
+                    average_risk_factor,
+                    " * ",
+                    average_exposure,
+                    " vs. cash: ",
+                    cash[categ_id],
+                    "TOTAL_RISK_IN_CATEG: ",
+                    var_per_risk * len(categ_risks),
+                )
             try:
                 acceptable = int(math.floor(cash[categ_id] / var_per_risk))
                 remaining = acceptable - len(categ_risks)
@@ -148,17 +181,28 @@ class RiskModel:
                 expected_profits = self.init_profit_estimate * cash[0]
             else:
                 expected_profits /= necessary_liquidity
-                
+
         max_cash_by_categ = max(cash_left_by_category)
         floored_cash_by_categ = cash_left_by_category.copy()
         floored_cash_by_categ[floored_cash_by_categ < 0] = 0
         for categ_id in range(self.category_number):
-            remaining_acceptable_by_category[categ_id] = math.floor(remaining_acceptable_by_category[categ_id] * pow(
-                                                         floored_cash_by_categ[categ_id] / max_cash_by_categ, 5))
+            remaining_acceptable_by_category[categ_id] = math.floor(
+                remaining_acceptable_by_category[categ_id]
+                * pow(floored_cash_by_categ[categ_id] / max_cash_by_categ, 5)
+            )
         if isleconfig.verbose:
-            print("RISKMODEL returns: ", expected_profits, remaining_acceptable_by_category)
+            print(
+                "RISKMODEL returns: ",
+                expected_profits,
+                remaining_acceptable_by_category,
+            )
 
-        return expected_profits, remaining_acceptable_by_category, cash_left_by_category, var_per_risk_per_categ
+        return (
+            expected_profits,
+            remaining_acceptable_by_category,
+            cash_left_by_category,
+            var_per_risk_per_categ,
+        )
 
     def evaluate_excess_of_loss(self, risks, cash, offered_risk=None):
         """Method to evaluate excess-of-loss type risks.
@@ -176,7 +220,7 @@ class RiskModel:
         offered risk (if applicable) is then calculated (should only be one)."""
         cash_left_by_categ = np.copy(cash)
         assert len(cash_left_by_categ) == self.category_number
-        
+
         # prepare variables
         additional_required = np.zeros(self.category_number)
         additional_var_per_categ = np.zeros(self.category_number)
@@ -184,32 +228,52 @@ class RiskModel:
         # values at risk and liquidity requirements by category
         for categ_id in range(self.category_number):
             categ_risks = self.get_categ_risks(risks=risks, categ_id=categ_id)
-            
+
             # TODO: allow for different risk distributions for different categories
-            percentage_value_at_risk = self.getPPF(categ_id=categ_id, tailSize=self.var_tail_prob)
-            
+            percentage_value_at_risk = self.getPPF(
+                categ_id=categ_id, tailSize=self.var_tail_prob
+            )
+
             # compute liquidity requirements from existing contracts
             for risk in categ_risks:
-                expected_damage = percentage_value_at_risk * risk["value"] * risk["risk_factor"] * self.inaccuracy[categ_id]
-                expected_claim = min(expected_damage, risk["excess"]) - risk["deductible"]
-                
+                expected_damage = (
+                    percentage_value_at_risk
+                    * risk["value"]
+                    * risk["risk_factor"]
+                    * self.inaccuracy[categ_id]
+                )
+                expected_claim = (
+                    min(expected_damage, risk["excess"]) - risk["deductible"]
+                )
+
                 # record liquidity requirement and apply margin of safety for liquidity requirement
                 cash_left_by_categ[categ_id] -= expected_claim * self.margin_of_safety
-            
+
             # compute additional liquidity requirements from newly offered contract
-            if (offered_risk is not None) and (offered_risk.get("category") == categ_id):
-                expected_damage_fraction = percentage_value_at_risk * offered_risk["risk_factor"] * self.inaccuracy[categ_id]
-                expected_claim_fraction = min(expected_damage_fraction, offered_risk["excess_fraction"]) - offered_risk["deductible_fraction"]
+            if (offered_risk is not None) and (
+                offered_risk.get("category") == categ_id
+            ):
+                expected_damage_fraction = (
+                    percentage_value_at_risk
+                    * offered_risk["risk_factor"]
+                    * self.inaccuracy[categ_id]
+                )
+                expected_claim_fraction = (
+                    min(expected_damage_fraction, offered_risk["excess_fraction"])
+                    - offered_risk["deductible_fraction"]
+                )
                 expected_claim_total = expected_claim_fraction * offered_risk["value"]
-                
+
                 # record liquidity requirement and apply margin of safety for liquidity requirement
-                additional_required[categ_id] += expected_claim_total * self.margin_of_safety
+                additional_required[categ_id] += (
+                    expected_claim_total * self.margin_of_safety
+                )
                 additional_var_per_categ[categ_id] += expected_claim_total
-        
+
         # Additional value at risk should only occur in one category. Assert that this is the case.
-        assert sum(additional_var_per_categ > 0) <= 1   
+        assert sum(additional_var_per_categ > 0) <= 1
         var_this_risk = max(additional_var_per_categ)
-        
+
         return cash_left_by_categ, additional_required, var_this_risk
 
     def evaluate(self, risks, cash, offered_risk=None):
@@ -237,7 +301,9 @@ class RiskModel:
         results in two sets of return values being used. These return values are what is used to determine if risks are
         underwritten or not."""
         # ensure that any risk to be considered supplied directly as argument is non-proportional/excess-of-loss
-        assert (offered_risk is None) or offered_risk.get("insurancetype") == "excess-of-loss"
+        assert (offered_risk is None) or offered_risk.get(
+            "insurancetype"
+        ) == "excess-of-loss"
 
         # construct cash_left_by_categ as a sequence, defining remaining liquidity by category
         if not isinstance(cash, (np.ndarray, list)):
@@ -247,24 +313,44 @@ class RiskModel:
         assert len(cash_left_by_categ) == self.category_number
 
         # sort current contracts
-        el_risks = [risk for risk in risks if risk["insurancetype"] == 'excess-of-loss']
-        risks = [risk for risk in risks if risk["insurancetype"] == 'proportional']
+        el_risks = [risk for risk in risks if risk["insurancetype"] == "excess-of-loss"]
+        risks = [risk for risk in risks if risk["insurancetype"] == "proportional"]
 
         # compute liquidity requirements and acceptable risks from existing contract
         if (offered_risk is not None) or (len(el_risks) > 0):
-            cash_left_by_categ, additional_required, var_this_risk = self.evaluate_excess_of_loss(el_risks, cash_left_by_categ, offered_risk)
+            cash_left_by_categ, additional_required, var_this_risk = self.evaluate_excess_of_loss(
+                el_risks, cash_left_by_categ, offered_risk
+            )
         if (offered_risk is None) or (len(risks) > 0):
-            expected_profits_proportional, remaining_acceptable_by_categ, cash_left_by_categ, var_per_risk_per_categ = self.evaluate_proportional(risks, cash_left_by_categ)
+            expected_profits_proportional, remaining_acceptable_by_categ, cash_left_by_categ, var_per_risk_per_categ = self.evaluate_proportional(
+                risks, cash_left_by_categ
+            )
         if offered_risk is None:
             # return numbers of remaining acceptable risks by category
-            return expected_profits_proportional, remaining_acceptable_by_categ, cash_left_by_categ, var_per_risk_per_categ, min(cash_left_by_categ)
+            return (
+                expected_profits_proportional,
+                remaining_acceptable_by_categ,
+                cash_left_by_categ,
+                var_per_risk_per_categ,
+                min(cash_left_by_categ),
+            )
         else:
             # return boolean value whether the offered excess_of_loss risk can be accepted
             if isleconfig.verbose:
-                print("REINSURANCE RISKMODEL", cash, cash_left_by_categ,(cash_left_by_categ - additional_required > 0).all())
+                print(
+                    "REINSURANCE RISKMODEL",
+                    cash,
+                    cash_left_by_categ,
+                    (cash_left_by_categ - additional_required > 0).all(),
+                )
             # if not (cash_left_by_categ - additional_required > 0).all():
             #    pdb.set_trace()
-            return (cash_left_by_categ - additional_required > 0).all(), cash_left_by_categ, var_this_risk, min(cash_left_by_categ)
+            return (
+                (cash_left_by_categ - additional_required > 0).all(),
+                cash_left_by_categ,
+                var_this_risk,
+                min(cash_left_by_categ),
+            )
 
     def add_reinsurance(self, categ_id, excess_fraction, deductible_fraction, contract):
         """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
@@ -276,13 +362,19 @@ class RiskModel:
                 deductible_fraction: Type Decimal.
                 contract: Type DataDict.
             No return values."""
-        self.damage_distribution_stack[categ_id].append(self.damage_distribution[categ_id])
+        self.damage_distribution_stack[categ_id].append(
+            self.damage_distribution[categ_id]
+        )
         self.reinsurance_contract_stack[categ_id].append(contract)
-        self.damage_distribution[categ_id] = ReinsuranceDistWrapper(lower_bound=deductible_fraction, \
-                                                                    upper_bound=excess_fraction, \
-                                                                    dist=self.damage_distribution[categ_id])
+        self.damage_distribution[categ_id] = ReinsuranceDistWrapper(
+            lower_bound=deductible_fraction,
+            upper_bound=excess_fraction,
+            dist=self.damage_distribution[categ_id],
+        )
 
-    def delete_reinsurance(self, categ_id, excess_fraction, deductible_fraction, contract):
+    def delete_reinsurance(
+        self, categ_id, excess_fraction, deductible_fraction, contract
+    ):
         """Method to remove any instance of reinsurance to risk models list of reinsurance contracts, and remove its
         damage distribution from the stack of damage distributions per category. Only used in the delete_reinsurance
         method of insurancefirm.
@@ -294,5 +386,6 @@ class RiskModel:
             No return values."""
         assert self.reinsurance_contract_stack[categ_id][-1] == contract
         self.reinsurance_contract_stack[categ_id].pop()
-        self.damage_distribution[categ_id] = self.damage_distribution_stack[categ_id].pop()
-
+        self.damage_distribution[categ_id] = self.damage_distribution_stack[
+            categ_id
+        ].pop()

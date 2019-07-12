@@ -6,7 +6,7 @@ class CentralBank:
         """Constructor Method.
             No accepted arguments.
         Constructs the CentralBank class. This class is currently only used to award interest payments."""
-        self.interest_rate = simulation_parameters['interest_rate']
+        self.interest_rate = simulation_parameters["interest_rate"]
         self.inflation_target = 0.02
         self.actual_inflation = 0
         self.onemonth_CPI = 0
@@ -57,6 +57,10 @@ class CentralBank:
         if time < 13:
             self.actual_inflation = self.inflation_target
         else:
-            self.onemonth_CPI = (current_price - self.prices_list[-2])/self.prices_list[-2]
-            self.twelvemonth_CPI = (current_price - self.prices_list[-13])/self.prices_list[-13]
+            self.onemonth_CPI = (
+                current_price - self.prices_list[-2]
+            ) / self.prices_list[-2]
+            self.twelvemonth_CPI = (
+                current_price - self.prices_list[-13]
+            ) / self.prices_list[-13]
             self.actual_inflation = self.twelvemonth_CPI
