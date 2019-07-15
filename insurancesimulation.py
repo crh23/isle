@@ -171,13 +171,18 @@ class InsuranceSimulation():
             reinsurance_level_upperbound = simulation_parameters["reinsurance_reinsurance_levels_upper_bound"]
 
         for i in range(no_firms):
+            if firmtype == "insurancefirm":
+                unique_id = self.get_unique_insurer_id()
+            elif firmtype == "reinsurancefirm":
+                unique_id = self.get_unique_reinsurer_id()
+
             if simulation_parameters['static_non-proportional_reinsurance_levels']:
                 reinsurance_level = simulation_parameters["default_non-proportional_reinsurance_deductible"]
             else:
                 reinsurance_level = np.random.uniform(reinsurance_level_lowerbound, reinsurance_level_upperbound)
 
             riskmodel_config = risk_model_configurations[i % len(risk_model_configurations)]
-            self.agent_parameters[firmtype].append({'id': self.get_unique_insurer_id(), 'initial_cash': simulation_parameters[initial_cash],
+            self.agent_parameters[firmtype].append({'id': unique_id, 'initial_cash': simulation_parameters[initial_cash],
                 'riskmodel_config': riskmodel_config, 'norm_premium': self.norm_premium,
                 'profit_target': simulation_parameters["norm_profit_markup"],
                 'initial_acceptance_threshold': simulation_parameters["initial_acceptance_threshold"],
@@ -335,7 +340,7 @@ class InsuranceSimulation():
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
 
-        network_division = 2        # How often network is updated.
+        network_division = 1        # How often network is updated.
         if isleconfig.show_network and t % network_division == 0 and t > 0:
             if t == network_division:
                 self.RN = visualization_network.ReinsuranceNetwork()    # Only creates once instance so only one figure.
@@ -389,7 +394,7 @@ class InsuranceSimulation():
         current_log['insurance_firms_cash'] = insurance_firms
         current_log['reinsurance_firms_cash'] = reinsurance_firms
         current_log['market_diffvar'] = self.compute_market_diffvar()
-        
+
         current_log['individual_contracts'] = []
         individual_contracts_no = [len(insurancefirm.underwritten_contracts) for insurancefirm in self.insurancefirms]
         for i in range(len(individual_contracts_no)):
