@@ -140,28 +140,6 @@ if __name__ == "__main__":
     """ use argparse to handle command line arguments"""
     parser = argparse.ArgumentParser(description="Model the Insurance sector")
     parser.add_argument(
-        "--abce", action="store_true", help="[REMOVED] ABCE no longer supported"
-    )
-    parser.add_argument(
-        "--resume",
-        action="store_true",
-        help="Resume the simulation from a previous save in ./data/simulation_save.pkl. "
-        "All other arguments will be ignored",
-    )
-    parser.add_argument(
-        "--oneriskmodel",
-        action="store_true",
-        help="allow overriding the number of riskmodels from the standard config (with 1)",
-    )
-    parser.add_argument(
-        "--riskmodels",
-        type=int,
-        choices=[1, 2, 3, 4],
-        help="allow overriding the number of riskmodels from standard config (with 1 or other numbers)."
-        " Overrides --oneriskmodel",
-    )
-    parser.add_argument("--replicid", type=int, help="[REMOVED], use -f (--file)")
-    parser.add_argument(
         "-f",
         "--file",
         action="store",
@@ -183,6 +161,30 @@ if __name__ == "__main__":
         help="allows overwriting of the file specified by -f",
     )
     parser.add_argument(
+        "-p", "--showprogress", action="store_true", help="show timesteps"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="more detailed output"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume the simulation from a previous save in ./data/simulation_save.pkl. "
+        "All other arguments will be ignored",
+    )
+    parser.add_argument(
+        "--oneriskmodel",
+        action="store_true",
+        help="allow overriding the number of riskmodels from the standard config (with 1)",
+    )
+    parser.add_argument(
+        "--riskmodels",
+        type=int,
+        choices=[1, 2, 3, 4],
+        help="allow overriding the number of riskmodels from standard config (with 1 or other numbers)."
+        " Overrides --oneriskmodel",
+    )
+    parser.add_argument(
         "--randomseed", type=float, help="allow setting of numpy random seed"
     )
     parser.add_argument(
@@ -196,20 +198,12 @@ if __name__ == "__main__":
         help="show reinsurance relations as network",
     )
     parser.add_argument(
-        "-p", "--showprogress", action="store_true", help="show timesteps"
-    )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="more detailed output"
-    )
-    parser.add_argument(
         "--save_iterations",
         type=int,
         help="number of iterations to iterate before saving world state",
     )
     args = parser.parse_args()
 
-    if args.abce:
-        raise Exception("ABCE is not and will not be supported")
     if args.oneriskmodel:
         isleconfig.oneriskmodel = True
         override_no_riskmodels = 1
