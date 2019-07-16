@@ -93,6 +93,13 @@ class MetaInsuranceOrg:
             * simulation_parameters["margin_increase"]
         )
 
+        self.max_inaccuracy = rm_config["inaccuracy_by_categ"]
+        self.min_inaccuracy = self.max_inaccuracy * isleconfig.simulation_parameters[
+            "scale_inaccuracy"
+        ] + np.ones(len(self.max_inaccuracy)) * (
+            1 - isleconfig.simulation_parameters["scale_inaccuracy"]
+        )
+
         self.riskmodel = RiskModel(
             damage_distribution=rm_config["damage_distribution"],
             expire_immediately=rm_config["expire_immediately"],
@@ -104,7 +111,7 @@ class MetaInsuranceOrg:
             init_profit_estimate=rm_config["norm_profit_markup"],
             margin_of_safety=margin_of_safety_correction,
             var_tail_prob=rm_config["var_tail_prob"],
-            inaccuracy=rm_config["inaccuracy_by_categ"],
+            inaccuracy=self.max_inaccuracy,
         )
 
         self.category_reinsurance = [
@@ -153,6 +160,8 @@ class MetaInsuranceOrg:
             self.simulation_parameters["no_categories"]
         )
         self.market_permanency_counter = 0
+        # The share of all risks that this firm holds
+        self.risk_share = 0
 
     def iterate(self, time):
         """Method that iterates each firm by one time step.
@@ -186,6 +195,11 @@ class MetaInsuranceOrg:
         for contract in self.underwritten_contracts:
             contract.check_payment_due(time)
 
+        """Check what proportion of the risk market we hold and then update the riskmodel accordingly"""
+        self.update_risk_share()
+        self.adjust_riskmodel()
+
+        """Collect and process new risks"""
         self.collect_process_evaluate_risks(time, contracts_dissolved)
 
         """adjust liquidity, borrow or invest"""
@@ -205,9 +219,8 @@ class MetaInsuranceOrg:
             contracts_offered = len(new_risks)
             if isleconfig.verbose and contracts_offered < 2 * contracts_dissolved:
                 print(
-                    "Something wrong; agent {0:d} receives too few new contracts {1:d} <= {2:d}".format(
-                        self.id, contracts_offered, 2 * contracts_dissolved
-                    )
+                    f"Something wrong; agent {self.id} receives too few new contracts {contracts_offered} "
+                    f"<= {2 * contracts_dissolved}"
                 )
 
             """deal with non-proportional risks first as they must evaluate each request separatly,
@@ -715,9 +728,9 @@ class MetaInsuranceOrg:
            risks are accepted then a contract is written."""
 
         for iterion in range(max(number_reinrisks_categ)):
-            for categ_id in range(
-                self.simulation_parameters["no_categories"]
-            ):  # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... if possible.
+            for categ_id in range(self.simulation_parameters["no_categories"]):
+                # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
+                # risk[C4], risk[C1], risk[C2], ... if possible.
                 if (
                     iterion < number_reinrisks_categ[categ_id]
                     and reinrisks_per_categ[categ_id][iterion] is not None
@@ -753,6 +766,7 @@ class MetaInsuranceOrg:
                             )
                             / risk_to_insure["value"]
                         )
+
                         # Here it is check whether the portfolio is balanced or not if the reinrisk
                         # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
                         condition, cash_left_by_categ = self.balanced_portfolio(
@@ -834,7 +848,7 @@ class MetaInsuranceOrg:
                                 self,
                                 risk_to_insure,
                                 time,
-                                self.simulation.get_reinsurance_market_premium(),
+                                self.insurance_premium(),
                                 risk_to_insure["expiration"] - time,
                                 self.default_contract_payment_period,
                                 expire_immediately=self.simulation_parameters[
@@ -844,8 +858,7 @@ class MetaInsuranceOrg:
                             self.underwritten_contracts.append(contract)
                             self.cash_left_by_categ = cash_left_by_categ
                             risks_per_categ[categ_id][risk_index] = None
-                            # TODO: move this to insurancecontract (ca. line 14) -> DONE
-                            # TODO: do not write into other object's properties, use setter -> DONE
+
                     else:
                         [condition, cash_left_by_categ] = self.balanced_portfolio(
                             risk_to_insure, cash_left_by_categ, var_per_risk_per_categ
@@ -1025,3 +1038,29 @@ class MetaInsuranceOrg:
             "MetaInsuranceOrg does not implement make_reinsurance_claims, "
             "it should have been overridden"
         )
+
+    def update_risk_share(self):
+        """Updates own value for share of all risks held by this firm"""
+        self.risk_share = self.simulation.get_risk_share(self)
+
+    def insurance_premium(self):
+        """Returns the premium this firm will charge for insurance.
+
+        Returns the market premium multiplied by a factor that scales linearly with self.risk_share between 1 and
+        the max permissble adjustment"""
+        max_adjustment = isleconfig.simulation_parameters["max_scale_premiums"]
+        return self.simulation.get_market_premium() * (
+            1 * (1 - self.risk_share) + max_adjustment * self.risk_share
+        )
+
+    def adjust_riskmodel(self):
+        """Adjusts the inaccuracy parameter in the risk model under use depending on the share of risks held
+
+        Shrinks the risk model towards the best available risk model (as determined by "scale_inaccuracy" in isleconfig)
+        by the share of risk this firm holds.
+        """
+        if isleconfig.simulation_parameters["scale_inaccuracy"] != 1:
+            self.riskmodel.inaccuracy = (
+                self.max_inaccuracy * (1 - self.risk_share)
+                + self.min_inaccuracy * self.risk_share
+            )

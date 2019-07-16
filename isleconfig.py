@@ -101,4 +101,10 @@ simulation_parameters = {
     "upper_price_limit": 1.2,
     "lower_price_limit": 0.85,
     "no_risks": 20000,
+    # Determines the maximum upscaling of premiums based on insurer size - set to 1 to disable scaled premiums.
+    # Values between 0 and 1 will make premiums decrease for bigger insurers
+    "max_scale_premiums": 2,
+    # Determines the minimum fraction of inaccuracy that insurers can achieve - a value of 0 means the biggest insurers
+    # can be perfectly accurate, a value of 1 disables changes in inaccuracy based on size
+    "scale_inaccuracy": 0.5,
 }

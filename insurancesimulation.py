@@ -244,6 +244,7 @@ class InsuranceSimulation:
         self.reinsurance_models_counter = np.zeros(
             self.simulation_parameters["no_categories"]
         )
+        self._time = None
 
     def initialize_agent_parameters(
         self, firmtype, simulation_parameters, risk_model_configurations
@@ -419,6 +420,8 @@ class InsuranceSimulation:
            Accepts:
                 t: Integer, current time step
            Returns None"""
+
+        self._time = t
         if isleconfig.verbose:
             print()
             print(t, ": ", len(self.risks))
@@ -499,7 +502,7 @@ class InsuranceSimulation:
         for insurer in self.insurancefirms:
             if insurer.operational:
                 for i in range(len(self.inaccuracy)):
-                    if insurer.riskmodel.inaccuracy == self.inaccuracy[i]:
+                    if np.array_equal(insurer.riskmodel.inaccuracy, self.inaccuracy[i]):
                         self.insurance_models_counter[i] += 1
 
         self.reinsurance_models_counter = np.zeros(
@@ -509,7 +512,9 @@ class InsuranceSimulation:
         for reinsurer in self.reinsurancefirms:
             for i in range(len(self.inaccuracy)):
                 if reinsurer.operational:
-                    if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
+                    if np.array_equal(
+                        reinsurer.riskmodel.inaccuracy, self.inaccuracy[i]
+                    ):
                         self.reinsurance_models_counter[i] += 1
 
         network_division = 1  # How often network is updated.
@@ -955,7 +960,7 @@ class InsuranceSimulation:
                 self.simulation_parameters["no_categories"]
             )
             riskmodel_combination[i] = 1 / rm_factor
-            riskmodels.append(riskmodel_combination.tolist())
+            riskmodels.append(riskmodel_combination)
         return riskmodels
 
     def firm_enters_market(self, prob=-1, agent_type="InsuranceFirm"):
@@ -1134,3 +1139,29 @@ class InsuranceSimulation:
 
         for catbond in self.catbonds:
             catbond.reset_pl()
+
+    def get_risk_share(self, firm):
+        """Method to determine the total percentage of risks in the market that are held by a particular firm.
+
+        For insurers uses insurance risks, for reinsurers uses reinsurance risks
+        Calculates the
+            Accepts:
+                firm: an insurance or reinsurance firm
+            Returns:
+                proportion: type Float, the proportion of risks held by the given firm """
+        if firm.is_insurer:
+            total = self.simulation_parameters["no_risks"]
+        elif firm.is_reinsurer:
+            total = sum(
+                [
+                    reinfirm.number_underwritten_contracts()
+                    for reinfirm in self.reinsurancefirms
+                ]
+                + [len(self.reinrisks)]
+            )
+        else:
+            raise ValueError("Firm is neither insurer or reinsurer, which is odd")
+        if total == 0:
+            return 0
+        else:
+            return firm.number_underwritten_contracts() / total
