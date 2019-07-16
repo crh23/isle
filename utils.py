@@ -2,7 +2,7 @@ from scipy import stats
 import numpy as np
 
 
-class constant_gen(stats.rv_continuous):
+class ConstantGen(stats.rv_continuous):
     def _pdf(self, x, *args):
         a = np.float_(x == 0)
         a[a == 1.0] = np.float_("inf")
@@ -18,4 +18,4 @@ class constant_gen(stats.rv_continuous):
             return np.zeros(shape=self._size)
 
 
-constant = constant_gen(name="constant")
+constant = ConstantGen(name="constant")

@@ -69,6 +69,9 @@ class InsuranceSimulation:
         self.cat_separation_distribution = scipy.stats.expon(
             0, simulation_parameters["event_time_mean_separation"]
         )
+
+        # Risk factors represent, for example, the earthquake risk for a particular house (compare to the value)
+        # TODO: Implement! Think about insureres rejecting risks under certain situations (high risk factor)
         self.risk_factor_lower_bound = simulation_parameters["risk_factor_lower_bound"]
         self.risk_factor_spread = (
             simulation_parameters["risk_factor_upper_bound"]
@@ -288,7 +291,7 @@ class InsuranceSimulation:
             ]
             self.agent_parameters[firmtype].append(
                 {
-                    "id": self.get_unique_insurer_id(),
+                    "id": self.get_unique_insurer_id(), # TODO: Fix
                     "initial_cash": simulation_parameters[initial_cash],
                     "riskmodel_config": riskmodel_config,
                     "norm_premium": self.norm_premium,
@@ -645,10 +648,8 @@ class InsuranceSimulation:
             a=1, b=1.0 / damage - 1, size=self.risks_counter[categ_id]
         )
         uniformvalues = np.random.uniform(0, 1, size=self.risks_counter[categ_id])
-        [
+        for i, contract in enumerate(affected_contracts):
             contract.explode(t, uniformvalues[i], damagevalues[i])
-            for i, contract in enumerate(affected_contracts)
-        ]
 
     def receive_obligation(self, amount, recipient, due_time, purpose):
         """Method for adding obligation to list that is resolved at the start if each iteration of simulation. Only
@@ -955,7 +956,6 @@ class InsuranceSimulation:
                             Returns None"""
         self.not_accepted_reinrisks += not_accepted_risks
 
-    # QUERY: What does this represent?
     def _get_all_riskmodel_combinations(self, n, rm_factor):
         """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
                     used purely to assign inaccuracy. Currently all equal and overwritten immediately.
@@ -1046,6 +1046,7 @@ class InsuranceSimulation:
         )
 
         totalreal = len([firm for firm in self.insurancefirms if firm.operational])
+        # Real VaR is 1 for each firm
 
         totalina += sum(
             [
