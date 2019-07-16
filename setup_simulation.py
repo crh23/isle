@@ -167,7 +167,9 @@ class SetupSim:
             # Not replicating another run, so we are writing to the file given
             self.replications = replications
             if filepath is None and not self.overwrite:
-                print("No explicit path given, automatically overwriting default path for initial state")
+                print(
+                    "No explicit path given, automatically overwriting default path for initial state"
+                )
                 self.overwrite = True
             self.schedule(replications)
             self.seeds(replications)

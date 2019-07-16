@@ -388,6 +388,8 @@ class InsuranceSimulation:
                     for ap in agent_parameters
                 ]
                 self.reinsurancefirms += agents
+                for agent in agents:
+                    self.logger.add_reinsurance_agent()
 
             elif agent_class_string == "catbond":
                 raise ValueError(f"Catbonds must be built before being added")
@@ -510,7 +512,7 @@ class InsuranceSimulation:
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
 
-        network_division = 1        # How often network is updated.
+        network_division = 1  # How often network is updated.
         if isleconfig.show_network and t % network_division == 0 and t > 0:
             if t == network_division:
                 self.RN = (
@@ -530,57 +532,34 @@ class InsuranceSimulation:
             [insurancefirm.cash for insurancefirm in self.insurancefirms]
         )
         total_excess_capital = sum(
-            [
-                firm.get_excess_capital()
-                for firm in self.insurancefirms
-            ]
+            [firm.get_excess_capital() for firm in self.insurancefirms]
         )
         total_profitslosses = sum(
             [insurancefirm.get_profitslosses() for insurancefirm in self.insurancefirms]
         )
         total_contracts_no = sum(
-            [
-                len(firm.underwritten_contracts)
-                for firm in self.insurancefirms
-            ]
+            [len(firm.underwritten_contracts) for firm in self.insurancefirms]
         )
-        total_reincash_no = sum(
-            [firm.cash for firm in self.reinsurancefirms]
-        )
+        total_reincash_no = sum([firm.cash for firm in self.reinsurancefirms])
         total_reinexcess_capital = sum(
-            [
-                firm.get_excess_capital()
-                for firm in self.reinsurancefirms
-            ]
+            [firm.get_excess_capital() for firm in self.reinsurancefirms]
         )
         total_reinprofitslosses = sum(
-            [
-                firm.get_profitslosses()
-                for firm in self.reinsurancefirms
-            ]
+            [firm.get_profitslosses() for firm in self.reinsurancefirms]
         )
         total_reincontracts_no = sum(
-            [
-                len(firm.underwritten_contracts)
-                for firm in self.reinsurancefirms
-            ]
+            [len(firm.underwritten_contracts) for firm in self.reinsurancefirms]
         )
-        operational_no = sum(
-            [firm.operational for firm in self.insurancefirms]
-        )
-        reinoperational_no = sum(
-            [firm.operational for firm in self.reinsurancefirms]
-        )
+        operational_no = sum([firm.operational for firm in self.insurancefirms])
+        reinoperational_no = sum([firm.operational for firm in self.reinsurancefirms])
         catbondsoperational_no = sum([catbond.operational for catbond in self.catbonds])
 
         """ collect agent-level data """
         insurance_firms = [
-            (firm.cash, firm.id, firm.operational)
-            for firm in self.insurancefirms
+            (firm.cash, firm.id, firm.operational) for firm in self.insurancefirms
         ]
         reinsurance_firms = [
-            (firm.cash, firm.id, firm.operational)
-            for firm in self.reinsurancefirms
+            (firm.cash, firm.id, firm.operational) for firm in self.reinsurancefirms
         ]
 
         """ prepare dict """
@@ -612,14 +591,12 @@ class InsuranceSimulation:
         current_log["market_diffvar"] = self.compute_market_diffvar()
 
         current_log["individual_contracts"] = [
-            len(firm.underwritten_contracts)
-            for firm in self.insurancefirms
+            len(firm.underwritten_contracts) for firm in self.insurancefirms
         ]
 
-        current_log['reinsurance_contracts'] = []
-        reinsurance_contracts_no = [len(reinsurancefirm.underwritten_contracts) for reinsurancefirm in self.reinsurancefirms]
-        for i in range(len(reinsurance_contracts_no)):
-            current_log['reinsurance_contracts'].append(reinsurance_contracts_no[i])
+        current_log["reinsurance_contracts"] = [
+            len(firm.underwritten_contracts) for firm in self.reinsurancefirms
+        ]
 
         """ call to Logger object """
         self.logger.record_data(current_log)
@@ -909,10 +886,9 @@ class InsuranceSimulation:
         np.random.shuffle(self.reinrisks)
         return self.reinrisks
 
-    def solicit_insurance_requests(self, insurer_id, cash, insurer):
+    def solicit_insurance_requests(self, cash, insurer):
         """Method for determining which risks are to be assessed by firms based on insurer weights
                     Accepts:
-                        id: Type integer
                         cash: Type Integer
                         insurer: Type firm metainsuranceorg instance
                     Returns:

@@ -113,7 +113,10 @@ def save_simulation(t, sim, sim_param, exit_now=False):
         pickle.dump(d, wfile, protocol=pickle.HIGHEST_PROTOCOL)
     with open("data/simulation_save.pkl", "br") as rfile:
         file_contents = rfile.read()
-    print("\nSaved simulation with hash:", hashlib.sha512(str(file_contents).encode()).hexdigest())
+    print(
+        "\nSaved simulation with hash:",
+        hashlib.sha512(str(file_contents).encode()).hexdigest(),
+    )
 
     if exit_now:
         exit(0)

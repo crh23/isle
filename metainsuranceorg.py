@@ -574,9 +574,7 @@ class MetaInsuranceOrg:
                 new_risks: Type list of DataDicts."""
         new_risks = []
         if self.is_insurer:
-            new_risks += self.simulation.solicit_insurance_requests(
-                self.id, self.cash, self
-            )
+            new_risks += self.simulation.solicit_insurance_requests(self.cash, self)
         if self.is_reinsurer:
             new_risks += self.simulation.solicit_reinsurance_requests(self.cash, self)
 
@@ -616,8 +614,12 @@ class MetaInsuranceOrg:
                     Returns:
                         risks_by_category: Type list of categories, each contains risks originating from that category.
                         number_risks_categ: Type list, elements are integers of total risks in each category"""
-        risks_by_category = [[] for _ in range(self.simulation_parameters["no_categories"])]
-        number_risks_categ = np.zeros(self.simulation_parameters["no_categories"], dtype=np.int_)
+        risks_by_category = [
+            [] for _ in range(self.simulation_parameters["no_categories"])
+        ]
+        number_risks_categ = np.zeros(
+            self.simulation_parameters["no_categories"], dtype=np.int_
+        )
 
         for categ_id in range(self.simulation_parameters["no_categories"]):
             risks_by_category[categ_id] = [
