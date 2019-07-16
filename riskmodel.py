@@ -142,6 +142,7 @@ class RiskModel:
                 * average_exposure
                 * self.margin_of_safety
             )
+            # QUERY: Is the margin of safety appiled twice? (above and below)
 
             # record liquidity requirement and apply margin of safety for liquidity requirement
             necessary_liquidity += (
@@ -244,6 +245,9 @@ class RiskModel:
                     * risk["risk_factor"]
                     * self.inaccuracy[categ_id]
                 )
+                # QUERY: This doesn't look accurate to me - E(f(X)) != f(E(X)) in general
+
+                # QUERY: Isn't this wrong?
                 expected_claim = (
                     min(expected_damage, risk["excess"]) - risk["deductible"]
                 )

@@ -852,8 +852,6 @@ class MetaInsuranceOrg:
                         # to insure it
                         # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is
                         # underwritten. Return True if it is balanced. False otherwise.
-                        # QUERY: Why is the premium always the market premium? Isn't the setting of premiums an
-                        #  important part of the risk model? No
                         if condition:
                             contract = InsuranceContract(
                                 self,

@@ -24,7 +24,7 @@ class InsuranceContract(MetaInsuranceContract):
         excess_fraction=None,
         reinsurance=0,
     ):
-        super(InsuranceContract, self).__init__(
+        super().__init__(
             insurer,
             properties,
             time,
@@ -52,7 +52,6 @@ class InsuranceContract(MetaInsuranceContract):
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
         # np.mean(np.random.beta(1, 1./mu -1, size=90000))
-        # if np.random.uniform(0, 1) < self.risk_factor:
         if uniform_value < self.risk_factor:
             claim = min(self.excess, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(

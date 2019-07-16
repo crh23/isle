@@ -27,8 +27,8 @@ class MetaInsuranceContract:
                     initial_var: Type float. Initial value at risk. Used only to compute true and estimated value at risk.
                 optional:
                     insurancetype: Type string. The type of this contract, especially "proportional" vs "excess_of_loss"
-                    deductible: Type float (or int)
-                    excess: Type float (or int or None)
+                    deductible_fraction: Type float (or int)
+                    excess_fraction: Type float (or int or None)
                     reinsurance: Type float (or int). The value that is being reinsured.
                Returns InsuranceContract.
            Creates InsuranceContract, saves parameters. Creates obligation for premium payment. Includes contract

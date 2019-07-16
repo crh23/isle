@@ -1046,7 +1046,7 @@ class InsuranceSimulation:
         )
 
         totalreal = len([firm for firm in self.insurancefirms if firm.operational])
-        # Real VaR is 1 for each firm
+        # Real VaR is 1 for each firm, we think
 
         totalina += sum(
             [
