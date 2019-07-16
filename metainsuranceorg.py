@@ -10,6 +10,14 @@ import functools
 
 
 def get_mean(x):
+    """
+    Returns the mean of a list
+    Args:
+        x: an iterable of numerics
+
+    Returns:
+        the mean of x
+    """
     return sum(x) / len(x)
 
 
@@ -30,8 +38,8 @@ class MetaInsuranceOrg:
                     Accepts:
                         Simulation_parameters: Type DataDict
                         agent_parameters:   Type DataDict
-                    Constructor creates general instance of an insurance company which is inherited by the reinsurance and
-                    insurance firm classes. Initialises all necessary values provided by config file."""
+                    Constructor creates general instance of an insurance company which is inherited by the reinsurance
+                     and insurance firm classes. Initialises all necessary values provided by config file."""
         self.simulation = simulation_parameters["simulation"]
         self.simulation_parameters = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
@@ -115,7 +123,7 @@ class MetaInsuranceOrg:
         )
 
         self.category_reinsurance = [
-            None for i in range(self.simulation_no_risk_categories)
+            None for _ in range(self.simulation_no_risk_categories)
         ]
         if self.simulation_reinsurance_type == "non-proportional":
             if agent_parameters["non-proportional_reinsurance_level"] is not None:
@@ -160,7 +168,7 @@ class MetaInsuranceOrg:
             self.simulation_parameters["no_categories"]
         )
         self.market_permanency_counter = 0
-        # The share of all risks that this firm holds
+        # The share of all risks that this firm holds. Gets updated every timestep
         self.risk_share = 0
 
     def iterate(self, time):
@@ -168,9 +176,9 @@ class MetaInsuranceOrg:
                     Accepts:
                         Time: Type Integer
                     No return value
-                    For each time step this method obtains every firms interest payments, pays obligations, claim reinsurance,
-                    matures necessary contracts. Check condition for operational firms (as never removed) so only operational
-                    firms receive new risks to evaluate, pay dividends, adjust capacity."""
+                    For each time step this method obtains every firms interest payments, pays obligations, claim
+                    reinsurance, matures necessary contracts. Check condition for operational firms (as never removed)
+                    so only operational firms receive new risks to evaluate, pay dividends, adjust capacity."""
 
         """obtain investments yield"""
         self.obtain_yield(time)
@@ -269,10 +277,16 @@ class MetaInsuranceOrg:
 
             """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
             # TODO: Enable reinsurance shares other than 0.0 and 1.0
-            expected_profit, acceptable_by_category, cash_left_by_categ, var_per_risk_per_categ, self.excess_capital = self.riskmodel.evaluate(
-                underwritten_risks, self.cash
-            )
-            # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions, reinsurers before).
+            [
+                _,
+                acceptable_by_category,
+                cash_left_by_categ,
+                var_per_risk_per_categ,
+                self.excess_capital,
+            ] = self.riskmodel.evaluate(underwritten_risks, self.cash)
+            # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions,
+            #  reinsurers before).
+
             #  This is currently so because it minimizes the number of times we need to run self.riskmodel.evaluate().
             #  It would also be more consistent if excess capital would be updated at the end of the iteration.
             """handle adjusting capacity target and capacity"""
@@ -305,7 +319,8 @@ class MetaInsuranceOrg:
             )
 
             for repetition in range(self.recursion_limit):
-                # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is not accepting any more over several iterations.
+                # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is
+                #  not accepting any more over several iterations. Done, maybe?
                 former_risks_per_categ = copy.copy(risks_per_categ)
                 # Here we process all the new risks in order to keep the portfolio as balanced as possible.
                 risks_per_categ, not_accepted_risks = self.process_newrisks_insurer(
@@ -330,9 +345,9 @@ class MetaInsuranceOrg:
                Accepts arguments
                    time: Type integer. The current time.
                No return value.
-           This method is called when a firm does not have enough cash to pay all its obligations. It is only called from
-           the method self._effect_payments() which is called at the beginning of the self.iterate() method of this class.
-           This method formalizes the bankruptcy through the method self.enter_bankruptcy()."""
+           This method is called when a firm does not have enough cash to pay all its obligations. It is only called
+           from the method self._effect_payments() which is called at the beginning of the self.iterate() method of
+           this class. This method formalizes the bankruptcy through the method self.enter_bankruptcy()."""
         self.enter_bankruptcy(time)
 
     def enter_bankruptcy(self, time):
@@ -350,11 +365,11 @@ class MetaInsuranceOrg:
                Accepts arguments
                    time: Type integer. The current time.
                No return value.
-           This method is called when a firms wants to leave the market because it feels that it has been underperforming
-           for too many periods. It is only called from the method self.market_permanency() that it is run in the main iterate
-           method of this class. It needs to be different from the method self.enter_bankruptcy() because in this case
-           all the obligations can be paid. After paying all the obligations this method dissolves the firm through the
-           method self.dissolve()."""
+           This method is called when a firms wants to leave the market because it feels that it has been
+           underperforming for too many periods. It is only called from the method self.market_permanency() that it is
+           run in the main iterate method of this class. It needs to be different from the method
+           self.enter_bankruptcy() because in this case all the obligations can be paid. After paying all the
+           obligations this method dissolves the firm through the method self.dissolve()."""
         due = [item for item in self.obligations]
         for obligation in due:
             self.pay(obligation)
@@ -369,11 +384,12 @@ class MetaInsuranceOrg:
                    the dissolution of the firm.So far it can be either 'record_bankruptcy' or 'record_market_exit'.
                No return value.
            This method dissolves the firm. It is called from the methods self.enter_bankruptcy() and self.market_exit()
-           of this class (metainsuranceorg.py). First of all it dissolves all the contracts currently held (those in self.underwritten_contracts).
+           of this class (metainsuranceorg.py). First of all it dissolves all the contracts currently held (those in
+           self.underwritten_contracts).
            Next all the cash currently available is transferred to insurancesimulation.py through an obligation in the
            next iteration. Finally the type of dissolution is recorded and the operational state is set to false.
-           Different class variables are reset during the process: self.risks_kept, self.reinrisks_kept, self.excess_capital
-           and self.profits_losses."""
+           Different class variables are reset during the process: self.risks_kept, self.reinrisks_kept,
+           self.excess_capital and self.profits_losses."""
         for contract in self.underwritten_contracts:
             contract.dissolve(time)
         # removing (dissolving) all risks immediately after bankruptcy (may not be realistic,
@@ -478,7 +494,8 @@ class MetaInsuranceOrg:
                     Accepts:
                         time: Type integer
                     No return value
-                    If firm has positive profits will pay percentage of them as dividends. Currently pays to simulation."""
+                    If firm has positive profits will pay percentage of them as dividends. Currently pays to simulation.
+                    """
 
         self.receive_obligation(self.per_period_dividend, self.owner, time, "dividend")
 
@@ -587,9 +604,9 @@ class MetaInsuranceOrg:
                 new_risks: Type list of DataDicts."""
         new_risks = []
         if self.is_insurer:
-            new_risks += self.simulation.solicit_insurance_requests(self.cash, self)
+            new_risks += self.simulation.solicit_insurance_requests(self)
         if self.is_reinsurer:
-            new_risks += self.simulation.solicit_reinsurance_requests(self.cash, self)
+            new_risks += self.simulation.solicit_reinsurance_requests(self)
 
         new_nonproportional_risks = [
             risk
@@ -719,7 +736,7 @@ class MetaInsuranceOrg:
         """Method to decide if new risks are underwritten for the reinsurance firm.
             Accepts:
                 reinrisks_per_categ: Type List of lists containing new reinsurance risks.
-                number_reinrisks_per_categ: Type List of integers, contains number of new reinsurance risks per category.
+                number_reinrisks_per_categ: Type List of integers, contains number of new reinsurance risks by category.
                 time: Type integer
             No return values.
            This method processes one by one the reinrisks contained in reinrisks_per_categ in order to decide whether

@@ -1,8 +1,13 @@
 import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
 
+# TODO: This and MetaInsuranceOrg should probably both subclass something simple - a MetaAgent, say. MetaInsuranceOrg
+#  can do more than a CatBond should be able to!
 
+
+# noinspection PyAbstractClass
 class CatBond(MetaInsuranceOrg):
+    # noinspection PyMissingConstructor
     def __init__(self, simulation, per_period_premium, owner, interest_rate=0):
         """Initialising methods.
             Accepts:

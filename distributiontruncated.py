@@ -17,8 +17,8 @@ class TruncatedDistWrapper:
     def pdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
-            lambda Y: self.dist.pdf(Y) / self.normalizing_factor
-            if (self.lower_bound <= Y <= self.upper_bound)
+            lambda y: self.dist.pdf(y) / self.normalizing_factor
+            if (self.lower_bound <= y <= self.upper_bound)
             else 0,
             x,
         )
@@ -31,11 +31,11 @@ class TruncatedDistWrapper:
     def cdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
-            lambda Y: 0
-            if Y < self.lower_bound
+            lambda y: 0
+            if y < self.lower_bound
             else 1
-            if Y > self.upper_bound
-            else (self.dist.cdf(Y) - self.dist.cdf(self.lower_bound))
+            if y > self.upper_bound
+            else (self.dist.cdf(y) - self.dist.cdf(self.lower_bound))
             / self.normalizing_factor,
             x,
         )

@@ -21,11 +21,11 @@ class ReinsuranceDistWrapper:
     def pdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
-            lambda Y: self.dist.pdf(Y)
-            if Y < self.lower_bound
+            lambda y: self.dist.pdf(y)
+            if y < self.lower_bound
             else np.inf
-            if Y == self.lower_bound
-            else self.dist.pdf(Y + self.upper_bound - self.lower_bound),
+            if y == self.lower_bound
+            else self.dist.pdf(y + self.upper_bound - self.lower_bound),
             x,
         )
         r = np.array(list(r))
@@ -37,9 +37,9 @@ class ReinsuranceDistWrapper:
     def cdf(self, x):
         x = np.array(x, ndmin=1)
         r = map(
-            lambda Y: self.dist.cdf(Y)
-            if Y < self.lower_bound
-            else self.dist.cdf(Y + self.upper_bound - self.lower_bound),
+            lambda y: self.dist.cdf(y)
+            if y < self.lower_bound
+            else self.dist.cdf(y + self.upper_bound - self.lower_bound),
             x,
         )
         r = np.array(list(r))
@@ -52,11 +52,11 @@ class ReinsuranceDistWrapper:
         x = np.array(x, ndmin=1)
         assert (x >= 0).all() and (x <= 1).all()
         r = map(
-            lambda Y: self.dist.ppf(Y)
-            if Y <= self.dist.cdf(self.lower_bound)
+            lambda y: self.dist.ppf(y)
+            if y <= self.dist.cdf(self.lower_bound)
             else self.dist.ppf(self.dist.cdf(self.lower_bound))
-            if Y <= self.dist.cdf(self.upper_bound)
-            else self.dist.ppf(Y) - self.upper_bound + self.lower_bound,
+            if y <= self.dist.cdf(self.upper_bound)
+            else self.dist.ppf(y) - self.upper_bound + self.lower_bound,
             x,
         )
         r = np.array(list(r))

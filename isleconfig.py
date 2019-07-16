@@ -21,7 +21,7 @@ simulation_parameters = {
     "margin_increase": 0,
     # "margin_increase" modifies the margin of safety depending on the number of risks models available in the market.
     # When it is 0 all risk models have the same margin of safety.
-    "value_at_risk_tail_probability": 0.005,
+    "value_at_risk_tail_probability": 0.02,
     # values <1, >0, usually close to 0; tail probability at which the value at risk is taken by the risk models
     "norm_profit_markup": 0.15,
     "rein_norm_profit_markup": 0.15,
@@ -102,9 +102,10 @@ simulation_parameters = {
     "lower_price_limit": 0.85,
     "no_risks": 20000,
     # Determines the maximum upscaling of premiums based on insurer size - set to 1 to disable scaled premiums.
-    # Values between 0 and 1 will make premiums decrease for bigger insurers
-    "max_scale_premiums": 2,
+    # High values will give bigger insurers more money
+    # Values between 0 and 1 will make premiums decrease for bigger insurers.
+    "max_scale_premiums": 1.2,
     # Determines the minimum fraction of inaccuracy that insurers can achieve - a value of 0 means the biggest insurers
     # can be perfectly accurate, a value of 1 disables changes in inaccuracy based on size
-    "scale_inaccuracy": 0.5,
+    "scale_inaccuracy": 0.3,
 }

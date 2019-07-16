@@ -24,7 +24,7 @@ class MetaInsuranceContract:
                     payment_period: Type integer.
                     expire_immediately: Type boolean. True if the contract expires with the first risk event. False
                                        if multiple risk events are covered.
-                    initial_var: Type float. Initial value at risk. Used only to compute true and estimated value at risk.
+                    initial_var: Type float. Initial value at risk. Used only to compute true and estimated VaR.
                 optional:
                     insurancetype: Type string. The type of this contract, especially "proportional" vs "excess_of_loss"
                     deductible_fraction: Type float (or int)
@@ -111,7 +111,8 @@ class MetaInsuranceContract:
                     Accepts:
                         time: Type integer
                     No return values.
-                This method checks if a scheduled premium payment is due, pays it to the insurer, and removes from schedule."""
+                This method checks if a scheduled premium payment is due, pays it to the insurer,
+                    and removes from schedule."""
         if len(self.payment_times) > 0 and time >= self.payment_times[-1]:
             # Create obligation for premium payment
             self.property_holder.receive_obligation(
@@ -128,7 +129,8 @@ class MetaInsuranceContract:
             Returns:
                 self.category: Type integer. Which category the contracted risk is in.
                 current_claim: Type decimal
-                self.insurancetype == proportional: Type Boolean. Returns True if insurance is proportional and vice versa.
+                self.insurancetype == "proportional": Type Boolean. Returns True if insurance is
+                    proportional and vice versa.
         This method retuns the current claim, then resets it, and also indicates the type of insurance."""
         current_claim = self.current_claim
         self.current_claim = 0

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from numpy import array
 
 rfile = open("data/history_logs.dat", "r")
 
