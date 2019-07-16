@@ -24,7 +24,7 @@ class RiskModel:
         self.cat_separation_distribution = cat_separation_distribution
         self.norm_premium = norm_premium
         # QUERY: Whis is this passed as an argument and then ignored?
-        self.var_tail_prob = 0.02
+        self.var_tail_prob = var_tail_prob
         self.expire_immediately = expire_immediately
         self.category_number = category_number
         self.init_average_exposure = init_average_exposure
@@ -86,12 +86,35 @@ class RiskModel:
         if self.expire_immediately:
             incr_expected_profits = -1
             # TODO: fix the norm_premium estimation
-            # incr_expected_profits = (self.norm_premium - (1 - scipy.stats.poisson(1 / self.cat_separation_distribution.mean() * \
-            #                    mean_runtime).pmf(0)) * self.damage_distribution[categ_id].mean() * average_risk_factor) * average_exposure * len(categ_risks)
+            # incr_expected_profits = (
+            #     (
+            #         self.norm_premium
+            #         - (
+            #             1
+            #             - scipy.stats.poisson(
+            #                 1 / self.cat_separation_distribution.mean() * mean_runtime
+            #             ).pmf(0)
+            #         )
+            #         * self.damage_distribution[categ_id].mean()
+            #         * average_risk_factor
+            #     )
+            #     * average_exposure
+            #     * len(categ_risks)
+            # )
         else:
             incr_expected_profits = -1
             # TODO: expected profits should only be returned once the expire_immediately == False case is fixed
-            # incr_expected_profits = (self.norm_premium - mean_runtime / self.cat_separation_distribution[categ_id].mean() * self.damage_distribution.mean() * average_risk_factor) * average_exposure * len(categ_risks)
+            # incr_expected_profits = (
+            #     (
+            #         self.norm_premium
+            #         - mean_runtime
+            #         / self.cat_separation_distribution[categ_id].mean()
+            #         * self.damage_distribution.mean()
+            #         * average_risk_factor
+            #     )
+            #     * average_exposure
+            #     * len(categ_risks)
+            # )
 
         return average_risk_factor, average_exposure, incr_expected_profits
 
@@ -102,8 +125,10 @@ class RiskModel:
                 cash: Type List. Gives cash available for each category.
             Returns:
                 expected_profits: Type Decimal (Currently returns None)
-                remaining_acceptable_by_category: Type List of Integers. Number of risks that would not be covered by firms cash.
-                cash_left_by_category: Type List of Integers. Firms expected cash left if underwriting the risks from that category.
+                remaining_acceptable_by_category: Type List of Integers. Number of risks that would not be covered by
+                    firms cash.
+                cash_left_by_category: Type List of Integers. Firms expected cash left if underwriting the risks from
+                    that category.
                 var_per_risk_per_categ: List of Integers. Average VaR per category.
         This method iterates through the risks in each category and calculates the average VaR, how many could be
         underwritten according to their average VaR, how much cash would be left per category if all risks were
@@ -185,7 +210,7 @@ class RiskModel:
         max_cash_by_categ = max(cash_left_by_category)
         floored_cash_by_categ = cash_left_by_category.copy()
         floored_cash_by_categ[floored_cash_by_categ < 0] = 0
-        remaining_acceptable_by_category_old = remaining_acceptable_by_category.copy()
+        # remaining_acceptable_by_category_old = remaining_acceptable_by_category.copy()
         for categ_id in range(self.category_number):
             # QUERY: Where does this come from?
             remaining_acceptable_by_category[categ_id] = math.floor(
@@ -292,16 +317,19 @@ class RiskModel:
                 offered_risk: Type DataDict or defaults to None.
             (offered_risk = None) Returns:
                 expected_profits_proportional: Type Decimal (Currently returns None)
-                remaining_acceptable_by_categ:  Type List of Integers. Number of risks that would not be covered by firms cash.
-                cash_left_by_categ: Type List of Integers. Firms expected cash left if underwriting the risks from that category.
+                remaining_acceptable_by_categ:  Type List of Integers. Number of risks that would not be covered by
+                    firms cash.
+                cash_left_by_categ: Type List of Integers. Firms expected cash left if underwriting the risks from that
+                    category.
                 var_per_risk_per_categ: List of Integers. Average VaR per category
                 min(cash_left_by_categ): Type Decimal. Minimum
             (offered_risk != None) Returns:
-                (cash_left_by_categ - additional_required > 0).all(): Type Boolean. Returns True only if all categories have
-                                                                      enough to cover the additional capital to insure risk.
+                (cash_left_by_categ - additional_required > 0).all(): Type Boolean. Returns True only if all categories
+                    have enough to cover the additional capital to insure risk.
                 cash_left_by_categ: Type List of Decimals. Cash left per category if all risks claimed.
                 var_this_risk: Type Decimal. Expected claim of offered risk.
-                min(cash_left_by_categ): Type Decimal. Minimum value of cash left in a category after covering all expected claims.
+                min(cash_left_by_categ): Type Decimal. Minimum value of cash left in a category after covering all
+                    expected claims.
         This method organises all risks by insurance type then delegates then to respective methods
         (evaluate_prop/evaluate_excess_of_loss). Excess of loss risks are processed one at a time and are admitted using
         the offered_risk argument, whereas proportional risks are processed all at once leaving offered_risk = 0. This
@@ -328,9 +356,12 @@ class RiskModel:
                 el_risks, cash_left_by_categ, offered_risk
             )
         if (offered_risk is None) or (len(risks) > 0):
-            expected_profits_proportional, remaining_acceptable_by_categ, cash_left_by_categ, var_per_risk_per_categ = self.evaluate_proportional(
-                risks, cash_left_by_categ
-            )
+            [
+                expected_profits_proportional,
+                remaining_acceptable_by_categ,
+                cash_left_by_categ,
+                var_per_risk_per_categ,
+            ] = self.evaluate_proportional(risks, cash_left_by_categ)
         if offered_risk is None:
             # return numbers of remaining acceptable risks by category
             return (
@@ -378,16 +409,12 @@ class RiskModel:
             dist=self.damage_distribution[categ_id],
         )
 
-    def delete_reinsurance(
-        self, categ_id, excess_fraction, deductible_fraction, contract
-    ):
+    def delete_reinsurance(self, categ_id, contract):
         """Method to remove any instance of reinsurance to risk models list of reinsurance contracts, and remove its
         damage distribution from the stack of damage distributions per category. Only used in the delete_reinsurance
         method of insurancefirm.
             Accepts:
                 categ_id: Type Integer.
-                excess_fraction: Type Decimal.
-                deductible_fraction: Type Decimal.
                 contract: Type DataDict.
             No return values."""
         assert self.reinsurance_contract_stack[categ_id][-1] == contract

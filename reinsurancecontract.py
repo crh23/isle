@@ -102,10 +102,7 @@ class ReinsuranceContract(MetaInsuranceContract):
 
         if self.insurancetype == "excess-of-loss":
             self.property_holder.delete_reinsurance(
-                category=self.category,
-                excess_fraction=self.excess_fraction,
-                deductible_fraction=self.deductible_fraction,
-                contract=self,
+                category=self.category, contract=self
             )
         else:  # TODO: ? Instead: if self.insurancetype == "proportional":
             self.contract.unreinsure()

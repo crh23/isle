@@ -39,16 +39,14 @@ class CalibrationScore:
         """Print components"""
         print("\n")
         for cond_name, score in scores.items():
-            print("{0:47s}: {1:8f}".format(cond_name, score))
+            print(f"{cond_name:47s}: {score:8f}")
         """Compute combined score"""
         self.calibration_score = self.combine_scores(
             np.array([*scores.values()], dtype=object)
         )
         """Print combined score"""
         print(
-            "\n                        Total calibration score: {0:8f}".format(
-                self.calibration_score
-            )
+            f"\n                        Total calibration score: {self.calibration_score:8f}"
         )
         """Return"""
         return self.calibration_score

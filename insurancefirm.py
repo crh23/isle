@@ -62,8 +62,8 @@ class InsuranceFirm(MetaInsuranceOrg):
                    Accepts:
                        max_var: Type Decimal.
                    No return values.
-               This method decides to increase/decrease the capacity target dependant on if the ratio of capacity target to max
-               VaR is above/below a predetermined limit."""
+               This method decides to increase/decrease the capacity target dependant on if the ratio of
+                capacity target to max VaR is above/below a predetermined limit."""
         reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
         if max_var + reinsurance_var_estimate == 0:
             # TODO: why is this being called with max_var = 0 anyway?
@@ -92,9 +92,9 @@ class InsuranceFirm(MetaInsuranceOrg):
                         max_var: Type Decimal.
                     Returns:
                         self.cash (+ reinsurance_VaR_estimate): Type Decimal.
-                This method is called by increase_capacity to get the real capacity of the firm. If the firm has enough money to
-                cover its max value at risk then its capacity is its cash + the reinsurance VaR estimate, otherwise the firm is
-                recovering from some losses and so capacity is just cash."""
+                This method is called by increase_capacity to get the real capacity of the firm. If the firm has
+                enough money to cover its max value at risk then its capacity is its cash + the reinsurance VaR
+                estimate, otherwise the firm is recovering from some losses and so capacity is just cash."""
         if max_var < self.cash:
             reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
             return self.cash + reinsurance_var_estimate
@@ -176,9 +176,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         only issue if market premium is greater than firms average premium."""
         if isleconfig.verbose:
             print(
-                "IF {0:d} increasing capacity in period {1:d}, cat bond price: {2:f}, reinsurance premium {3:f}".format(
-                    self.id, time, cat_bond_price, reinsurance_price
-                )
+                f"IF {self.id:d} increasing capacity in period {time:d}, cat bond price: {cat_bond_price:f}, reinsurance premium {reinsurance_price:f}"
             )
         if not force:
             actual_premium = self.get_average_premium(categ_id)
@@ -188,13 +186,11 @@ class InsuranceFirm(MetaInsuranceOrg):
         """on the basis of prices decide for obtaining reinsurance or for issuing cat bond"""
         if reinsurance_price > cat_bond_price:
             if isleconfig.verbose:
-                print("IF {0:d} issuing Cat bond in period {1:d}".format(self.id, time))
+                print(f"IF {self.id:d} issuing Cat bond in period {time:d}")
             self.issue_cat_bond(time, categ_id)
         else:
             if isleconfig.verbose:
-                print(
-                    "IF {0:d} getting reinsurance in period {1:d}".format(self.id, time)
-                )
+                print(f"IF {self.id:d} getting reinsurance in period {time:d}")
             self.ask_reinsurance_non_proportional_by_category(time, categ_id)
         return True
 
@@ -243,7 +239,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             if self.category_reinsurance[categ_id] is None:
                 self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
-    def characterize_underwritten_risks_by_category(self, time, categ_id):
+    def characterize_underwritten_risks_by_category(self, categ_id):
         """Method to characterise associated risks in a given category in terms of value, number, avg risk factor, and
         total premium per iteration.
             Accepts:
@@ -283,9 +279,12 @@ class InsuranceFirm(MetaInsuranceOrg):
         and, assuming firms has underwritten risks in category, creates new reinsurance risk with values based on firms
         existing underwritten risks. If the method was called to create a new risks then it is appended to list of
         'reinrisks', otherwise used for creating the risk when a reinsurance contract rolls over."""
-        total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(
-            time, categ_id
-        )
+        [
+            total_value,
+            avg_risk_factor,
+            number_risks,
+            periodized_total_premium,
+        ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
             risk = {
                 "value": total_value,
@@ -358,20 +357,14 @@ class InsuranceFirm(MetaInsuranceOrg):
         )
         self.category_reinsurance[category] = contract
 
-    def delete_reinsurance(
-        self, category, excess_fraction, deductible_fraction, contract
-    ):
+    def delete_reinsurance(self, category, contract):
         """Method called by reinsurancecontract to delete the reinsurance contract from the firms counter for the given
         category, used so that another reinsurance contract can be issued for that category if needed.
             Accepts:
                 category: Type Integer.
-                excess_fraction: Type Decimal. Value of excess.
-                deductible_fraction: Type Decimal. Value of deductible.
                 contract: Type Class. Reinsurance contract issued to firm.
             No return values."""
-        self.riskmodel.delete_reinsurance(
-            category, excess_fraction, deductible_fraction, contract
-        )
+        self.riskmodel.delete_reinsurance(category, contract)
         self.category_reinsurance[category] = None
 
     def issue_cat_bond(self, time, categ_id, per_value_per_period_premium=0):
@@ -384,9 +377,12 @@ class InsuranceFirm(MetaInsuranceOrg):
         Method is only called by increase_capacity_by_category method when CatBond prices are lower than reinsurance. It
         then creates the CatBond as a quasi-reinsurance contract that is paid for immediately (by simulation) with no
         premium payments."""
-        total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(
-            time, categ_id
-        )
+        [
+            total_value,
+            avg_risk_factor,
+            number_risks,
+            _,
+        ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
             risk = {
                 "value": total_value,
@@ -411,9 +407,11 @@ class InsuranceFirm(MetaInsuranceOrg):
                 ]
             )  # TODO: or is it range(1, risk["runtime"]+1)?
             # catbond = CatBond(self.simulation, per_period_premium)
+            # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag
+            #  parameters like self.interest_rate from instance to instance and from class to class
             new_catbond = catbond.CatBond(
                 self.simulation, per_period_premium, self.interest_rate
-            )  # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like self.interest_rate from instance to instance and from class to class
+            )
 
             """add contract; contract is a quasi-reinsurance contract"""
             contract = ReinsuranceContract(
@@ -427,7 +425,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                 initial_var=var_this_risk,
                 insurancetype=risk["insurancetype"],
             )
-            # per_value_reinsurance_premium = 0 because the insurance firm does not continue to make payments to the cat bond. Only once.
+            # per_value_reinsurance_premium = 0 because the insurance firm make only one payment to catbond
 
             new_catbond.set_contract(contract)
             """sell cat bond (to self.simulation)"""
@@ -493,9 +491,12 @@ class InsuranceFirm(MetaInsuranceOrg):
 
     def create_reinrisk(self, time, categ_id):
         """Proceed with creation of reinsurance risk only if category is not empty."""
-        total_value, avg_risk_factor, number_risks, periodized_total_premium = self.characterize_underwritten_risks_by_category(
-            time, categ_id
-        )
+        [
+            total_value,
+            avg_risk_factor,
+            number_risks,
+            periodized_total_premium,
+        ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
             # TODO: make runtime into a parameter
             risk = {

@@ -28,7 +28,7 @@ class InsuranceSimulation:
     def __init__(
         self,
         override_no_riskmodels,
-        replic_ID,
+        replic_id,
         simulation_parameters,
         rc_event_schedule,
         rc_event_damage,
@@ -53,11 +53,11 @@ class InsuranceSimulation:
         self.number_riskmodels = simulation_parameters["no_riskmodels"]
 
         # save parameters
-        if (replic_ID is None) or isleconfig.force_foreground:
+        if (replic_id is None) or isleconfig.force_foreground:
             self.background_run = False
         else:
             self.background_run = True
-        self.replic_ID = replic_ID
+        self.replic_id = replic_id
         self.simulation_parameters = simulation_parameters
 
         "Unpacks parameters and sets distributions"
@@ -171,8 +171,7 @@ class InsuranceSimulation:
             )
 
         self.inaccuracy = self._get_all_riskmodel_combinations(
-            self.simulation_parameters["no_categories"],
-            self.simulation_parameters["riskmodel_inaccuracy_parameter"],
+            self.simulation_parameters["riskmodel_inaccuracy_parameter"]
         )
 
         self.inaccuracy = random.sample(
@@ -205,6 +204,9 @@ class InsuranceSimulation:
         #  firms (why can't we just get that from the instances of InsuranceFirm) or a list of the *possible* parameter
         #  values for insurance firms (in which case why does it have the length it does)?
         self.agent_parameters = {"insurancefirm": [], "reinsurancefirm": []}
+        self.insurer_id_counter = 0
+        self.reinsurer_id_counter = 0
+
         self.initialize_agent_parameters(
             "insurancefirm", simulation_parameters, risk_model_configurations
         )
@@ -245,6 +247,7 @@ class InsuranceSimulation:
             self.simulation_parameters["no_categories"]
         )
         self._time = None
+        self.RN = None
 
     def initialize_agent_parameters(
         self, firmtype, simulation_parameters, risk_model_configurations
@@ -254,7 +257,6 @@ class InsuranceSimulation:
               Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
                 Returns None"""
         if firmtype == "insurancefirm":
-            self.insurer_id_counter = 0
             no_firms = simulation_parameters["no_insurancefirms"]
             initial_cash = "initial_agent_cash"
             reinsurance_level_lowerbound = simulation_parameters[
@@ -265,7 +267,6 @@ class InsuranceSimulation:
             ]
 
         elif firmtype == "reinsurancefirm":
-            self.reinsurer_id_counter = 0
             no_firms = simulation_parameters["no_reinsurancefirms"]
             initial_cash = "initial_reinagent_cash"
             reinsurance_level_lowerbound = simulation_parameters[
@@ -282,6 +283,8 @@ class InsuranceSimulation:
                 unique_id = self.get_unique_insurer_id()
             elif firmtype == "reinsurancefirm":
                 unique_id = self.get_unique_reinsurer_id()
+            else:
+                raise ValueError(f"Firm type {firmtype} not recognised")
 
             if simulation_parameters["static_non-proportional_reinsurance_levels"]:
                 reinsurance_level = simulation_parameters[
@@ -365,7 +368,7 @@ class InsuranceSimulation:
                 ]
                 # We've made the agents, add them to the simulation
                 self.insurancefirms += agents
-                for agent in agents:
+                for _ in agents:
                     self.logger.add_insurance_agent()
 
             elif agent_class_string == "reinsurancefirm":
@@ -389,7 +392,7 @@ class InsuranceSimulation:
                     for ap in agent_parameters
                 ]
                 self.reinsurancefirms += agents
-                for agent in agents:
+                for _ in agents:
                     self.logger.add_reinsurance_agent()
 
             elif agent_class_string == "catbond":
@@ -533,14 +536,12 @@ class InsuranceSimulation:
             Returns None."""
 
         """ collect data """
-        total_cash_no = sum(
-            [insurancefirm.cash for insurancefirm in self.insurancefirms]
-        )
+        total_cash_no = sum([firm.cash for firm in self.insurancefirms])
         total_excess_capital = sum(
             [firm.get_excess_capital() for firm in self.insurancefirms]
         )
         total_profitslosses = sum(
-            [insurancefirm.get_profitslosses() for insurancefirm in self.insurancefirms]
+            [firm.get_profitslosses() for firm in self.insurancefirms]
         )
         total_contracts_no = sum(
             [len(firm.underwritten_contracts) for firm in self.insurancefirms]
@@ -681,7 +682,6 @@ class InsuranceSimulation:
             Returns None"""
         amount = obligation["amount"]
         recipient = obligation["recipient"]
-        purpose = obligation["purpose"]
         if not self.money_supply > amount:
             warnings.warn("Something wrong: economy out of money", RuntimeWarning)
         if recipient.get_operational():
@@ -709,9 +709,7 @@ class InsuranceSimulation:
         self.not_accepted_reinrisks = []
 
         operational_reinfirms = [
-            reinsurancefirm
-            for reinsurancefirm in self.reinsurancefirms
-            if reinsurancefirm.operational
+            firm for firm in self.reinsurancefirms if firm.operational
         ]
 
         operational_no = len(operational_reinfirms)
@@ -742,15 +740,9 @@ class InsuranceSimulation:
         """Method for clearing and setting insurance weights dependant on how many insurance companies exist and
             how many insurance risks are offered. This determined which risks are sent to metainsuranceorg
             iteration."""
-        operational_no = sum(
-            [insurancefirm.operational for insurancefirm in self.insurancefirms]
-        )
+        operational_no = sum([firm.operational for firm in self.insurancefirms])
 
-        operational_firms = [
-            insurancefirm
-            for insurancefirm in self.insurancefirms
-            if insurancefirm.operational
-        ]
+        operational_firms = [firm for firm in self.insurancefirms if firm.operational]
 
         risks_no = len(self.risks)
 
@@ -780,10 +772,10 @@ class InsuranceSimulation:
                Accepts arguments
                    capital: Type float. The total capital (cash) available in the insurance market (insurance only).
                No return value.
-           This method adjusts the premium charged by insurance firms for the risks covered. The premium reduces linearly
-           with the capital available in the insurance market and viceversa. The premium reduces until it reaches a minimum
-           below which no insurer is willing to reduce further the price. This method is only called in the self.iterate()
-           method of this class."""
+           This method adjusts the premium charged by insurance firms for the risks covered. The premium reduces
+           linearly with the capital available in the insurance market and viceversa. The premium reduces until it
+           reaches a minimum below which no insurer is willing to reduce further the price. This method is only called
+           in the self.iterate() method of this class."""
         self.market_premium = self.norm_premium * (
             self.simulation_parameters["upper_price_limit"]
             - self.simulation_parameters["premium_sensitivity"]
@@ -804,10 +796,10 @@ class InsuranceSimulation:
                Accepts arguments
                    capital: Type float. The total capital (cash) available in the reinsurance market (reinsurance only).
                No return value.
-           This method adjusts the premium charged by reinsurance firms for the risks covered. The premium reduces linearly
-           with the capital available in the reinsurance market and viceversa. The premium reduces until it reaches a minimum
-           below which no reinsurer is willing to reduce further the price. This method is only called in the self.iterate()
-           method of this class."""
+           This method adjusts the premium charged by reinsurance firms for the risks covered. The premium reduces
+           linearly with the capital available in the reinsurance market and viceversa. The premium reduces until it
+           reaches a minimum below which no reinsurer is willing to reduce further the price. This method is only
+           called in the self.iterate() method of this class."""
         self.reinsurance_market_premium = self.norm_premium * (
             self.simulation_parameters["upper_price_limit"]
             - self.simulation_parameters["reinpremium_sensitivity"]
@@ -856,8 +848,9 @@ class InsuranceSimulation:
         )
 
     def get_cat_bond_price(self, np_reinsurance_deductible_fraction):
-        """Method to calculate and return catbond price. If catbonds are not desired will return infinity so no catbonds
-            will be issued. Otherwise calculates based on reinsurance market premium, catbond premium, deductible fraction.
+        """Method to calculate and return catbond price. If catbonds are not desired will return infinity so no
+            catbonds will be issued. Otherwise calculates based on reinsurance market premium, catbond premium,
+            deductible fraction.
            Accepts:
                 np_reinsurance_deductible_fraction: Type Integer
            Returns:
@@ -891,7 +884,7 @@ class InsuranceSimulation:
         np.random.shuffle(self.reinrisks)
         return self.reinrisks
 
-    def solicit_insurance_requests(self, cash, insurer):
+    def solicit_insurance_requests(self, insurer):
         """Method for determining which risks are to be assessed by firms based on insurer weights
                     Accepts:
                         cash: Type Integer
@@ -910,7 +903,7 @@ class InsuranceSimulation:
 
         return risks_to_be_sent
 
-    def solicit_reinsurance_requests(self, cash, reinsurer):
+    def solicit_reinsurance_requests(self, reinsurer):
         """Method for determining which reinsurance risks are to be assessed by firms based on reinsurer weights
                            Accepts:
                                id: Type integer
@@ -947,7 +940,7 @@ class InsuranceSimulation:
                             Returns None"""
         self.not_accepted_reinrisks += not_accepted_risks
 
-    def _get_all_riskmodel_combinations(self, n, rm_factor):
+    def _get_all_riskmodel_combinations(self, rm_factor):
         """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
                     used purely to assign inaccuracy. Undervalues one risk category and overestimates all the rest.
                     Accepts:
@@ -999,8 +992,9 @@ class InsuranceSimulation:
         """Record_market_exit Method.
                Accepts no arguments.
                No return value.
-           This method is used to record the firms that leave the market due to underperforming conditions. It is only called
-           from the method dissolve() from the class metainsuranceorg.py after the dissolution of the firm."""
+           This method is used to record the firms that leave the market due to underperforming conditions. It is
+           only called from the method dissolve() from the class metainsuranceorg.py after the dissolution of the
+           firm."""
         self.cumulative_market_exits += 1
 
     def record_unrecovered_claims(self, loss):
@@ -1092,6 +1086,7 @@ class InsuranceSimulation:
             0 : self.simulation_parameters["no_riskmodels"]
         ].argmin()
 
+    # noinspection PyMethodMayBeStatic
     def get_operational(self):
         """Method to return if simulation is operational. Always true. Used only in pay methods above and
                     metainsuranceorg.
@@ -1131,8 +1126,8 @@ class InsuranceSimulation:
                Accepts no arguments.
                No return value.
            This method reset all the profits and losses of all insurance firms, reinsurance firms and catbonds."""
-        for insurancefirm in self.insurancefirms:
-            insurancefirm.reset_pl()
+        for firm in self.insurancefirms:
+            firm.reset_pl()
 
         for reininsurancefirm in self.reinsurancefirms:
             reininsurancefirm.reset_pl()
