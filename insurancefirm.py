@@ -98,8 +98,10 @@ class InsuranceFirm(MetaInsuranceOrg):
         if max_var < self.cash:
             reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
             return self.cash + reinsurance_var_estimate
-        # else: # (This point is only reached when insurer is in severe financial difficulty. Ensure insurer recovers complete coverage.)
-        return self.cash
+        else:
+            # (This point is only reached when insurer is in severe financial difficulty.
+            # Ensure insurer recovers complete coverage.)
+            return self.cash
 
     def increase_capacity(self, time, max_var):
         """Method to increase the capacity of the firm.
@@ -163,7 +165,7 @@ class InsuranceFirm(MetaInsuranceOrg):
     ):
         """Method to increase capacity. Only called by increase_capacity.
             Accepts:
-                time: Type Integer>
+                time: Type Integer
                 categ_id: Type integer.
                 reinsurance_price: Type Decimal.
                 cat_bond_price: Type Decimal.
