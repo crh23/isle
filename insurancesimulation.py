@@ -49,7 +49,7 @@ class InsuranceSimulation():
         self.risk_factor_distribution = scipy.stats.uniform(loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread)
         if not simulation_parameters["risk_factors_present"]:
             self.risk_factor_distribution = scipy.stats.uniform(loc=1.0, scale=0)
-        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)       #TODO is this correct?
+        self.risk_value_distribution = scipy.stats.uniform(loc=1000, scale=0)
         risk_factor_mean = self.risk_factor_distribution.mean()
         if np.isnan(risk_factor_mean):     # unfortunately scipy.stats.mean is not well-defined if scale = 0
             risk_factor_mean = self.risk_factor_distribution.rvs()
@@ -239,6 +239,8 @@ class InsuranceSimulation():
             except:
                 print(sys.exc_info())
                 pdb.set_trace()
+            for agent in agents:
+                self.logger.add_reinsurance_agent()
             # remove new agent cash from simulation cash to ensure stock flow consistency
             new_agent_cash = sum([agent.cash for agent in agents])
             self.reduce_money_supply(new_agent_cash)
@@ -399,6 +401,11 @@ class InsuranceSimulation():
         individual_contracts_no = [len(insurancefirm.underwritten_contracts) for insurancefirm in self.insurancefirms]
         for i in range(len(individual_contracts_no)):
             current_log['individual_contracts'].append(individual_contracts_no[i])
+
+        current_log['reinsurance_contracts'] = []
+        reinsurance_contracts_no = [len(reinsurancefirm.underwritten_contracts) for reinsurancefirm in self.reinsurancefirms]
+        for i in range(len(reinsurance_contracts_no)):
+            current_log['reinsurance_contracts'].append(reinsurance_contracts_no[i])
 
         """ call to Logger object """
         self.logger.record_data(current_log)
@@ -684,7 +691,7 @@ class InsuranceSimulation():
 
     def get_all_riskmodel_combinations(self, rm_factor):
         """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
-            used purely to assign inaccuracy. Currently all equal and overwritten immediately.
+            used purely to assign inaccuracy. Undervalues one risk category and overestimates all the rest.
             Accepts:
                 rm_factor: Type Integer = risk model inaccuracy parameter
             Returns:
