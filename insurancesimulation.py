@@ -277,6 +277,11 @@ class InsuranceSimulation:
             raise ValueError(f"Firm type {firmtype} not recognised")
 
         for i in range(no_firms):
+            if firmtype == "insurancefirm":
+                unique_id = self.get_unique_insurer_id()
+            elif firmtype == "reinsurancefirm":
+                unique_id = self.get_unique_reinsurer_id()
+
             if simulation_parameters["static_non-proportional_reinsurance_levels"]:
                 reinsurance_level = simulation_parameters[
                     "default_non-proportional_reinsurance_deductible"
@@ -291,7 +296,7 @@ class InsuranceSimulation:
             ]
             self.agent_parameters[firmtype].append(
                 {
-                    "id": self.get_unique_insurer_id(), # TODO: Fix
+                    "id": unique_id,
                     "initial_cash": simulation_parameters[initial_cash],
                     "riskmodel_config": riskmodel_config,
                     "norm_premium": self.norm_premium,
@@ -505,7 +510,7 @@ class InsuranceSimulation:
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
 
-        network_division = 2  # How often network is updated.
+        network_division = 1        # How often network is updated.
         if isleconfig.show_network and t % network_division == 0 and t > 0:
             if t == network_division:
                 self.RN = (
@@ -610,6 +615,11 @@ class InsuranceSimulation:
             len(firm.underwritten_contracts)
             for firm in self.insurancefirms
         ]
+
+        current_log['reinsurance_contracts'] = []
+        reinsurance_contracts_no = [len(reinsurancefirm.underwritten_contracts) for reinsurancefirm in self.reinsurancefirms]
+        for i in range(len(reinsurance_contracts_no)):
+            current_log['reinsurance_contracts'].append(reinsurance_contracts_no[i])
 
         """ call to Logger object """
         self.logger.record_data(current_log)
@@ -958,7 +968,7 @@ class InsuranceSimulation:
 
     def _get_all_riskmodel_combinations(self, n, rm_factor):
         """Method  for calculating riskmodels for each category based on the risk model inaccuracy parameter, and is
-                    used purely to assign inaccuracy. Currently all equal and overwritten immediately.
+                    used purely to assign inaccuracy. Undervalues one risk category and overestimates all the rest.
                     Accepts:
                         rm_factor: Type Integer = risk model inaccuracy parameter
                     Returns:
