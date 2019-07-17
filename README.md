@@ -47,11 +47,15 @@ bash starter_four.sh
 bash starter_three.sh
 ```
 
-## Plotting
+## Visualisation
 
 #### Single runs
-Use the script ```plotter.py``` to plot insurer and reinsurer data, or run  
-```visualisation.py [--single]``` from the command line to plot this and visualise the run.
+Use the script ```visualisation.py [--single]``` from the command line to plot data from a single run. It also takes the 
+arguments ```[--pie] [--timeseries]``` for which data representation is wanted.
+
+If the necessary data has been saved a network animation can also be created by running ```visualization_network.py``` 
+which takes the arguments ```[--save] [--number_iterations]``` if you want the animation to be saved as an mp4, and how
+time iterations you want in the animation.
 
 #### Ensemble runs
 Use  ```metaplotter_pl_timescale.py```,  ```metaplotter_pl_timescale_additional_measures.py```, 
