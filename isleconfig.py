@@ -3,7 +3,8 @@ replicating = False
 force_foreground = False
 verbose = False
 showprogress = True
-show_network = True             # Should network be visualized? This should be False by default, to be overridden by commandline arguments
+show_network = False             # Should network be visualized? This should be False by default, to be overridden by commandline arguments
+save_network = True
 slim_log = False                        # Should logs be small in ensemble runs (only aggregated level data)?
                        
 simulation_parameters = {"no_categories": 4,
@@ -74,5 +75,4 @@ simulation_parameters = {"no_categories": 4,
                          "upper_price_limit": 1.2,
                          "lower_price_limit": 0.85,
                          "no_risks": 20000}
-
 
