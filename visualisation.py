@@ -24,7 +24,8 @@ class TimeSeries(object):
             self.fig, self.axlst = plt.subplots(self.size,sharex=True)
 
     def plot(self, schedule=False):
-        event_categ_colours = ['r', 'b', 'g', 'fuchsia']
+        multi_categ_colours = ['r', 'b', 'g', 'fuchsia']
+        single_categ_colours = ['b', 'b', 'b', 'b']
         for i, (series, series_label, fill_lower, fill_upper) in enumerate(self.series_list):
             self.axlst[i].plot(self.timesteps, series,color=self.colour)
             self.axlst[i].set_ylabel(series_label)
@@ -37,7 +38,7 @@ class TimeSeries(object):
                     for event_time in self.events_schedule[categ]:
                         index = self.events_schedule[categ].index(event_time)
                         if self.damage_schedule[categ][index] > 0.5:    # Only plots line if event is significant
-                            self.axlst[i].axvline(event_time, color=event_categ_colours[categ], alpha=self.damage_schedule[categ][index])
+                            self.axlst[i].axvline(event_time, color=single_categ_colours[categ], alpha=self.damage_schedule[categ][index])
         self.axlst[self.size-1].set_xlabel(self.xlabel)
         self.fig.suptitle(self.title)
 
@@ -60,7 +61,7 @@ class InsuranceFirmAnimation(object):
         No return values.
     This class takes the cash and contract data of each firm over all time and produces an animation showing how the
     proportion of each for all operational firms changes with time. Allows it to be saved as an MP4."""
-    def __init__(self, cash_data, insure_contracts, event_schedule, type, save=False, perils=False):
+    def __init__(self, cash_data, insure_contracts, event_schedule, type, save=False, perils=True):
         # Converts list of events by category into list of all events.
         self.perils_condition = perils
         self.all_event_times = []
@@ -78,6 +79,11 @@ class InsuranceFirmAnimation(object):
         self.type = type
 
     def animate(self):
+        """Method to call animation of pie charts.
+            No accepted values.
+            No returned values.
+        This method is called after the simulation class is initialised to start the animation of pie charts, and will
+        save it as an mp4 if applicable."""
         self.pies = [0, 0]
         self.fig, (self.ax1, self.ax2) = plt.subplots(1, 2)
         self.stream = self.data_stream()
@@ -127,10 +133,8 @@ class InsuranceFirmAnimation(object):
         self.fig.suptitle("%s  Timestep : %i" % (self.type, i))
         if self.perils_condition:
             if i == self.all_event_times[0]:
-                self.fig.set_facecolor('r')
+                self.fig.suptitle('EVENT AT TIME %i!' % i)
                 self.all_event_times = self.all_event_times[1:]
-            else:
-                self.fig.set_facecolor('w')
         return self.pies
 
     def save(self):
@@ -230,7 +234,7 @@ class visualisation(object):
                                 (reincash, 'Cash', np.percentile(reincash_agg,percentiles[0], axis=0), np.percentile(reincash_agg, percentiles[1], axis=0)),
                                 (catbonds_number, "Activate Cat Bonds", np.percentile(catbonds_number_agg,percentiles[0], axis=0), np.percentile(catbonds_number_agg, percentiles[1], axis=0)),
                                         ], events, damages, title=title, xlabel="Time", axlst=axlst, fig=fig, colour=colour)
-        self.reins_time_series.plot()
+        self.reins_time_series.plot(schedule=True)
         return self.reins_time_series
 
     def metaplotter_timescale(self):
@@ -281,11 +285,12 @@ class compare_riskmodels(object):
 if __name__ == "__main__":
     # use argparse to handle command line arguments
     parser = argparse.ArgumentParser(description='Model the Insurance sector')
-    parser.add_argument("--single", action="store_true", help="plot time series of a single run of the insurance model")
+    parser.add_argument("--single", action="store_true", help="plot a single run of the insurance model")
     parser.add_argument("--comparison", action="store_true", help="plot the result of an ensemble of replicatons of the insurance model")
-
+    parser.add_argument("--pie", action="store_true", help="plot animated pie charts of contract and cash data")
+    parser.add_argument("--timeseries", action="store_true", help="plot time series of firm data")
     args = parser.parse_args()
-    args.single = True
+    args.single = args.pie = True
     if args.single:
 
         # load in data from the history_logs dictionarywith open("data/history_logs.dat","r") as rfile:
@@ -294,10 +299,12 @@ if __name__ == "__main__":
 
         # first create visualisation object, then create graph/animation objects as necessary
         vis = visualisation(history_logs_list)
-        vis.insurer_pie_animation()
-        vis.reinsurer_pie_animation()
-        # vis.insurer_time_series()
-        # vis.reinsurer_time_series()
+        if args.pie:
+            vis.insurer_pie_animation()
+            vis.reinsurer_pie_animation()
+        if args.timeseries:
+            vis.insurer_time_series()
+            vis.reinsurer_time_series()
         vis.show()
         N = len(history_logs_list)
 
