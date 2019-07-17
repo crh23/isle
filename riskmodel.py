@@ -1,26 +1,29 @@
 import math
+from typing import Sequence, Tuple, Union, Optional, List
 
 import numpy as np
 
 import isleconfig
 from distributionreinsurance import ReinsuranceDistWrapper
+from genericclasses import RiskProperties
+from metainsurancecontract import MetaInsuranceContract
 
 
 class RiskModel:
     def __init__(
         self,
         damage_distribution,
-        expire_immediately,
+        expire_immediately: bool,
         cat_separation_distribution,
-        norm_premium,
-        category_number,
-        init_average_exposure,
-        init_average_risk_factor,
-        init_profit_estimate,
-        margin_of_safety,
-        var_tail_prob,
-        inaccuracy,
-    ):
+        norm_premium: float,
+        category_number: int,
+        init_average_exposure: float,
+        init_average_risk_factor: float,
+        init_profit_estimate: float,
+        margin_of_safety: float,
+        var_tail_prob: float,
+        inaccuracy: Sequence[float],
+    ) -> None:
         self.cat_separation_distribution = cat_separation_distribution
         self.norm_premium = norm_premium
         # QUERY: Whis is this passed as an argument and then ignored?
@@ -33,15 +36,19 @@ class RiskModel:
         self.margin_of_safety = margin_of_safety
         """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
-        self.damage_distribution = [
+        self.damage_distribution: List = [
             damage_distribution for _ in range(self.category_number)
         ]  # TODO: separate that category wise? -> DONE.
-        self.damage_distribution_stack = [[] for _ in range(self.category_number)]
-        self.reinsurance_contract_stack = [[] for _ in range(self.category_number)]
+        self.damage_distribution_stack: Sequence[List] = [
+            [] for _ in range(self.category_number)
+        ]
+        self.reinsurance_contract_stack: Sequence[List[MetaInsuranceContract]] = [
+            [] for _ in range(self.category_number)
+        ]
         # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
-        self.inaccuracy = inaccuracy
+        self.inaccuracy: Sequence[float] = inaccuracy
 
-    def get_ppf(self, categ_id, tail_size):
+    def get_ppf(self, categ_id: int, tail_size: float) -> float:
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
               categ_id  integer:            category 
@@ -49,7 +56,9 @@ class RiskModel:
            Returns value-at-risk."""
         return self.damage_distribution[categ_id].ppf(1 - tail_size)
 
-    def get_risks_by_categ(self, risks):
+    def get_risks_by_categ(
+        self, risks: Sequence[RiskProperties]
+    ) -> Sequence[Sequence[RiskProperties]]:
         """Method splits list of risks by category
                     Accepts:
                         risks: Type List of DataDicts
@@ -57,10 +66,13 @@ class RiskModel:
                         categ_risks: Type List of DataDicts."""
         risks_by_categ = [[] for _ in range(self.category_number)]
         for risk in risks:
-            risks_by_categ[risk["category"]].append(risk)
+            risks_by_categ[risk.category].append(risk)
         return risks_by_categ
 
-    def compute_expectation(self, categ_risks, categ_id):  # TODO: more intuitive name?
+    def compute_expectation(
+        self, categ_risks: Sequence[RiskProperties], categ_id: int
+    ) -> Tuple[float, float, float]:
+        # TODO: more intuitive name?
         """Method to compute the average exposure and risk factor as well as the increase in expected profits for the
                 risks in a given category.
                     Accepts:
@@ -75,10 +87,10 @@ class RiskModel:
         runtimes = np.zeros(len(categ_risks))
         for i, risk in enumerate(categ_risks):
             # TODO: factor in excess instead of value?
-            exposures[i] = risk["value"] - risk["deductible"]
-            risk_factors[i] = risk["risk_factor"]
-            runtimes[i] = risk["runtime"]
-        average_exposure = np.mean(exposures)
+            exposures[i] = risk.value - risk.deductible
+            risk_factors[i] = risk.risk_factor
+            runtimes[i] = risk.runtime
+        average_exposure: float = np.mean(exposures)
         average_risk_factor = self.inaccuracy[categ_id] * np.mean(risk_factors)
 
         # mean_runtime = np.mean(runtimes)
@@ -118,7 +130,9 @@ class RiskModel:
 
         return average_risk_factor, average_exposure, incr_expected_profits
 
-    def evaluate_proportional(self, risks, cash):
+    def evaluate_proportional(
+        self, risks: Sequence[RiskProperties], cash: Sequence[float]
+    ) -> Tuple[float, Sequence[int], Sequence[int], Sequence[float]]:
         """Method to evaluate proportional type risks.
             Accepts:
                 risks: Type List of DataDicts.
@@ -230,7 +244,12 @@ class RiskModel:
             var_per_risk_per_categ,
         )
 
-    def evaluate_excess_of_loss(self, risks, cash, offered_risk=None):
+    def evaluate_excess_of_loss(
+        self,
+        risks: Sequence[RiskProperties],
+        cash: Sequence[float],
+        offered_risk: Optional[RiskProperties] = None,
+    ) -> Tuple[Sequence[float], Sequence[float], float]:
         """Method to evaluate excess-of-loss type risks.
                 Accepts:
                     risks: Type List of DataDicts.
@@ -266,34 +285,30 @@ class RiskModel:
             for risk in categ_risks:
                 expected_damage = (
                     percentage_value_at_risk
-                    * risk["value"]
-                    * risk["risk_factor"]
+                    * risk.value
+                    * risk.risk_factor
                     * self.inaccuracy[categ_id]
                 )
                 # QUERY: This doesn't look accurate to me - E(f(X)) != f(E(X)) in general
 
                 # QUERY: Isn't this wrong?
-                expected_claim = (
-                    min(expected_damage, risk["excess"]) - risk["deductible"]
-                )
+                expected_claim = min(expected_damage, risk.excess) - risk.deductible
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
                 cash_left_by_categ[categ_id] -= expected_claim * self.margin_of_safety
 
             # compute additional liquidity requirements from newly offered contract
-            if (offered_risk is not None) and (
-                offered_risk.get("category") == categ_id
-            ):
+            if (offered_risk is not None) and (offered_risk.category == categ_id):
                 expected_damage_fraction = (
                     percentage_value_at_risk
-                    * offered_risk["risk_factor"]
+                    * offered_risk.risk_factor
                     * self.inaccuracy[categ_id]
                 )
                 expected_claim_fraction = (
-                    min(expected_damage_fraction, offered_risk["excess_fraction"])
-                    - offered_risk["deductible_fraction"]
+                    min(expected_damage_fraction, offered_risk.excess_fraction)
+                    - offered_risk.deductible_fraction
                 )
-                expected_claim_total = expected_claim_fraction * offered_risk["value"]
+                expected_claim_total = expected_claim_fraction * offered_risk.value
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
                 additional_required[categ_id] += (
@@ -308,14 +323,23 @@ class RiskModel:
         return cash_left_by_categ, additional_required, var_this_risk
 
     # noinspection PyUnboundLocalVariable
-    def evaluate(self, risks, cash, offered_risk=None):
+    def evaluate(
+        self,
+        risks: Sequence[RiskProperties],
+        cash: Union[float, Sequence[float]],
+        offered_risk: Optional[RiskProperties] = None,
+    ) -> Union[
+        Tuple[float, Sequence[int], Sequence[float], Sequence[float], float],
+        Tuple[bool, Sequence[float], float, float],
+    ]:
         """Method to evaluate given risks and the offered risk.
             Accepts:
                 risks: List of DataDicts.
                 cash: Type Decimal.
             Optional:
                 offered_risk: Type DataDict or defaults to None.
-            (offered_risk = None) Returns:
+            (offered_risk = None)
+            Returns:
                 expected_profits_proportional: Type Decimal (Currently returns None)
                 remaining_acceptable_by_categ:  Type List of Integers. Number of risks that would not be covered by
                     firms cash.
@@ -336,9 +360,7 @@ class RiskModel:
         results in two sets of return values being used. These return values are what is used to determine if risks are
         underwritten or not."""
         # ensure that any risk to be considered supplied directly as argument is non-proportional/excess-of-loss
-        assert (offered_risk is None) or offered_risk.get(
-            "insurancetype"
-        ) == "excess-of-loss"
+        assert (offered_risk is None) or offered_risk.insurancetype == "excess-of-loss"
 
         # construct cash_left_by_categ as a sequence, defining remaining liquidity by category
         if not isinstance(cash, (np.ndarray, list)):
@@ -348,8 +370,8 @@ class RiskModel:
         assert len(cash_left_by_categ) == self.category_number
 
         # sort current contracts
-        el_risks = [risk for risk in risks if risk["insurancetype"] == "excess-of-loss"]
-        risks = [risk for risk in risks if risk["insurancetype"] == "proportional"]
+        el_risks = [risk for risk in risks if risk.insurancetype == "excess-of-loss"]
+        risks = [risk for risk in risks if risk.insurancetype == "proportional"]
         # compute liquidity requirements and acceptable risks from existing contract
         if (offered_risk is not None) or (len(el_risks) > 0):
             cash_left_by_categ, additional_required, var_this_risk = self.evaluate_excess_of_loss(
@@ -389,7 +411,13 @@ class RiskModel:
                 min(cash_left_by_categ),
             )
 
-    def add_reinsurance(self, categ_id, excess_fraction, deductible_fraction, contract):
+    def add_reinsurance(
+        self,
+        categ_id: int,
+        excess_fraction: float,
+        deductible_fraction: float,
+        contract: MetaInsuranceContract,
+    ):
         """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
          distribution to stack of damage distributions per category, then replace with a new distribution. Only used in
          thad add_reinsurance method of insurancefirm.
@@ -409,7 +437,7 @@ class RiskModel:
             dist=self.damage_distribution[categ_id],
         )
 
-    def delete_reinsurance(self, categ_id, contract):
+    def delete_reinsurance(self, categ_id: int, contract: MetaInsuranceContract):
         """Method to remove any instance of reinsurance to risk models list of reinsurance contracts, and remove its
         damage distribution from the stack of damage distributions per category. Only used in the delete_reinsurance
         method of insurancefirm.

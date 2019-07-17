@@ -1,23 +1,26 @@
+from genericclasses import GenericAgent, RiskProperties
+
+
 class MetaInsuranceContract:
     def __init__(
         self,
-        insurer,
-        properties,
-        time,
-        premium,
-        runtime,
-        payment_period,
-        expire_immediately,
-        initial_var=0.0,
-        insurancetype="proportional",
-        deductible_fraction=None,
-        excess_fraction=None,
-        reinsurance=0,
+        insurer: GenericAgent,
+        risk: RiskProperties,
+        time: int,
+        premium: float,
+        runtime: int,
+        payment_period: int,
+        expire_immediately: bool,
+        initial_var: float = 0.0,
+        insurancetype: str = "proportional",
+        deductible_fraction: float = None,
+        excess_fraction: float = None,
+        reinsurance: float = 0,
     ):
         """Constructor method.
                Accepts arguments
                     insurer: Type InsuranceFirm. 
-                    properties: Type dict. 
+                    risk: Type RiskProperties.
                     time: Type integer. The current time.
                     premium: Type float.
                     runtime: Type integer.
@@ -37,15 +40,14 @@ class MetaInsuranceContract:
 
         # Save parameters
         self.insurer = insurer
-        self.risk_factor = properties["risk_factor"]
-        self.category = properties["category"]
-        self.property_holder = properties["owner"]
-        self.value = properties["value"]
-        self.contract = properties.get(
-            "contract"
-        )  # will assign None if key does not exist
+        self.risk_factor = risk.risk_factor
+        self.category = risk.category
+        self.property_holder = risk.owner
+        self.value = risk.value
+        self.contract = risk.contract  # May be None
+        self.risk = risk
         self.insurancetype = (
-            properties.get("insurancetype") if insurancetype is None else insurancetype
+            risk.insurancetype if insurancetype is None else insurancetype
         )
         self.runtime = runtime
         self.starttime = time
@@ -59,7 +61,7 @@ class MetaInsuranceContract:
         self.deductible_fraction = (
             deductible_fraction
             if deductible_fraction is not None
-            else properties.get("deductible_fraction", default_deductible_fraction)
+            else risk.deductible_fraction or default_deductible_fraction
         )
 
         self.deductible = self.deductible_fraction * self.value
@@ -69,7 +71,7 @@ class MetaInsuranceContract:
         self.excess_fraction = (
             excess_fraction
             if excess_fraction is not None
-            else properties.get("excess_fraction", default_excess_fraction)
+            else risk.excess_fraction or default_excess_fraction
         )
 
         self.excess = self.excess_fraction * self.value
@@ -99,14 +101,14 @@ class MetaInsuranceContract:
         if self.contract:
             self.contract.reinsure(
                 reinsurer=self.insurer,
-                reinsurance_share=properties["reinsurance_share"],
+                reinsurance_share=risk.reinsurance_share,
                 reincontract=self,
             )
 
         # This flag is set to 1, when the contract is about to expire and there is an attempt to roll it over.
         self.roll_over_flag = 0
 
-    def check_payment_due(self, time):
+    def check_payment_due(self, time: int):
         """Method to check if a contract payment is due.
                     Accepts:
                         time: Type integer
@@ -136,7 +138,7 @@ class MetaInsuranceContract:
         self.current_claim = 0
         return self.category, current_claim, (self.insurancetype == "proportional")
 
-    def terminate_reinsurance(self, time):
+    def terminate_reinsurance(self, time: int):
         """Terminate reinsurance method.
                Accepts arguments
                     time: Type integer. The current time.
@@ -145,7 +147,7 @@ class MetaInsuranceContract:
         if self.reincontract is not None:
             self.reincontract.dissolve(time)
 
-    def dissolve(self, time):
+    def dissolve(self, time: int):
         """Dissolve method.
                Accepts arguments
                     time: Type integer. The current time.

@@ -8,13 +8,11 @@ import random
 import copy
 
 import calibrationscore
-import insurancefirm
 import insurancesimulation
 
 # import config file and apply configuration
 import isleconfig
 import logger
-import reinsurancefirm
 
 simulation_parameters = isleconfig.simulation_parameters
 filepath = None
@@ -54,17 +52,6 @@ def main(
             simulation_parameters,
             rc_event_schedule,
             rc_event_damage,
-        )
-
-        simulation.add_agents(
-            insurancefirm.InsuranceFirm,
-            "insurancefirm",
-            n=simulation_parameters["no_insurancefirms"],
-        )
-        simulation.add_agents(
-            reinsurancefirm.ReinsuranceFirm,
-            "reinsurancefirm",
-            n=simulation_parameters["no_reinsurancefirms"],
         )
         time = 0
     else:
@@ -209,8 +196,8 @@ if __name__ == "__main__":
         override_no_riskmodels = 1
     if args.riskmodels:
         override_no_riskmodels = args.riskmodels
-    if args.replicid:  # TODO: track down all uses of replicid
-        raise ValueError("--replicid is no longer supported, use --file")
+    # if args.replicid:  # TODO: track down all uses of replicid
+    #     raise ValueError("--replicid is no longer supported, use --file")
     if args.file:
         filepath = args.file
     if args.overwrite:

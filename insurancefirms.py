@@ -1,8 +1,13 @@
+from __future__ import annotations
+from typing import Optional, Tuple
+
+import numpy as np
+
 from metainsuranceorg import MetaInsuranceOrg
 import catbond
-import numpy as np
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
+import genericclasses
 
 
 class InsuranceFirm(MetaInsuranceOrg):
@@ -19,7 +24,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         self.is_insurer = True
         self.is_reinsurer = False
 
-    def adjust_dividends(self, time, actual_capacity):
+    def adjust_dividends(self, time: int, actual_capacity: float):
         """Method to adjust dividends firm pays to investors.
             Accepts:
                 time: Type Integer. Not used.
@@ -35,7 +40,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             # no dividends if firm misses capital target
             self.per_period_dividend = 0
 
-    def get_reinsurance_var_estimate(self, max_var):
+    def get_reinsurance_var_estimate(self, max_var: float) -> float:
         """Method to estimate the VaR if another reinsurance contract were to be taken.
             Accepts:
                 max_var: Type Decimal. Max value at risk
@@ -57,7 +62,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         reinsurance_var_estimate = max_var * (1.0 + reinsurance_factor_estimate)
         return reinsurance_var_estimate
 
-    def adjust_capacity_target(self, max_var):
+    def adjust_capacity_target(self, max_var: float):
         """Method to adjust capacity target.
                    Accepts:
                        max_var: Type Decimal.
@@ -84,9 +89,8 @@ class InsuranceFirm(MetaInsuranceOrg):
             < self.capacity_target_decrement_threshold
         ):
             self.capacity_target *= self.capacity_target_decrement_factor
-        return
 
-    def get_capacity(self, max_var):
+    def get_capacity(self, max_var: float) -> float:
         """Method to get capacity of firm.
                     Accepts:
                         max_var: Type Decimal.
@@ -103,7 +107,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             # Ensure insurer recovers complete coverage.)
             return self.cash
 
-    def increase_capacity(self, time, max_var):
+    def increase_capacity(self, time: int, max_var: float) -> float:
         """Method to increase the capacity of the firm.
             Accepts:
                 time: Type Integer.
@@ -161,8 +165,13 @@ class InsuranceFirm(MetaInsuranceOrg):
         return capacity
 
     def increase_capacity_by_category(
-        self, time, categ_id, reinsurance_price, cat_bond_price, force=False
-    ):
+        self,
+        time: int,
+        categ_id: int,
+        reinsurance_price: float,
+        cat_bond_price: float,
+        force: bool = False,
+    ) -> bool:
         """Method to increase capacity. Only called by increase_capacity.
             Accepts:
                 time: Type Integer
@@ -176,7 +185,8 @@ class InsuranceFirm(MetaInsuranceOrg):
         only issue if market premium is greater than firms average premium."""
         if isleconfig.verbose:
             print(
-                f"IF {self.id:d} increasing capacity in period {time:d}, cat bond price: {cat_bond_price:f}, reinsurance premium {reinsurance_price:f}"
+                f"IF {self.id:d} increasing capacity in period {time:d}, cat bond price: {cat_bond_price:f},"
+                f" reinsurance premium {reinsurance_price:f}"
             )
         if not force:
             actual_premium = self.get_average_premium(categ_id)
@@ -194,7 +204,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.ask_reinsurance_non_proportional_by_category(time, categ_id)
         return True
 
-    def get_average_premium(self, categ_id):
+    def get_average_premium(self, categ_id: int) -> float:
         """Method to calculate and return the firms average premium for all currently underwritten contracts.
             Accepts:
                 categ_id: Type Integer.
@@ -211,7 +221,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             return 0  # will prevent any attempt to reinsure empty categories
         return weighted_premium_sum * 1.0 / total_weight
 
-    def ask_reinsurance(self, time):
+    def ask_reinsurance(self, time: int):
         """Method called specifically to call relevant reinsurance function for simulations reinsurance type. Only
            non-proportional type is used as this is the one mainly used in reality.
             Accepts:
@@ -222,9 +232,11 @@ class InsuranceFirm(MetaInsuranceOrg):
         elif self.simulation_reinsurance_type == "non-proportional":
             self.ask_reinsurance_non_proportional(time)
         else:
-            assert False, "Undefined reinsurance type"
+            raise ValueError(
+                f"Undefined reinsurance type {self.simulation_reinsurance_type}"
+            )
 
-    def ask_reinsurance_non_proportional(self, time):
+    def ask_reinsurance_non_proportional(self, time: int):
         """ Method for requesting excess of loss reinsurance for all underwritten contracts by category.
             The method calculates the combined value at risk. With a probability it then creates a combined
             reinsurance risk that may then be underwritten by a reinsurance firm.
@@ -239,11 +251,12 @@ class InsuranceFirm(MetaInsuranceOrg):
             if self.category_reinsurance[categ_id] is None:
                 self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
-    def characterize_underwritten_risks_by_category(self, categ_id):
+    def characterize_underwritten_risks_by_category(
+        self, categ_id: int
+    ) -> Tuple[float, float, int, float]:
         """Method to characterise associated risks in a given category in terms of value, number, avg risk factor, and
         total premium per iteration.
             Accepts:
-                time: Type Integer. Not used..
                 categ_id: Type Integer. The given category for characterising risks.
             Returns:
                 total_value: Type Decimal. Total value of all contracts in the category.
@@ -265,8 +278,8 @@ class InsuranceFirm(MetaInsuranceOrg):
         return total_value, avg_risk_factor, number_risks, periodized_total_premium
 
     def ask_reinsurance_non_proportional_by_category(
-        self, time, categ_id, purpose="newrisk"
-    ):
+        self, time: int, categ_id: int, purpose: str = "newrisk"
+    ) -> Optional[genericclasses.RiskProperties]:
         """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
         capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.
             Accepts:
@@ -286,19 +299,19 @@ class InsuranceFirm(MetaInsuranceOrg):
             periodized_total_premium,
         ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
-            risk = {
-                "value": total_value,
-                "category": categ_id,
-                "owner": self,
-                "insurancetype": "excess-of-loss",
-                "number_risks": number_risks,
-                "deductible_fraction": self.np_reinsurance_deductible_fraction,
-                "excess_fraction": self.np_reinsurance_excess_fraction,
-                "periodized_total_premium": periodized_total_premium,
-                "runtime": 12,
-                "expiration": time + 12,
-                "risk_factor": avg_risk_factor,
-            }  # TODO: make runtime into a parameter
+            risk = genericclasses.RiskProperties(
+                value=total_value,
+                category=categ_id,
+                owner=self,
+                insurancetype="excess-of-loss",
+                number_risks=number_risks,
+                deductible_fraction=self.np_reinsurance_deductible_fraction,
+                excess_fraction=self.np_reinsurance_excess_fraction,
+                periodized_total_premium=periodized_total_premium,
+                runtime=12,
+                expiration=time + 12,
+                risk_factor=avg_risk_factor,
+            )  # TODO: make runtime into a parameter
             if purpose == "newrisk":
                 self.simulation.append_reinrisks(risk)
             elif purpose == "rollover":
@@ -327,23 +340,28 @@ class InsuranceFirm(MetaInsuranceOrg):
             )
             for contract in nonreinsured:
                 if counter < limitrein:
-                    risk = {
-                        "value": contract.value,
-                        "category": contract.category,
-                        "owner": self,
-                        # "identifier": uuid.uuid1(),
-                        "reinsurance_share": 1.0,
-                        "expiration": contract.expiration,
-                        "contract": contract,
-                        "risk_factor": contract.risk_factor,
-                    }
+                    risk = genericclasses.RiskProperties(
+                        value=contract.value,
+                        category=contract.category,
+                        owner=self,
+                        reinsurance_share=1.0,
+                        expiration=contract.expiration,
+                        contract=contract,
+                        risk_factor=contract.risk_factor,
+                    )
 
                     self.simulation.append_reinrisks(risk)
                     counter += 1
                 else:
                     break
 
-    def add_reinsurance(self, category, excess_fraction, deductible_fraction, contract):
+    def add_reinsurance(
+        self,
+        category: int,
+        excess_fraction: float,
+        deductible_fraction: float,
+        contract: ReinsuranceContract,
+    ):
         """Method called by reinsurancecontract to add the reinsurance contract to the firms counter for the given
         category, normally used so only one reinsurance contract is issued per category at a time.
             Accepts:
@@ -357,7 +375,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         )
         self.category_reinsurance[category] = contract
 
-    def delete_reinsurance(self, category, contract):
+    def delete_reinsurance(self, category: int, contract: ReinsuranceContract):
         """Method called by reinsurancecontract to delete the reinsurance contract from the firms counter for the given
         category, used so that another reinsurance contract can be issued for that category if needed.
             Accepts:
@@ -367,7 +385,9 @@ class InsuranceFirm(MetaInsuranceOrg):
         self.riskmodel.delete_reinsurance(category, contract)
         self.category_reinsurance[category] = None
 
-    def issue_cat_bond(self, time, categ_id, per_value_per_period_premium=0):
+    def issue_cat_bond(
+        self, time: int, categ_id: int, per_value_per_period_premium: int = 0
+    ):
         """Method to issue cat bond to given firm for given category.
             Accepts:
                 time: Type Integer.
@@ -384,26 +404,27 @@ class InsuranceFirm(MetaInsuranceOrg):
             _,
         ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
-            risk = {
-                "value": total_value,
-                "category": categ_id,
-                "owner": self,
-                # "identifier": uuid.uuid1(),
-                "insurancetype": "excess-of-loss",
-                "number_risks": number_risks,
-                "deductible_fraction": self.np_reinsurance_deductible_fraction,
-                "excess_fraction": self.np_reinsurance_excess_fraction,
-                "periodized_total_premium": 0,
-                "runtime": 12,
-                "expiration": time + 12,
-                "risk_factor": avg_risk_factor,
-            }  # TODO: make runtime into a parameter
+            # TODO: make runtime into a parameter
+            risk = genericclasses.RiskProperties(
+                value=total_value,
+                category=categ_id,
+                owner=self,
+                insurancetype="excess-of-loss",
+                number_risks=number_risks,
+                deductible_fraction=self.np_reinsurance_deductible_fraction,
+                excess_fraction=self.np_reinsurance_excess_fraction,
+                periodized_total_premium=0,
+                runtime=12,
+                expiration=time + 12,
+                risk_factor=avg_risk_factor,
+            )
+
             _, _, var_this_risk, _ = self.riskmodel.evaluate([], self.cash, risk)
-            per_period_premium = per_value_per_period_premium * risk["value"]
+            per_period_premium = per_value_per_period_premium * risk.value
             total_premium = sum(
                 [
                     per_period_premium * ((1 / (1 + self.interest_rate)) ** i)
-                    for i in range(risk["runtime"])
+                    for i in range(risk.runtime)
                 ]
             )  # TODO: or is it range(1, risk["runtime"]+1)?
             # catbond = CatBond(self.simulation, per_period_premium)
@@ -419,11 +440,11 @@ class InsuranceFirm(MetaInsuranceOrg):
                 risk,
                 time,
                 0,
-                risk["runtime"],
+                risk.runtime,
                 self.default_contract_payment_period,
                 expire_immediately=self.simulation_parameters["expire_immediately"],
                 initial_var=var_this_risk,
-                insurancetype=risk["insurancetype"],
+                insurancetype=risk.insurancetype,
             )
             # per_value_reinsurance_premium = 0 because the insurance firm make only one payment to catbond
 
@@ -438,11 +459,11 @@ class InsuranceFirm(MetaInsuranceOrg):
                 "due_time": time,
                 "purpose": "bond",
             }
-            self.pay(obligation)  # TODO: is var_this_risk the correct amount?
+            self._pay(obligation)  # TODO: is var_this_risk the correct amount?
             """register catbond"""
             self.simulation.add_agents(catbond.CatBond, "catbond", [new_catbond])
 
-    def make_reinsurance_claims(self, time):
+    def make_reinsurance_claims(self, time: int):
         """Method to make reinsurance claims.
             Accepts:
                 time: Type Integer.
@@ -489,7 +510,9 @@ class InsuranceFirm(MetaInsuranceOrg):
                 reinsurance.append(reinsurance_contract)
         return reinsurance
 
-    def create_reinrisk(self, time, categ_id):
+    def create_reinrisk(
+        self, time: int, categ_id: int
+    ) -> Optional[genericclasses.RiskProperties]:
         """Proceed with creation of reinsurance risk only if category is not empty."""
         [
             total_value,
@@ -499,19 +522,34 @@ class InsuranceFirm(MetaInsuranceOrg):
         ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
             # TODO: make runtime into a parameter
-            risk = {
-                "value": total_value,
-                "category": categ_id,
-                "owner": self,
-                "insurancetype": "excess-of-loss",
-                "number_risks": number_risks,
-                "deductible_fraction": self.np_reinsurance_deductible_fraction,
-                "excess_fraction": self.np_reinsurance_excess_fraction,
-                "periodized_total_premium": periodized_total_premium,
-                "runtime": 12,
-                "expiration": time + 12,
-                "risk_factor": avg_risk_factor,
-            }
+            risk = genericclasses.RiskProperties(
+                value=total_value,
+                category=categ_id,
+                owner=self,
+                insurancetype="excess-of-loss",
+                number_risks=number_risks,
+                deductible_fraction=self.np_reinsurance_deductible_fraction,
+                excess_fraction=self.np_reinsurance_excess_fraction,
+                periodized_total_premium=periodized_total_premium,
+                runtime=12,
+                expiration=time + 12,
+                risk_factor=avg_risk_factor,
+            )
             return risk
         else:
             return None
+
+
+class ReinsuranceFirm(InsuranceFirm):
+    """ReinsuranceFirm class. 
+       Inherits from InsuranceFirm."""
+
+    def __init__(self, simulation_parameters, agent_parameters):
+        """Constructor method.
+               Accepts arguments
+                   Signature is identical to constructor method of parent class.
+           Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of 
+           the object."""
+        super().__init__(simulation_parameters, agent_parameters)
+        self.is_insurer = False
+        self.is_reinsurer = True

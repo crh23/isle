@@ -38,8 +38,7 @@ class CatBond(MetaInsuranceOrg):
                 time: Type Integer
             No return values
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
-        pay obligations, mature the contract if ended, make payments."""
-        # QUERY: Shouldn't the interest on the cat bond be paid by the issuer, not the bank/market?
+        _pay obligations, mature the contract if ended, make payments."""
         self.obtain_yield(time)
         self.effect_payments(time)
         if isleconfig.verbose:
@@ -109,8 +108,8 @@ class CatBond(MetaInsuranceOrg):
                 "due_time": 1,
                 "purpose": "mature",
             }
-            self.pay(obligation)
-            self.simulation.delete_agents("catbond", [self])
+            self._pay(obligation)
+            self.simulation.delete_agents([self])
             self.operational = False
         else:
             print("CatBond is not operational so cannot mature")
