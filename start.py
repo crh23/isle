@@ -76,7 +76,6 @@ def main(
         simulation_parameters = d["simulation_parameters"]
         for key in d["isleconfig"]:
             isleconfig.__dict__[key] = d["isleconfig"][key]
-    simulation = copy.deepcopy(simulation)
     for t in range(time, simulation_parameters["max_time"]):
         # Main time iteration loop
         simulation.iterate(t)
@@ -209,8 +208,8 @@ if __name__ == "__main__":
         override_no_riskmodels = 1
     if args.riskmodels:
         override_no_riskmodels = args.riskmodels
-    if args.replicid:  # TODO: track down all uses of replicid
-        raise ValueError("--replicid is no longer supported, use --file")
+    # if args.replicid:  # TODO: track down all uses of replicid
+    #     raise ValueError("--replicid is no longer supported, use --file")
     if args.file:
         filepath = args.file
     if args.overwrite:
