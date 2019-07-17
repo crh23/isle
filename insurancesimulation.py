@@ -11,7 +11,7 @@ import random
 import copy
 import logger
 
-if isleconfig.show_network:
+if isleconfig.show_network or isleconfig.save_network:
     import visualization_network
 
 
@@ -343,11 +343,17 @@ class InsuranceSimulation():
                         self.reinsurance_models_counter[i] += 1
 
         network_division = 1        # How often network is updated.
-        if isleconfig.show_network and t % network_division == 0 and t > 0:
-            if t == network_division:
-                self.RN = visualization_network.ReinsuranceNetwork()    # Only creates once instance so only one figure.
+        if (isleconfig.show_network or isleconfig.save_network) and t % network_division == 0 and t > 0:
+            if t == network_division:       # Only creates once instance so only one figure.
+                self.RN = visualization_network.ReinsuranceNetwork(self.rc_event_schedule_initial)
+
             self.RN.update(self.insurancefirms, self.reinsurancefirms, self.catbonds)
-            self.RN.visualize()
+
+            if isleconfig.show_network:
+                self.RN.visualize()
+            if isleconfig.save_network and t == (self.simulation_parameters['max_time']-800):
+                self.RN.save_network_data()
+                print("Network data has been saved to data/network_data.dat")
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the 
