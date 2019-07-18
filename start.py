@@ -1,20 +1,19 @@
 # import common packages
+from __future__ import annotations
 import argparse
 import hashlib
 import numpy as np
 import os
 import pickle
 import random
-import copy
+from typing import MutableMapping, MutableSequence
 
 import calibrationscore
-import insurancefirm
 import insurancesimulation
 
 # import config file and apply configuration
 import isleconfig
 import logger
-import reinsurancefirm
 
 simulation_parameters = isleconfig.simulation_parameters
 filepath = None
@@ -32,39 +31,26 @@ if not os.path.isdir("data"):
 
 # main function
 def main(
-    simulation_parameters,
-    rc_event_schedule,
-    rc_event_damage,
-    np_seed,
-    random_seed,
-    save_iter: int,
-    replic_ID,
-    requested_logs=None,
-    resume=False,
-):
+    sim_params: MutableMapping,
+    rc_event_schedule: MutableSequence[MutableSequence[int]],
+    rc_event_damage: MutableSequence[MutableSequence[float]],
+    np_seed: int,
+    random_seed: int,
+    save_iteration: int,
+    replic_id: int,
+    requested_logs: MutableSequence = None,
+    resume: bool = False,
+) -> MutableSequence:
     if not resume:
         np.random.seed(np_seed)
         random.seed(random_seed)
 
-        simulation_parameters[
-            "simulation"
-        ] = simulation = insurancesimulation.InsuranceSimulation(
+        sim_params["simulation"] = simulation = insurancesimulation.InsuranceSimulation(
             override_no_riskmodels,
-            replic_ID,
-            simulation_parameters,
+            replic_id,
+            sim_params,
             rc_event_schedule,
             rc_event_damage,
-        )
-
-        simulation.add_agents(
-            insurancefirm.InsuranceFirm,
-            "insurancefirm",
-            n=simulation_parameters["no_insurancefirms"],
-        )
-        simulation.add_agents(
-            reinsurancefirm.ReinsuranceFirm,
-            "reinsurancefirm",
-            n=simulation_parameters["no_reinsurancefirms"],
         )
         time = 0
     else:
@@ -73,10 +59,10 @@ def main(
         random.setstate(d["random_seed"])
         time = d["time"]
         simulation = d["simulation"]
-        simulation_parameters = d["simulation_parameters"]
+        sim_params = d["simulation_parameters"]
         for key in d["isleconfig"]:
             isleconfig.__dict__[key] = d["isleconfig"][key]
-    for t in range(time, simulation_parameters["max_time"]):
+    for t in range(time, sim_params["max_time"]):
         # Main time iteration loop
         simulation.iterate(t)
 
@@ -84,9 +70,9 @@ def main(
         simulation.save_data()
 
         # Don't save at t=0 or if the simulation has just finished
-        if t % save_iter == 0 and 0 < t < simulation_parameters["max_time"]:
+        if t % save_iteration == 0 and 0 < t < sim_params["max_time"]:
             # Need to use t+1 as resume will start at time saved
-            save_simulation(t + 1, simulation, simulation_parameters, exit_now=False)
+            save_simulation(t + 1, simulation, sim_params, exit_now=False)
 
     # Finish simulation, write logs
     simulation.finalize()
@@ -95,7 +81,12 @@ def main(
     return simulation.obtain_log(requested_logs)
 
 
-def save_simulation(t, sim, sim_param, exit_now=False):
+def save_simulation(
+    t: int,
+    sim: insurancesimulation.InsuranceSimulation,
+    sim_param: MutableMapping,
+    exit_now: bool = False,
+) -> None:
     d = {
         "np_seed": np.random.get_state(),
         "random_seed": random.getstate(),
@@ -121,7 +112,7 @@ def save_simulation(t, sim, sim_param, exit_now=False):
         exit(0)
 
 
-def load_simulation():
+def load_simulation() -> dict:
     # TODO: Fix! This doesn't work, the retrieved file is different to the saved one.
     with open("data/simulation_save.pkl", "br") as rfile:
         print(
@@ -233,7 +224,8 @@ if __name__ == "__main__":
     if args.save_iterations:
         save_iter = args.save_iterations
     else:
-        save_iter = 100
+        # Disable saving unless save_iter is given. It doesn't work anyway # TODO
+        save_iter = isleconfig.simulation_parameters["max_time"] + 2
 
     if not args.resume:
         from setup_simulation import SetupSim
@@ -262,11 +254,11 @@ if __name__ == "__main__":
         np_seeds[0],
         random_seeds[0],
         save_iter,
-        replic_ID=1,
+        replic_id=1,
         resume=args.resume,
     )
 
-    replic_ID = filepath
+    replic_ID = 1
     """ Restore the log at the end of the single simulation run for saving and for potential further study """
     is_background = (not isleconfig.force_foreground) and (
         isleconfig.replicating or (replic_ID in locals())

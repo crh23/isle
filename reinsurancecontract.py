@@ -12,7 +12,7 @@ class ReinsuranceContract(MetaInsuranceContract):
     def __init__(
         self,
         insurer,
-        properties,
+        risk,
         time,
         premium,
         runtime,
@@ -26,7 +26,7 @@ class ReinsuranceContract(MetaInsuranceContract):
     ):
         super().__init__(
             insurer,
-            properties,
+            risk,
             time,
             premium,
             runtime,
@@ -52,7 +52,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         else:
             assert self.contract is not None
 
-    def explode(self, time, damage_extent=None):
+    def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
@@ -79,9 +79,9 @@ class ReinsuranceContract(MetaInsuranceContract):
             else:
                 raise ValueError(f"Unexpected insurance type {self.insurancetype}")
                 # Reinsurer pays as soon as possible.
-            self.insurer.register_claim(
-                claim
-            )  # Every reinsurance claim made is immediately registered.
+            # Every reinsurance claim made is immediately registered.
+            self.insurer.register_claim(claim)
+
             if self.expire_immediately:
                 self.current_claim += self.contract.claim
                 # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession?

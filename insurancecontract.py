@@ -1,9 +1,13 @@
-from metainsurancecontract import MetaInsuranceContract
+from __future__ import annotations
+
+import metainsurancecontract
+import genericclasses
+import metainsuranceorg
 
 
-class InsuranceContract(MetaInsuranceContract):
+class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
     """ReinsuranceContract class.
-        Inherits from InsuranceContract.
+        Inherits from MetaInsuranceContract.
         Constructor is not currently required but may be used in the future to distinguish InsuranceContract
             and ReinsuranceContract objects.
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
@@ -11,22 +15,22 @@ class InsuranceContract(MetaInsuranceContract):
 
     def __init__(
         self,
-        insurer,
-        properties,
-        time,
-        premium,
-        runtime,
-        payment_period,
-        expire_immediately,
-        initial_var=0.0,
-        insurancetype="proportional",
-        deductible_fraction=None,
-        excess_fraction=None,
-        reinsurance=0,
+        insurer: metainsuranceorg.MetaInsuranceOrg,
+        risk: genericclasses.RiskProperties,
+        time: int,
+        premium: float,
+        runtime: int,
+        payment_period: int,
+        expire_immediately: bool,
+        initial_var: float = 0.0,
+        insurancetype: str = "proportional",
+        deductible_fraction: float = None,
+        excess_fraction: float = None,
+        reinsurance: float = 0,
     ):
         super().__init__(
             insurer,
-            properties,
+            risk,
             time,
             premium,
             runtime,
@@ -39,9 +43,7 @@ class InsuranceContract(MetaInsuranceContract):
             reinsurance,
         )
 
-        self.risk_data = properties
-
-    def explode(self, time, uniform_value, damage_extent):
+    def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
@@ -52,6 +54,14 @@ class InsuranceContract(MetaInsuranceContract):
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
         # np.mean(np.random.beta(1, 1./mu -1, size=90000))
+        if uniform_value is None:
+            raise ValueError(
+                "uniform_value must be passed to InsuranceContract.explode"
+            )
+        if damage_extent is None:
+            raise ValueError(
+                "damage_extent must be passed to InsuranceContract.explode"
+            )
         if uniform_value < self.risk_factor:
             claim = min(self.excess, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(
@@ -80,4 +90,4 @@ class InsuranceContract(MetaInsuranceContract):
         self.terminate_reinsurance(time)
 
         if not self.roll_over_flag:
-            self.property_holder.return_risks([self.risk_data])
+            self.property_holder.return_risks([self.risk])
