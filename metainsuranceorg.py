@@ -2,8 +2,17 @@ from __future__ import annotations
 import copy
 import math
 import functools
-from typing import Optional, Tuple, Sequence, Mapping, MutableSequence
-from itertools import zip_longest, chain
+from typing import (
+    Optional,
+    Tuple,
+    Sequence,
+    Mapping,
+    MutableSequence,
+    Iterable,
+    Callable,
+    Any,
+)
+from itertools import cycle, islice
 
 import numpy as np
 import scipy.stats
@@ -14,7 +23,22 @@ import insurancesimulation
 from reinsurancecontract import ReinsuranceContract
 import metainsurancecontract
 from riskmodel import RiskModel
-from genericclasses import GenericAgent, RiskProperties, AgentProperties
+from genericclasses import GenericAgent, RiskProperties, AgentProperties, Obligation
+
+
+def roundrobin(iterables: Sequence[Iterable]) -> Iterable:
+    """roundrobin(['ABC', 'D', 'EF']) --> A D E B F C"""
+    # Recipe credited to George Sakkis
+    num_active = len(iterables)
+    nexts: Iterable[Callable[[], Any]] = cycle(iter(it).__next__ for it in iterables)
+    while num_active:
+        try:
+            for next_fun in nexts:
+                yield next_fun()
+        except StopIteration:
+            # Remove the iterator we just exhausted from the cycle.
+            num_active -= 1
+            nexts = cycle(islice(nexts, num_active))
 
 
 def get_mean(x: Sequence[float]) -> float:
@@ -151,7 +175,9 @@ class MetaInsuranceOrg(GenericAgent):
             self.np_reinsurance_premium_share = simulation_parameters[
                 "default_non-proportional_reinsurance_premium_share"
             ]
-        self.underwritten_contracts: MutableSequence[metainsurancecontract.MetaInsuranceContract] = []
+        self.underwritten_contracts: MutableSequence[
+            metainsurancecontract.MetaInsuranceContract
+        ] = []
         # self.reinsurance_contracts = []
         self.is_insurer = True
         self.is_reinsurer = False
@@ -186,13 +212,13 @@ class MetaInsuranceOrg(GenericAgent):
                     No return value
                     For each time step this method obtains every firms interest payments, pays obligations, claim
                     reinsurance, matures necessary contracts. Check condition for operational firms (as never removed)
-                    so only operational firms receive new risks to evaluate, _pay dividends, adjust capacity."""
+                    so only operational firms receive new risks to evaluate, pay dividends, adjust capacity."""
 
         """obtain investments yield"""
         self.obtain_yield(time)
 
         """realize due payments"""
-        self.effect_payments(time)
+        self._effect_payments(time)
         if isleconfig.verbose:
             print(
                 time,
@@ -348,14 +374,20 @@ class MetaInsuranceOrg(GenericAgent):
 
             # print(self.id, " now has ", len(self.underwritten_contracts), " & returns ", len(not_accepted_risks))
 
-    def enter_illiquidity(self, time: int):
+    def enter_illiquidity(self, time: int, sum_due: float):
         """Enter_illiquidity Method.
                Accepts arguments
                    time: Type integer. The current time.
+                   sum_due: the outstanding sum that the firm couldn't pay
                No return value.
-           This method is called when a firm does not have enough cash to _pay all its obligations. It is only called
+           This method is called when a firm does not have enough cash to pay all its obligations. It is only called
            from the method self._effect_payments() which is called at the beginning of the self.iterate() method of
            this class. This method formalizes the bankruptcy through the method self.enter_bankruptcy()."""
+        self.simulation.record_unrecovered_claims(sum_due - self.cash)
+        # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is
+        #  impounded and self.cash will also not be paid out for quite some time)?
+        # QUERY: should failed payments to other firms (rein premiums, catbond payouts) count as unrecovered claims?
+        # TODO: effect partial payment
         self.enter_bankruptcy(time)
 
     def enter_bankruptcy(self, time: int):
@@ -363,7 +395,7 @@ class MetaInsuranceOrg(GenericAgent):
                Accepts arguments
                    time: Type integer. The current time.
                No return value.
-           This method is used when a firm does not have enough cash to _pay all its obligations. It is only called from
+           This method is used when a firm does not have enough cash to pay all its obligations. It is only called from
            the method self.enter_illiquidity() which is only called from the method self._effect_payments(). This method
            dissolves the firm through the method self.dissolve()."""
         self.dissolve(time, "record_bankruptcy")
@@ -406,22 +438,20 @@ class MetaInsuranceOrg(GenericAgent):
         self.simulation.return_risks(self.risks_kept)
         self.risks_kept = []
         self.reinrisks_kept = []
-        obligation = {
-            "amount": self.cash,
-            "recipient": self.simulation,
-            "due_time": time,
-            "purpose": "Dissolution",
-        }
-        self._pay(
-            obligation
-        )  # This MUST be the last obligation before the dissolution of the firm.
-        self.excess_capital = (
-            0
-        )  # Excess of capital is 0 after bankruptcy or market exit.
-        self.profits_losses = (
-            0
-        )  # Profits and losses are 0 after bankruptcy or market exit.
+        obligation = Obligation(
+            amount=self.cash,
+            recipient=self.simulation,
+            due_time=time,
+            purpose="Dissolution",
+        )
+        # This MUST be the last obligation before the dissolution of the firm.
+        self._pay(obligation)
+        # Excess of capital is 0 after bankruptcy or market exit.
+        self.excess_capital = 0
+        # Profits and losses are 0 after bankruptcy or market exit.
+        self.profits_losses = 0
         if self.operational:
+            # TODO: This seems... odd?
             method_to_call = getattr(self.simulation, record)
             method_to_call()
         for category_reinsurance in self.category_reinsurance:
@@ -429,39 +459,12 @@ class MetaInsuranceOrg(GenericAgent):
                 category_reinsurance.dissolve(time)
         self.operational = False
 
-    def effect_payments(self, time: int):
-        """Method for checking if any payments are due.
-            Accepts:
-                time: Type Integer
-            No return value
-            Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
-            does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
-        # TODO: don't really want to be reconstructing lists every time (unless the oblications are naturally sorted by
-        #  time, in which case this could be done slightly better). Low priority, but something to consider
-        due = [item for item in self.obligations if item["due_time"] <= time]
-        self.obligations = [
-            item for item in self.obligations if item["due_time"] > time
-        ]
-        # TODO: could this cause a firm to enter illiquidity if it has obligations to non-operational firms? Such
-        #  firms can't recieve payment, so this possibly shouldn't happen.
-        sum_due = sum([item["amount"] for item in due])
-        if sum_due > self.cash:
-            self.obligations += due
-            self.enter_illiquidity(time)
-            self.simulation.record_unrecovered_claims(sum_due - self.cash)
-            # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is
-            #  impounded and self.cash will also not be paid out for quite some time)?
-            # TODO: effect partial payment
-        else:
-            for obligation in due:
-                self._pay(obligation)
-
     def pay_dividends(self, time: int):
         """Method to receive dividend obligation.
                     Accepts:
                         time: Type integer
                     No return value
-                    If firm has positive profits will _pay percentage of them as dividends.
+                    If firm has positive profits will pay percentage of them as dividends.
                     Currently pays to simulation.
                     """
 
@@ -708,67 +711,69 @@ class MetaInsuranceOrg(GenericAgent):
            For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth. If
            risks are accepted then a contract is written."""
         not_accepted_reinrisks = []
-        for risk in chain.from_iterable(zip_longest(*reinrisks_per_categ)):
+        for risk in roundrobin(reinrisks_per_categ):
             # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
             # risk[C4], risk[C1], risk[C2], ... if possible.
-            if risk:
-                # TODO: Move this out of the loop (maybe somewhere else entirely) and update it when needed
-                underwritten_risks = [
-                    RiskProperties(
-                        owner=self,
-                        value=contract.value,
-                        category=contract.category,
-                        risk_factor=contract.risk_factor,
-                        deductible=contract.deductible,
-                        excess=contract.excess,
-                        insurancetype=contract.insurancetype,
-                        runtime_left=(contract.expiration - time),
-                    )
-                    for contract in self.underwritten_contracts
-                    if contract.insurancetype == "excess-of-loss"
-                ]
-                accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
-                    underwritten_risks, self.cash, risk
+            assert risk
+            # TODO: Move this out of the loop (maybe somewhere else entirely) and update it when needed
+            underwritten_risks = [
+                RiskProperties(
+                    owner=self,
+                    value=contract.value,
+                    category=contract.category,
+                    risk_factor=contract.risk_factor,
+                    deductible=contract.deductible,
+                    excess=contract.excess,
+                    insurancetype=contract.insurancetype,
+                    runtime_left=(contract.expiration - time),
                 )
-                # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and
-                #  to account for existing non-proportional risks correctly -> DONE.
-                if accept:
-                    # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
-                    per_value_reinsurance_premium = (
-                        self.np_reinsurance_premium_share
-                        * risk.periodized_total_premium
-                        * risk.runtime
-                        * (
-                            self.simulation.get_market_reinpremium()
-                            / self.simulation.get_market_premium()
-                        )
-                        / risk.value
+                for contract in self.underwritten_contracts
+                if contract.insurancetype == "excess-of-loss"
+            ]
+            accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
+                underwritten_risks, self.cash, risk
+            )
+            # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and
+            #  to account for existing non-proportional risks correctly -> DONE.
+            if accept:
+                # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
+                per_value_reinsurance_premium = (
+                    self.np_reinsurance_premium_share
+                    * risk.periodized_total_premium
+                    * risk.runtime
+                    * (
+                        self.simulation.get_market_reinpremium()
+                        / self.simulation.get_market_premium()
                     )
+                    / risk.value
+                )
 
-                    # Here it is check whether the portfolio is balanced or not if the reinrisk
-                    # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
-                    condition, cash_left_by_categ = self.balanced_portfolio(
-                        risk, cash_left_by_categ, None
-                    )
+                # Here it is check whether the portfolio is balanced or not if the reinrisk
+                # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
+                condition, cash_left_by_categ = self.balanced_portfolio(
+                    risk, cash_left_by_categ, None
+                )
 
-                    if condition:
-                        contract = ReinsuranceContract(
-                            self,
-                            risk,
-                            time,
-                            per_value_reinsurance_premium,
-                            risk.runtime,
-                            self.default_contract_payment_period,
-                            expire_immediately=self.simulation_parameters[
-                                "expire_immediately"
-                            ],
-                            initial_var=var_this_risk,
-                            insurancetype=risk.insurancetype,
-                        )  # TODO: implement excess of loss for reinsurance contracts
-                        self.underwritten_contracts.append(contract)
-                        self.cash_left_by_categ = cash_left_by_categ
-                    else:
-                        not_accepted_reinrisks.append(risk)
+                if condition:
+                    contract = ReinsuranceContract(
+                        self,
+                        risk,
+                        time,
+                        per_value_reinsurance_premium,
+                        risk.runtime,
+                        self.default_contract_payment_period,
+                        expire_immediately=self.simulation_parameters[
+                            "expire_immediately"
+                        ],
+                        initial_var=var_this_risk,
+                        insurancetype=risk.insurancetype,
+                    )  # TODO: implement excess of loss for reinsurance contracts
+                    self.underwritten_contracts.append(contract)
+                    self.cash_left_by_categ = cash_left_by_categ
+                else:
+                    not_accepted_reinrisks.append(risk)
+            else:
+                not_accepted_reinrisks.append(risk)
 
         return reinrisks_per_categ, not_accepted_reinrisks
 
@@ -796,9 +801,9 @@ class MetaInsuranceOrg(GenericAgent):
         risks are accepted then a contract is written."""
         _cached_rvs = self.contract_runtime_dist.rvs()
         not_accepted_risks = []
-        for risk in chain.from_iterable(zip_longest(*risks_per_categ)):
-            if risk and acceptable_by_category[risk.category] > 0:
-                categ_id = risk.category
+        for risk in roundrobin(risks_per_categ):
+            assert risk
+            if acceptable_by_category[risk.category] > 0:
                 if risk.contract and risk.contract.expiration > time:
                     # In this case the risk being inspected already has a contract, so we are deciding whether to
                     # give reinsurance for it # QUERY: is this correct?
@@ -821,6 +826,7 @@ class MetaInsuranceOrg(GenericAgent):
                         )
                         self.underwritten_contracts.append(contract)
                         self.cash_left_by_categ = cash_left_by_categ
+                        acceptable_by_category[risk.category] -= 1
                     else:
                         not_accepted_risks.append(risk)
 
@@ -843,17 +849,18 @@ class MetaInsuranceOrg(GenericAgent):
                             expire_immediately=self.simulation_parameters[
                                 "expire_immediately"
                             ],
-                            initial_var=var_per_risk_per_categ[categ_id],
+                            initial_var=var_per_risk_per_categ[risk.category],
                         )
                         self.underwritten_contracts.append(contract)
                         self.cash_left_by_categ = cash_left_by_categ
+                        acceptable_by_category[risk.category] -= 1
                     else:
                         not_accepted_risks.append(risk)
-                # QUERY: should we only decrease this if the risk is accepted?
-                acceptable_by_category[categ_id] -= 1
+            else:
+                not_accepted_risks.append(risk)
                 # TODO: allow different values per risk (i.e. sum over value (and reinsurance_share) or
                 #  exposure instead of counting)
-
+            # QUERY: should we only decrease this if the risk is accepted?
         return risks_per_categ, not_accepted_risks
 
     def market_permanency(self, time: int):

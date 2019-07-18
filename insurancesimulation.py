@@ -124,7 +124,6 @@ class InsuranceSimulation(GenericAgent):
 
         "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.cash: float = self.simulation_parameters["money_supply"]
-        # QUERY Why is this a property of the simulation rather than of the obligated parties?
 
         "set up risk categories"
         # QUERY What do risk categories represent? Different types of catastrophes?
@@ -166,14 +165,19 @@ class InsuranceSimulation(GenericAgent):
         )
 
         self.risks: MutableSequence[RiskProperties] = [
-            RiskProperties(rrisk_factors[i], rvalues[i], rcategories[i], self)
+            RiskProperties(
+                risk_factor=rrisk_factors[i],
+                value=rvalues[i],
+                category=rcategories[i],
+                owner=self,
+            )
             for i in range(self.simulation_parameters["no_risks"])
         ]
 
         self.risks_counter: MutableSequence[int] = [0, 0, 0, 0]
 
-        for item in self.risks:
-            self.risks_counter[item.category] = self.risks_counter[item.category] + 1
+        for risk in self.risks:
+            self.risks_counter[risk.category] += 1
 
         self.inaccuracy: Sequence[Sequence[int]] = self._get_all_riskmodel_combinations(
             self.simulation_parameters["riskmodel_inaccuracy_parameter"]
@@ -587,7 +591,7 @@ class InsuranceSimulation(GenericAgent):
         )
         operational_no = sum([firm.operational for firm in self.insurancefirms])
         reinoperational_no = sum([firm.operational for firm in self.reinsurancefirms])
-        catbondsoperational_no = sum([catbond.operational for catbond in self.catbonds])
+        catbondsoperational_no = sum([cb.operational for cb in self.catbonds])
 
         """ collect agent-level data """
         insurance_firms = [
@@ -673,23 +677,8 @@ class InsuranceSimulation(GenericAgent):
         for i, contract in enumerate(affected_contracts):
             contract.explode(t, uniformvalues[i], damagevalues[i])
 
-    def _effect_payments(self, time: int):
-        """Method for checking and paying obligation if due.
-                    Arguments
-                        Current time to allow check if due
-                    Returns None"""
-        if self.get_operational():
-            due = [item for item in self.obligations if item["due_time"] <= time]
-            self.obligations = [
-                item for item in self.obligations if item["due_time"] > time
-            ]
-            # sum_due = sum([item["amount"] for item in due])
-            for obligation in due:
-                if self.cash < obligation["amount"]:
-                    warnings.warn(
-                        "Something wrong: economy out of money", RuntimeWarning
-                    )
-                self._pay(obligation)
+    def enter_illiquidity(self, time: int, sum_due: float):
+        raise RuntimeError("Oh no, economy has run out of money!")
 
     def _reduce_money_supply(self, amount: float):
         """Method to reduce money supply immediately and without payment recipient (used to adjust money supply

@@ -61,7 +61,9 @@ class MetaInsuranceContract:
         self.deductible_fraction = (
             deductible_fraction
             if deductible_fraction is not None
-            else risk.deductible_fraction or default_deductible_fraction
+            else risk.deductible_fraction
+            if risk.deductible_fraction is not None
+            else default_deductible_fraction
         )
 
         self.deductible = self.deductible_fraction * self.value
@@ -71,7 +73,9 @@ class MetaInsuranceContract:
         self.excess_fraction = (
             excess_fraction
             if excess_fraction is not None
-            else risk.excess_fraction or default_excess_fraction
+            else risk.excess_fraction
+            if risk.excess_fraction is not None
+            else default_excess_fraction
         )
 
         self.excess = self.excess_fraction * self.value
@@ -178,3 +182,24 @@ class MetaInsuranceContract:
         self.reincontract = None
         self.reinsurance = 0
         self.reinsurance_share = None
+
+    def explode(self, time, uniform_value=None, damage_extent=None):
+        """Explode method.
+               Accepts arguments
+                   time: Type integer. The current time.
+                   uniform_value: Not used
+                   damage_extent: Type float. The absolute damage in excess-of-loss reinsurance (not relative as in
+                                       proportional contracts.
+               No return value.
+           Method marks the contract for termination.
+            """
+        raise NotImplementedError()
+
+    def mature(self, time):
+        """Mature method.
+               Accepts arguments
+                    time: Type integer. The current time.
+               No return value.
+           Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this
+           contract."""
+        raise NotImplementedError()

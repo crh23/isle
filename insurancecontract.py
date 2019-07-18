@@ -43,7 +43,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             reinsurance,
         )
 
-    def explode(self, time, uniform_value, damage_extent):
+    def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
@@ -54,6 +54,14 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
         # np.mean(np.random.beta(1, 1./mu -1, size=90000))
+        if uniform_value is None:
+            raise ValueError(
+                "uniform_value must be passed to InsuranceContract.explode"
+            )
+        if damage_extent is None:
+            raise ValueError(
+                "damage_extent must be passed to InsuranceContract.explode"
+            )
         if uniform_value < self.risk_factor:
             claim = min(self.excess, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(

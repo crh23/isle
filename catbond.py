@@ -1,5 +1,10 @@
+from __future__ import annotations
 import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
+import genericclasses
+import metainsurancecontract
+import insurancesimulation
+from typing import MutableSequence
 
 # TODO: This and MetaInsuranceOrg should probably both subclass something simple - a MetaAgent, say. MetaInsuranceOrg
 #  can do more than a CatBond should be able to!
@@ -8,7 +13,14 @@ from metainsuranceorg import MetaInsuranceOrg
 # noinspection PyAbstractClass
 class CatBond(MetaInsuranceOrg):
     # noinspection PyMissingConstructor
-    def __init__(self, simulation, per_period_premium, owner, interest_rate=0):
+    # TODO inheret GenericAgent instead of MetaInsuranceOrg?
+    def __init__(
+        self,
+        simulation: insurancesimulation.InsuranceSimulation,
+        per_period_premium: float,
+        owner: genericclasses.GenericAgent,
+        interest_rate: float = 0,
+    ):
         """Initialising methods.
             Accepts:
                 simulation: Type class
@@ -16,23 +28,23 @@ class CatBond(MetaInsuranceOrg):
                 owner: Type class
         This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
-        self.id = 0
-        self.underwritten_contracts = []
-        self.cash = 0
-        self.profits_losses = 0
-        self.obligations = []
-        self.operational = True
-        self.owner = owner
-        self.per_period_dividend = per_period_premium
-        self.interest_rate = interest_rate
+        self.id: int = 0
+        self.underwritten_contracts: MutableSequence[
+            metainsurancecontract.MetaInsuranceContract
+        ] = []
+        self.cash: int = 0
+        self.profits_losses: float = 0
+        self.obligations: MutableSequence[genericclasses.Obligation] = []
+        self.operational: bool = True
+        self.owner: genericclasses.GenericAgent = owner
+        self.per_period_dividend: float = per_period_premium
+        self.interest_rate: float = interest_rate
         # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like
         #  self.interest_rate from instance to instance and from class to class
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
     # TODO: change start and InsuranceSimulation so that it iterates CatBonds
-    # old parent class init, cat bond class should be much smaller
-
-    def iterate(self, time):
+    def iterate(self, time: int):
         """Method to perform CatBond duties for each time iteration.
             Accepts:
                 time: Type Integer
@@ -40,7 +52,7 @@ class CatBond(MetaInsuranceOrg):
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
         _pay obligations, mature the contract if ended, make payments."""
         self.obtain_yield(time)
-        self.effect_payments(time)
+        self._effect_payments(time)
         if isleconfig.verbose:
             print(
                 time,
@@ -78,7 +90,7 @@ class CatBond(MetaInsuranceOrg):
 
         # self.estimate_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
 
-    def set_owner(self, owner):
+    def set_owner(self, owner: genericclasses.GenericAgent):
         """Method to set owner of the Cat Bond.
             Accepts:
                 owner: Type class
@@ -87,7 +99,7 @@ class CatBond(MetaInsuranceOrg):
         if isleconfig.verbose:
             print("SOLD")
 
-    def set_contract(self, contract):
+    def set_contract(self, contract: metainsurancecontract.MetaInsuranceContract):
         """Method to record new instances of CatBonds.
             Accepts:
                 owner: Type class
@@ -102,12 +114,12 @@ class CatBond(MetaInsuranceOrg):
         When the catbond contract matures this is called which pays the value of the catbond to the simulation, and is
         then deleted from the list of agents."""
         if self.operational:
-            obligation = {
-                "amount": self.cash,
-                "recipient": self.simulation,
-                "due_time": 1,
-                "purpose": "mature",
-            }
+            obligation = genericclasses.Obligation(
+                amount=self.cash,
+                recipient=self.simulation,
+                due_time=1,
+                purpose="mature",
+            )
             self._pay(obligation)
             self.simulation.delete_agents([self])
             self.operational = False

@@ -63,7 +63,6 @@ def main(
         simulation_parameters = d["simulation_parameters"]
         for key in d["isleconfig"]:
             isleconfig.__dict__[key] = d["isleconfig"][key]
-    simulation = copy.deepcopy(simulation)
     for t in range(time, simulation_parameters["max_time"]):
         # Main time iteration loop
         simulation.iterate(t)
@@ -221,7 +220,8 @@ if __name__ == "__main__":
     if args.save_iterations:
         save_iter = args.save_iterations
     else:
-        save_iter = 100
+        # Disable saving unless save_iter is given. It doesn't work anyway # TODO
+        save_iter = isleconfig.simulation_parameters["max_time"] + 2
 
     if not args.resume:
         from setup_simulation import SetupSim
@@ -254,7 +254,7 @@ if __name__ == "__main__":
         resume=args.resume,
     )
 
-    replic_ID = filepath
+    replic_ID = 1
     """ Restore the log at the end of the single simulation run for saving and for potential further study """
     is_background = (not isleconfig.force_foreground) and (
         isleconfig.replicating or (replic_ID in locals())

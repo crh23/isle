@@ -1,5 +1,5 @@
 import math
-from typing import Sequence, Tuple, Union, Optional, List
+from typing import Sequence, Tuple, Union, Optional, MutableSequence
 
 import numpy as np
 
@@ -36,15 +36,15 @@ class RiskModel:
         self.margin_of_safety = margin_of_safety
         """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
-        self.damage_distribution: List = [
+        self.damage_distribution: MutableSequence = [
             damage_distribution for _ in range(self.category_number)
         ]  # TODO: separate that category wise? -> DONE.
-        self.damage_distribution_stack: Sequence[List] = [
+        self.damage_distribution_stack: Sequence[MutableSequence] = [
             [] for _ in range(self.category_number)
         ]
-        self.reinsurance_contract_stack: Sequence[List[MetaInsuranceContract]] = [
-            [] for _ in range(self.category_number)
-        ]
+        self.reinsurance_contract_stack: Sequence[
+            MutableSequence[MetaInsuranceContract]
+        ] = [[] for _ in range(self.category_number)]
         # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
         self.inaccuracy: Sequence[float] = inaccuracy
 

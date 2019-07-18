@@ -453,12 +453,12 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.simulation.receive_obligation(var_this_risk, self, time, "bond")
             new_catbond.set_owner(self.simulation)
             """hand cash over to cat bond such that var_this_risk is covered"""
-            obligation = {
-                "amount": var_this_risk + total_premium,
-                "recipient": new_catbond,
-                "due_time": time,
-                "purpose": "bond",
-            }
+            obligation = genericclasses.Obligation(
+                amount=var_this_risk + total_premium,
+                recipient=new_catbond,
+                due_time=time,
+                purpose="bond",
+            )
             self._pay(obligation)  # TODO: is var_this_risk the correct amount?
             """register catbond"""
             self.simulation.add_agents(catbond.CatBond, "catbond", [new_catbond])
@@ -479,7 +479,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             if is_proportional:
                 claims_this_turn[categ_id] += claims
             if contract.reincontract:
-                contract.reincontract.explode(time, claims)
+                contract.reincontract.explode(time, damage_extent=claims)
 
         for categ_id in range(self.simulation_no_risk_categories):
             if (
@@ -487,7 +487,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                 and self.category_reinsurance[categ_id] is not None
             ):
                 self.category_reinsurance[categ_id].explode(
-                    time, claims_this_turn[categ_id]
+                    time, damage_extent=claims_this_turn[categ_id]
                 )
 
     def get_excess_of_loss_reinsurance(self):

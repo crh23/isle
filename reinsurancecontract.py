@@ -52,7 +52,7 @@ class ReinsuranceContract(MetaInsuranceContract):
         else:
             assert self.contract is not None
 
-    def explode(self, time, damage_extent=None):
+    def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
