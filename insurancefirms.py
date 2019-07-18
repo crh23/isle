@@ -541,14 +541,14 @@ class InsuranceFirm(MetaInsuranceOrg):
 
 
 class ReinsuranceFirm(InsuranceFirm):
-    """ReinsuranceFirm class. 
+    """ReinsuranceFirm class.
        Inherits from InsuranceFirm."""
 
     def __init__(self, simulation_parameters, agent_parameters):
         """Constructor method.
                Accepts arguments
                    Signature is identical to constructor method of parent class.
-           Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of 
+           Constructor calls parent constructor and only overwrites boolean indicators of insurer and reinsurer role of
            the object."""
         super().__init__(simulation_parameters, agent_parameters)
         self.is_insurer = False
