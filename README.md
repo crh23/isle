@@ -55,9 +55,10 @@ arguments ```[--pie] [--timeseries]``` for which data representation is wanted.
 
 If the necessary data has been saved a network animation can also be created by running ```visualization_network.py``` 
 which takes the arguments ```[--save] [--number_iterations]``` if you want the animation to be saved as an mp4, and how
-time iterations you want in the animation.
+many time iterations you want in the animation.
 
 #### Ensemble runs
-Use  ```metaplotter_pl_timescale.py```,  ```metaplotter_pl_timescale_additional_measures.py```, 
-or ```visualisation.py [--comparison]``` to visualize ensemble runs.
+Ensemble runs can be plotted if the correct data is available using ``visualisation.py``. Takes the arguments 
+``[--comparison]`` for an averaged time series, ``[--firmdistribution]`` for a CDF of firm size using amount of cash, 
+and ``[--bankruptcydistribution]``  for histograms of bankruptcy events per number of risk models.
 

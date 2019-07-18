@@ -9,8 +9,22 @@ import scipy
 import scipy.stats
 from matplotlib.offsetbox import AnchoredText
 
+
 class TimeSeries(object):
     def __init__(self, series_list, event_schedule, damage_schedule, title="",xlabel="Time", colour='k', axlst=None, fig=None, percentiles=None, alpha=0.7):
+        """Intialisation method for creating timeseries.
+            Accepts:
+                series_list: Type List. Contains contract, cash, operational, premium, profitloss data.
+                event_schedule: Type List of Lists. Used to plot event times on timeseries if a single run.
+                damage_schedule: Type List of Lisst. Used for plotting event times on timeseries if single run.
+                title: Type string.
+                xlabel: Type string.
+                colour: Type string.
+                axlist: Type None or list of axes for subplots.
+                fig: Type None or figure.
+                percentiles: Type list. Has the percentiles within which data is plotted for.
+                alpha: Type Integer. Alpha of graph plots.
+            No return values"""
         self.series_list = series_list
         self.size = len(series_list)
         self.xlabel = xlabel
@@ -27,8 +41,15 @@ class TimeSeries(object):
         else:
             self.fig, self.axlst = plt.subplots(self.size,sharex=True)
 
-    def plot(self, schedule=False):
-        multi_categ_colours = ['r', 'b', 'g', 'fuchsia']
+    def plot(self):
+        """Method  to plot time series.
+            No accepted values.
+            Returns:
+                self.fig: Type figure. Used to for saving graph to a file.
+                self.axlst: Type axes list.
+        This method is called to plot a timeseries for five subplots of data for insurers/reinsurers. If called for a
+        single run event times are plotted as vertical lines, if an ensemble run then no events but the average data is
+        plotted with percentiles as deviations to the average."""
         single_categ_colours = ['b', 'b', 'b', 'b']
         for i, (series, series_label, fill_lower, fill_upper) in enumerate(self.series_list):
             self.axlst[i].plot(self.timesteps, series,color=self.colour)
@@ -37,7 +58,7 @@ class TimeSeries(object):
             if fill_lower is not None and fill_upper is not None:
                 self.axlst[i].fill_between(self.timesteps, fill_lower, fill_upper, color=self.colour, alpha=self.alpha)
 
-            if schedule:    # Plots vertical lines for events if set.
+            if self.events_schedule is not None:    # Plots vertical lines for events if set.
                 for categ in range(len(self.events_schedule)):
                     for event_time in self.events_schedule[categ]:
                         index = self.events_schedule[categ].index(event_time)
@@ -48,24 +69,20 @@ class TimeSeries(object):
 
         return self.fig, self.axlst
 
-    def save(self, filename):
-        self.fig.savefig("{filename}".format(filename=filename))
-        return
-
 
 class InsuranceFirmAnimation(object):
-    """Initialising method for the animation of insurance firm data.
-        Accepts:
-            cash_data: Type List of List of Lists: Contains the operational, ID and cash for each firm for each time.
-            insure_contracts: Type List of Lists. Contains number of underwritten contracts for each firm for each time.
-            event_schedule: Type List of Lists. Contains event times by category.
-            type: Type String. Used to specify which file to save to.
-            save: Type Boolean
-            perils: Type Boolean. For if screen should flash during peril time.
-        No return values.
-    This class takes the cash and contract data of each firm over all time and produces an animation showing how the
-    proportion of each for all operational firms changes with time. Allows it to be saved as an MP4."""
     def __init__(self, cash_data, insure_contracts, event_schedule, type, save=True, perils=True):
+        """Initialising method for the animation of insurance firm data.
+                Accepts:
+                    cash_data: Type List of List of Lists: Contains the operational, ID and cash for each firm for each time.
+                    insure_contracts: Type List of Lists. Contains number of underwritten contracts for each firm for each time.
+                    event_schedule: Type List of Lists. Contains event times by category.
+                    type: Type String. Used to specify which file to save to.
+                    save: Type Boolean
+                    perils: Type Boolean. For if screen should flash during peril time.
+                No return values.
+            This class takes the cash and contract data of each firm over all time and produces an animation showing how the
+            proportion of each for all operational firms changes with time. Allows it to be saved as an MP4."""
         # Converts list of events by category into list of all events.
         self.perils_condition = perils
         self.all_event_times = []
@@ -97,7 +114,7 @@ class InsuranceFirmAnimation(object):
 
     def data_stream(self):
         """Method to get the next set of firm data.
-            No accpeted values
+            No accepted values
             Yields:
                 firm_cash_list: Type List. Contains the cash of each firm.
                 firm_id_list: Type List. Contains the unique ID of each firm.
@@ -146,42 +163,72 @@ class InsuranceFirmAnimation(object):
             No accepted values.
             No return values."""
         if self.type == "Insurance Firm":
-            self.animate.save("data/animated_insurfirm_pie.mp4", writer="ffmpeg", dpi=200, fps=10)
+            self.animate.save("figures/animated_insurfirm_pie.mp4", writer="ffmpeg", dpi=200, fps=10)
         elif self.type == "Reinsurance Firm":
-            self.animate.save("data/animated_reinsurefirm_pie.mp4", writer="ffmpeg", dpi=200, fps=10)
+            self.animate.save("figures/animated_reinsurefirm_pie.mp4", writer="ffmpeg", dpi=200, fps=10)
         else:
             print("Incorrect Type for Saving")
 
 
 class visualisation(object):
     def __init__(self, history_logs_list):
+        """Initialises visualisation class for all data.
+            Accepts:
+                history_logs_list: Type List of DataDicts. Each element is a different replication/run. Each DataDict
+                                    contains all info for that run.
+            No return values."""
         self.history_logs_list = history_logs_list
-        return
+        self.scatter_data = {}
 
     def insurer_pie_animation(self, run=0):
+        """Method to created animated pie chart of cash and contract proportional per operational insurance firm.
+            Accepts:
+                run: Type Integer. Which replication/run is wanted. Allows loops or specific runs.
+            Returns:
+                self.ins_pie_anim: Type animation class instance. Not used outside this method but is saved."""
         data = self.history_logs_list[run]
         insurance_cash = np.array(data['insurance_firms_cash'])
-        contract_data = self.history_logs_list[0]['individual_contracts']
-        event_schedule = self.history_logs_list[0]["rc_event_schedule_initial"]
+        contract_data = data['individual_contracts']
+        event_schedule = data["rc_event_schedule_initial"]
         self.ins_pie_anim = InsuranceFirmAnimation(insurance_cash, contract_data, event_schedule, 'Insurance Firm', save=True)
         self.ins_pie_anim.animate()
         return self.ins_pie_anim
 
     def reinsurer_pie_animation(self, run=0):
+        """Method to created animated pie chart of cash and contract proportional per operational reinsurance firm.
+            Accepts:
+                run: Type Integer. Which replication/run is wanted. Allows loops or specific runs.
+            Returns:
+                self.reins_pie_anim: Type animation class instance. Not used outside this method but is saved."""
         data = self.history_logs_list[run]
         reinsurance_cash = np.array(data['reinsurance_firms_cash'])
-        contract_data = self.history_logs_list[0]['reinsurance_contracts']
-        event_schedule = self.history_logs_list[0]["rc_event_schedule_initial"]
+        contract_data = data['reinsurance_contracts']
+        event_schedule = data["rc_event_schedule_initial"]
         self.reins_pie_anim = InsuranceFirmAnimation(reinsurance_cash, contract_data, event_schedule, 'Reinsurance Firm', save=True)
         self.reins_pie_anim.animate()
         return self.reins_pie_anim
 
-    def insurer_time_series(self, runs=None, axlst=None, fig=None, title="Insurer", colour='black', percentiles=[25,75]):
-        # runs should be a list of the indexes you want included in the ensemble for consideration
-        if runs:
-            data = [self.history_logs_list[x] for x in runs]
+    def insurer_time_series(self, singlerun=True, axlst=None, fig=None, title="Insurer", colour='black', percentiles=[25,75]):
+        """Method to create a timeseries for insurance firms' data.
+            Accepts:
+                singlerun: Type Boolean. Sets event schedule if a single run.
+                axlst: Type axes list, normally None and created later.
+                fig: Type figure, normally None and created later.
+                title: Type String.
+                colour: Type String.
+                percentiles: Type List. For ensemble runs to plot outer limits of data.
+            Returns:
+                fig: Type figure. Used to save times series.
+                axlst: Type axes list. Not used.
+        This method is called to plot a timeseries of contract, cash, operational, profitloss, and premium data for
+        insurance firms from saved data. Also sets event schedule for single run data, to plots event times on
+        timeseries, as this is only helpful in this case."""
+        if singlerun:
+            events = self.history_logs_list[0]["rc_event_schedule_initial"]
+            damages = self.history_logs_list[0]['rc_event_damage_initial']
         else:
-            data = self.history_logs_list
+            events = None
+            damages = None
 
         # Take the element-wise means/medians of the ensemble set (axis=0)
         contracts_agg = [history_logs['total_contracts'] for history_logs in self.history_logs_list]
@@ -196,24 +243,36 @@ class visualisation(object):
         cash = np.median(cash_agg, axis=0)
         premium = np.median(premium_agg, axis=0)
 
-        events = self.history_logs_list[0]["rc_event_schedule_initial"]
-        damages = self.history_logs_list[0]['rc_event_damage_initial']
-
         self.ins_time_series = TimeSeries([
                                 (contracts, 'Contracts', np.percentile(contracts_agg,percentiles[0], axis=0), np.percentile(contracts_agg, percentiles[1], axis=0)),
                                 (profitslosses, 'Profitslosses', np.percentile(profitslosses_agg,percentiles[0], axis=0), np.percentile(profitslosses_agg, percentiles[1], axis=0)),
                                 (operational, 'Operational', np.percentile(operational_agg,percentiles[0], axis=0), np.percentile(operational_agg, percentiles[1], axis=0)),
                                 (cash, 'Cash', np.percentile(cash_agg,percentiles[0], axis=0), np.percentile(cash_agg, percentiles[1], axis=0)),
                                 (premium, "Premium", np.percentile(premium_agg,percentiles[0], axis=0), np.percentile(premium_agg, percentiles[1], axis=0))], events, damages, title=title, xlabel="Time", axlst=axlst, fig=fig, colour=colour)
-        self.ins_time_series.plot(schedule=True)
-        return self.ins_time_series
+        fig, axlst = self.ins_time_series.plot()
+        return fig, axlst
 
-    def reinsurer_time_series(self, runs=None, axlst=None, fig=None, title="Reinsurer", colour='black', percentiles=[25,75]):
-        # runs should be a list of the indexes you want included in the ensemble for consideration
-        if runs:
-            data = [self.history_logs_list[x] for x in runs]
+    def reinsurer_time_series(self, singlerun=True, axlst=None, fig=None, title="Reinsurer", colour='black', percentiles=[25,75]):
+        """Method to create a timeseries for reinsurance firms' data.
+            Accepts:
+                singlerun: Type Boolean. Sets event schedule if a single run.
+                axlst: Type axes list, normally None and created later.
+                fig: Type figure, normally None and created later.
+                title: Type String.
+                colour: Type String.
+                percentiles: Type List. For ensemble runs to plot outer limits of data.
+            Returns:
+                fig: Type figure. Used to save times series.
+                axlst: Type axes list. Not used.
+        This method is called to plot a timeseries of contract, cash, operational, profitloss, and catbond data for
+        reinsurance firms from saved data. Also sets event schedule for single run data, to plots event times on
+        timeseries, as this is only helpful in this case."""
+        if singlerun:
+            events = self.history_logs_list[0]["rc_event_schedule_initial"]
+            damages = self.history_logs_list[0]['rc_event_damage_initial']
         else:
-            data = self.history_logs_list
+            events = None
+            damages = None
 
         # Take the element-wise means/medians of the ensemble set (axis=0)
         reincontracts_agg = [history_logs['total_reincontracts'] for history_logs in self.history_logs_list]
@@ -228,9 +287,6 @@ class visualisation(object):
         reincash = np.median(reincash_agg, axis=0)
         catbonds_number = np.median(catbonds_number_agg, axis=0)
 
-        events = self.history_logs_list[0]["rc_event_schedule_initial"]
-        damages = self.history_logs_list[0]['rc_event_damage_initial']
-
         self.reins_time_series = TimeSeries([
                                 (reincontracts, 'Contracts', np.percentile(reincontracts_agg,percentiles[0], axis=0), np.percentile(reincontracts_agg, percentiles[1], axis=0)),
                                 (reinprofitslosses, 'Profitslosses', np.percentile(reinprofitslosses_agg,percentiles[0], axis=0), np.percentile(reinprofitslosses_agg, percentiles[1], axis=0)),
@@ -238,29 +294,15 @@ class visualisation(object):
                                 (reincash, 'Cash', np.percentile(reincash_agg,percentiles[0], axis=0), np.percentile(reincash_agg, percentiles[1], axis=0)),
                                 (catbonds_number, "Activate Cat Bonds", np.percentile(catbonds_number_agg,percentiles[0], axis=0), np.percentile(catbonds_number_agg, percentiles[1], axis=0)),
                                         ], events, damages, title=title, xlabel="Time", axlst=axlst, fig=fig, colour=colour)
-        self.reins_time_series.plot(schedule=True)
-        return self.reins_time_series
-
-    def metaplotter_timescale(self):
-        # Take the element-wise means/medians of the ensemble set (axis=0)
-        contracts = np.mean([history_logs['total_contracts'] for history_logs in self.history_logs_list],axis=0)
-        profitslosses = np.mean([history_logs['total_profitslosses'] for history_logs in self.history_logs_list],axis=0)
-        operational = np.median([history_logs['total_operational'] for history_logs in self.history_logs_list],axis=0)
-        cash = np.median([history_logs['total_cash'] for history_logs in self.history_logs_list],axis=0)
-        premium = np.median([history_logs['market_premium'] for history_logs in self.history_logs_list],axis=0)
-        reincontracts = np.mean([history_logs['total_reincontracts'] for history_logs in self.history_logs_list],axis=0)
-        reinprofitslosses = np.mean([history_logs['total_reinprofitslosses'] for history_logs in self.history_logs_list],axis=0)
-        reinoperational = np.median([history_logs['total_reinoperational'] for history_logs in self.history_logs_list],axis=0)
-        reincash = np.median([history_logs['total_reincash'] for history_logs in self.history_logs_list],axis=0)
-        catbonds_number = np.median([history_logs['total_catbondsoperational'] for history_logs in self.history_logs_list],axis=0)
-        return
+        fig, axlst = self.reins_time_series.plot()
+        return fig, axlst
 
     def aux_clustered_exit_records(self, exits):
         """Auxiliary method for creation of data series on clustered events such as firm market exits.
-                Will take an unclustered series and aggregate every series of non-zero elements into
-                the first element of that series.
+        Will take an unclustered series and aggregate every series of non-zero elements into
+        the first element of that series.
             Arguments:
-                exits: numpy ndarray or list    - unclustered series
+                exits: numpy ndarray or list  - unclustered series
             Returns:
                 numpy ndarray of the same length as argument "exits": the clustered series."""
         exits2 = []
@@ -348,34 +390,57 @@ class visualisation(object):
 
 class compare_riskmodels(object):
     def __init__(self,vis_list, colour_list):
-        # take in list of visualisation objects and call their plot methods
+        """Initialises compare_riskmodels class.
+            Accepts:
+                vis_list: Type List of Visualisation class instances. Each instance is a different no. of risk models.
+                colour_list: Type List of string(colours).
+        Takes in list of visualisation objects and call their plot methods."""
         self.vis_list = vis_list
         self.colour_list = colour_list
+        self.insurer_fig = self.insurer_axlst = None
+        self.reinsurer_fig = self.reinsurer_axlst = None
         
     def create_insurer_timeseries(self, fig=None, axlst=None, percentiles=[25,75]):
-        # create the time series for each object in turn and superpose them?
-        fig = axlst = None
-        for vis,colour in zip(self.vis_list, self.colour_list):
-            (fig, axlst) = vis.insurer_time_series(fig=fig, axlst=axlst, colour=colour, percentiles=percentiles) 
+        """Method to create separate insurer time series for all numbers of risk models using visualisations'
+        insurer_time_series method. Loops through each separately and they are then saved automatically. Used for
+        ensemble runs.
+            Accepts:
+                fig: Type figure.
+                axlst: Type axes list.
+                percentiles: Type List.
+            No return values."""
+        risk_model = 0
+        for vis, colour in zip(self.vis_list, self.colour_list):
+            risk_model += 1
+            (self.insurer_fig, self.insurer_axlst) = vis.insurer_time_series(singlerun=False, fig=fig, axlst=axlst,
+                                                                             colour=colour, percentiles=percentiles,
+                                                                             title="%i Risk Model Insurer" % risk_model)
+            self.insurer_fig.savefig("figures/"+str(risk_model)+"risk_model(s)_insurer_ensemble_timeseries.png")
 
     def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=[25,75]):
-        # create the time series for each object in turn and superpose them?
-        fig = axlst = None
-        for vis,colour in zip(self.vis_list, self.colour_list):
-            (fig, axlst) = vis.reinsurer_time_series(fig=fig, axlst=axlst, colour=colour, percentiles=percentiles) 
+        """Method to create separate reinsurer time series for all numbers of risk models using visualisations'
+        reinsurer_time_series method. Loops through each separately and they are then saved automatically. Used for
+        ensemble runs.
+            Accepts:
+                fig: Type figure.
+                axlst: Type axes list.
+                percentiles: Type List.
+            No return values."""
+        risk_model = 0
+        for vis, colour in zip(self.vis_list, self.colour_list):
+            risk_model += 1
+            (self.reinsurer_fig, self.reinsurer_axlst) = vis.reinsurer_time_series(singlerun=False, fig=fig, axlst=axlst,
+                                                                                   colour=colour, percentiles=percentiles,
+                                                                                   title="%i Risk Model Reinsurer" % risk_model)
+            self.reinsurer_fig.savefig("figures/"+str(risk_model)+"risk_model(s)_reinsurer_ensemble_timeseries.png")
 
     def show(self):
         plt.show()
 
-    def save(self):
-        # logic to save plots
-        pass
 
-
-class CDF_distribution_plot():
-    """Class for CDF/cCDF distribution plots using auxiliary class from visualisation_distribution_plots.py.
-    This class arranges as many such plots stacked in one diagram as there are series in the history
-    logs they are created from, i.e. len(vis_list)."""
+class CDF_distribution_plot:
+    """Class for CDF/cCDF distribution plots using class CDFDistribution. This class arranges as many such plots stacked
+    in one diagram as there are series in the history logs they are created from, i.e. len(vis_list)."""
     def __init__(self, vis_list, colour_list, quantiles=[.25, .75], variable="reinsurance_firms_cash", timestep=-1,
                  plot_cCDF=True):
         """Constructor.
@@ -400,11 +465,12 @@ class CDF_distribution_plot():
             Arguments:
                 xlabel: str or None     - the x axis label
                 filename: str or None   - the filename without ending
-            Returns None."""
+            Returns None.
+        This method unpacks the variable wanted from the history log data then uses the CDFDistribution class to plot it"""
 
         """Set x axis label and filename to default if not provided"""
         xlabel = xlabel if xlabel is not None else self.variable
-        filename = filename if filename is not None else "CDF_plot_" + self.variable
+        filename = filename if filename is not None else "figures/CDF_plot_" + self.variable
 
         """Create figure with correct number of subplots"""
         self.fig, self.ax = plt.subplots(nrows=len(self.vis_list))
@@ -434,7 +500,6 @@ class CDF_distribution_plot():
                 series_x[j] = [firm[0] for firm in series_x[j] if firm[2]]
             """Create CDFDistribution object and populate the subfigure using it"""
             VDP = CDFDistribution(series_x)
-            # VDP.make_figure(upper_quantile=self.upper_quantile, lower_quantile=self.lower_quantile)
             c_xlabel = "" if i < len(self.vis_list) - 1 else xlabel
             VDP.plot(ax=self.ax[i], ylabel="cCDF " + str(i + 1) + "RM", xlabel=c_xlabel,
                      upper_quantile=self.upper_quantile, lower_quantile=self.lower_quantile, color=self.colour_list[i],
@@ -446,10 +511,9 @@ class CDF_distribution_plot():
         self.fig.savefig(filename + ".png", density=300)
 
 
-class Histogram_plot():
-    """Class for CDF/cCDF distribution plots using auxiliary class from visualisation_distribution_plots.py.
-    This class arranges as many such plots stacked in one diagram as there are series in the history
-    logs they are created from, i.e. len(vis_list)."""
+class Histogram_plot:
+    """Class for Histogram plots using class Histograms. This class arranges as many such plots stacked in one diagram
+    as there are series in the history logs they are created from, i.e. len(vis_list)."""
     def __init__(self, vis_list, colour_list, variable="bankruptcy_events"):
         """Constructor.
             Arguments:
@@ -471,7 +535,7 @@ class Histogram_plot():
 
         """Set x axis label and filename to default if not provided"""
         xlabel = xlabel if xlabel is not None else self.variable
-        filename = filename if filename is not None else "Histogram_plot_" + self.variable
+        filename = filename if filename is not None else "figures/Histogram_plot_" + self.variable
 
         """Create figure with correct number of subplots"""
         self.fig, self.ax = plt.subplots(nrows=len(self.vis_list))
@@ -514,7 +578,7 @@ class Histogram_plot():
         self.fig.savefig(filename + ".png", density=300)
 
 
-class CDFDistribution():
+class CDFDistribution:
     def __init__(self, samples_x):
         """Constructor.
             Arguments:
@@ -537,7 +601,6 @@ class CDFDistribution():
         self.quantile_series_y_upper = None
 
     def make_figure(self, upper_quantile=.25, lower_quantile=.75):
-        # pdb.set_trace()
         """Method to do the necessary computations to create the CDF plot (incl. mean, median, quantiles.
            This method populates the variables that are plotted.
             Arguments:
@@ -646,7 +709,7 @@ class CDFDistribution():
             plt.show()
 
 
-class Histogram():
+class Histogram:
     """Class for plots of ensembles of distributions as CDF (cumulative distribution function) or cCDF (complementary
         cumulative distribution function) with mean, median, and quantiles"""
     def __init__(self, sample_x):
@@ -706,16 +769,14 @@ if __name__ == "__main__":
     parser.add_argument("--single", action="store_true", help="plot a single run of the insurance model")
     parser.add_argument("--pie", action="store_true", help="plot animated pie charts of contract and cash data")
     parser.add_argument("--timeseries", action="store_true", help="plot time series of firm data")
-    parser.add_argument("--comparison", action="store_true", help="plot the result of an ensemble of replicatons of the insurance model")
+    parser.add_argument("--comparison", action="store_true", help="plot time series for an ensemble of replicatons of "
+                                                                  "the insurance model")
     parser.add_argument("--firmdistribution", action="store_true",
                         help="plot the CDFs of firm size distributions with quartiles indicating variation across "
                              "ensemble")
     parser.add_argument("--bankruptcydistribution", action="store_true",
-                        help="plot the histograms of bankruptcy events across ensemble")
+                        help="plot the histograms of bankruptcy events/unrecovered claims across ensemble")
     args = parser.parse_args()
-
-    args.bankruptcydistribution = True
-    args.single = args.pie = True
 
     if args.single:
 
@@ -729,37 +790,33 @@ if __name__ == "__main__":
             vis.insurer_pie_animation()
             vis.reinsurer_pie_animation()
         if args.timeseries:
-            vis.insurer_time_series()
-            vis.reinsurer_time_series()
+            insurerfig, axs = vis.insurer_time_series()
+            reinsurerfig, axs = vis.reinsurer_time_series()
+            insurerfig.savefig("figures/insurer_singlerun_timeseries.png")
+            reinsurerfig.savefig("figures/reinsurer_singlerun_timeseries.png")
         vis.show()
         N = len(history_logs_list)
 
     if args.comparison or args.firmdistribution or args.bankruptcydistribution:
-
-        # for each run, generate an animation and time series for insurer and reinsurer
-        # TODO: provide some way for these to be lined up nicely rather than having to manually arrange screen
-        # for i in range(N):
-        #    vis.insurer_pie_animation(run=i)
-        #    vis.insurer_time_series(runs=[i])
-        #    vis.reinsurer_pie_animation(run=i)
-        #    vis.reinsurer_time_series(runs=[i])
-        #    vis.show()
         vis_list = []
+        colour_list = ['red', 'blue', 'green', 'yellow']
+
+        # Loads all risk model history logs data (very long :'( ) and creates list of visualisation class instances.
         filenames = ["./data/" + x + "_history_logs.dat" for x in ["one", "two", "three", "four"]]
         for filename in filenames:
             with open(filename, 'r') as rfile:
                 history_logs_list = [eval(k) for k in rfile]  # one dict on each line
                 vis_list.append(visualisation(history_logs_list))
 
-        colour_list = ['red', 'blue', 'green', 'yellow']
-
     if args.comparison:
+        # Creates time series for all risk models in ensemble data.
         cmp_rsk = compare_riskmodels(vis_list, colour_list)
         cmp_rsk.create_insurer_timeseries(percentiles=[10, 90])
         cmp_rsk.create_reinsurer_timeseries(percentiles=[10, 90])
         cmp_rsk.show()
 
     if args.firmdistribution:
+        # Creates CDF for firm size using cash as measure of size.
         CP = CDF_distribution_plot(vis_list, colour_list, variable="insurance_firms_cash", timestep=-1, plot_cCDF=True)
         CP.generate_plot(xlabel="Firm size (capital)")
         if not isleconfig.simulation_parameters["reinsurance_off"]:
@@ -768,27 +825,17 @@ if __name__ == "__main__":
             CP.generate_plot(xlabel="Firm size (capital)")
 
     if args.bankruptcydistribution:
+        # Creates histogram for each number of risk models for size and frequency of bankruptcies/unrecovered claims.
         for vis in vis_list:
             vis.populate_scatter_data()
-        # HP = Histogram_plot(vis_list, colour_list, variable="bankruptcy_events")
-        # HP.generate_plot(logscale=True, xlabel="Number of bankruptcies")
-        # HP = Histogram_plot(vis_list, colour_list, variable="bankruptcy_events_relative")
-        # HP.generate_plot(logscale=True, xlabel="Share of bankrupt firms")
-        # HP = Histogram_plot(vis_list, colour_list, variable="bankruptcy_events_clustered")
-        # HP.generate_plot(logscale=True, xlabel="Number of bankruptcies")
 
         HP = Histogram_plot(vis_list, colour_list, variable="bankruptcy_events_relative_clustered")
         HP.generate_plot(logscale=True, xlabel="Share of bankrupt firms", minmax=[0, 0.5],
-                         VaR005guess=0.1)  # =0.056338028169014086)    # this is the VaR threshold for 4 risk models with reinsurance
-        # HP.generate_plot(logscale=True, xlabel="Share of bankrupt firms", minmax=[0, 0.5], VaR005guess=0.04580152671755725)    # this is the VaR threshold for 4 risk models without reinsurance
+                         VaR005guess=0.1)  # =0.056338028169014086)    # this is the VaR threshold for 4 risk models with reinsuranc
 
         HP = Histogram_plot(vis_list, colour_list, variable="unrecovered_claims")
         HP.generate_plot(logscale=True, xlabel="Damages not recovered", minmax=[0, 6450000],
                          VaR005guess=0.1)  # =691186.8726311699)    # this is the VaR threshold for 4 risk models with reinsurance
-        # HP.generate_plot(logscale=True, xlabel="Damages not recovered", minmax=[0, 6450000], VaR005guess=449707.1970911417)    # this is the VaR threshold for 4 risk models without reinsurance
-
-        # HP = Histogram_plot(vis_list, colour_list, variable="relative_unrecovered_claims")
-        # HP.generate_plot(logscale=True, xlabel="Damages not recovered")#, minmax=[0, 6450000])
 
 
 # ਲ਼
