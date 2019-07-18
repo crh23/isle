@@ -1,10 +1,12 @@
-from genericclasses import GenericAgent, RiskProperties
+from __future__ import annotations
+from genericclasses import RiskProperties
+import metainsuranceorg
 
 
 class MetaInsuranceContract:
     def __init__(
         self,
-        insurer: GenericAgent,
+        insurer: metainsuranceorg.MetaInsuranceOrg,
         risk: RiskProperties,
         time: int,
         premium: float,

@@ -271,7 +271,7 @@ class MetaInsuranceOrg(GenericAgent):
              then with proportional ones"""
 
             # Here the new reinrisks are organized by category.
-            reinrisks_per_categ, number_reinrisks_categ = self.risks_reinrisks_organizer(
+            reinrisks_per_categ = self.risks_reinrisks_organizer(
                 new_nonproportional_risks
             )
 
@@ -349,9 +349,7 @@ class MetaInsuranceOrg(GenericAgent):
                 acceptable_by_category = np.int64(np.round(acceptable_by_category))
 
             # Here the new risks are organized by category.
-            [risks_per_categ, number_risks_categ] = self.risks_reinrisks_organizer(
-                new_risks
-            )
+            risks_per_categ = self.risks_reinrisks_organizer(new_risks)
 
             for repetition in range(self.recursion_limit):
                 # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is
@@ -602,7 +600,7 @@ class MetaInsuranceOrg(GenericAgent):
 
     def risks_reinrisks_organizer(
         self, new_risks: Sequence[RiskProperties]
-    ) -> Tuple[Sequence[Sequence[RiskProperties]], Sequence[int]]:
+    ) -> Sequence[Sequence[RiskProperties]]:
         """This method organizes the new risks received by the insurer (or reinsurer) by category.
                     Accepts:
                         new_risks: Type list of DataDicts
@@ -623,7 +621,7 @@ class MetaInsuranceOrg(GenericAgent):
             number_risks_categ[categ_id] = len(risks_by_category[categ_id])
 
         # The method returns both risks_by_category and number_risks_categ.
-        return risks_by_category, number_risks_categ
+        return risks_by_category
 
     def balanced_portfolio(
         self,

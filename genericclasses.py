@@ -1,7 +1,16 @@
 from __future__ import annotations
+
+import numpy as np
+from scipy import stats
 import dataclasses
-from typing import Mapping, MutableSequence
-import metainsurancecontract
+from typing import Mapping, MutableSequence, Union
+
+# Not totally sure about the best way to resolve circular dependencies caused by type hinting
+# from metainsurancecontract import MetaInsuranceContract
+from distributiontruncated import TruncatedDistWrapper
+from distributionreinsurance import ReinsuranceDistWrapper
+
+Distribution = Union[stats.rv_continuous, TruncatedDistWrapper, ReinsuranceDistWrapper]
 
 
 class GenericAgent:
@@ -94,7 +103,7 @@ class RiskProperties:
     owner: GenericAgent
 
     number_risks: int = 1
-    contract: metainsurancecontract.MetaInsuranceContract = None
+    contract: "metainsurancecontract.MetaInsuranceContract" = None
     insurancetype: str = None
     deductible: float = None
     runtime: int = None
@@ -135,3 +144,22 @@ class Obligation:
     recipient: GenericAgent
     due_time: int
     purpose: str
+
+
+class ConstantGen(stats.rv_continuous):
+    def _pdf(self, x: float, *args) -> float:
+        a = np.float_(x == 0)
+        a[a == 1.0] = np.float_("inf")
+        return a
+
+    def _cdf(self, x: float, *args) -> float:
+        return np.float_(x >= 0)
+
+    def _rvs(self, *args) -> Union[np.ndarray, float]:
+        if self._size is None:
+            return 0.0
+        else:
+            return np.zeros(shape=self._size)
+
+
+Constant = ConstantGen(name="constant")

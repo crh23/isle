@@ -2,7 +2,7 @@
    Event schedule sets are written to files and include event schedules for every replication as dictionaries in a list.
    Every event schedule dictionary has:
       - event_times: list of list of int - iteration periods of risk events in each category
-      - event_damages: list of list of float (0, 1) - damage as share of theoretically possible damage for each risk event
+      - event_damages: list of list of float (0, 1) - damage as share of possible damage for each risk event
       - num_categories: int - number of risk categories 
       - np_seed: int - numpy module random seed
       - random_seed: int - random module random seed
@@ -15,7 +15,7 @@
     """
 
 import math
-
+from typing import MutableSequence, Tuple
 import os
 import pickle
 import scipy.stats
@@ -53,7 +53,11 @@ class SetupSim:
         self.overwrite = False
         self.replications = None
 
-    def schedule(self, replications):
+    def schedule(
+        self, replications: int
+    ) -> Tuple[
+        MutableSequence[MutableSequence[int]], MutableSequence[MutableSequence[float]]
+    ]:
         for i in range(replications):
             # In this list will be stored the lists of times when there will be catastrophes for every category of the
             # model during a single run. ([[times for C1],[times for C2],[times for C3],[times for C4]])
@@ -81,7 +85,7 @@ class SetupSim:
 
         return self.general_rc_event_schedule, self.general_rc_event_damage
 
-    def seeds(self, replications):
+    def seeds(self, replications: int):
         # This method sets (and returns) the seeds required for an ensemble of replications of the model.
         # The argument (replications) is the number of replications.
         """draw random variates for random seeds"""
@@ -155,7 +159,9 @@ class SetupSim:
                 "num_categories"
             ]
 
-    def obtain_ensemble(self, replications, filepath=None, overwrite=False):
+    def obtain_ensemble(
+        self, replications: int, filepath: str = None, overwrite: bool = False
+    ) -> Tuple:
         # This method returns all the information (schedules and seeds) required to run an ensemble of simulations of
         # the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a
         # later time. The argument (replications) is the number of replications.
@@ -197,7 +203,7 @@ class SetupSim:
         )
 
     @staticmethod
-    def to_filename(filepath):
+    def to_filename(filepath: str) -> str:
         if len(filepath) >= 10 and filepath[-10:] == ".islestore":
             return filepath
         else:

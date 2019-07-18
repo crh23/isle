@@ -5,16 +5,16 @@ import numpy as np
 
 import isleconfig
 from distributionreinsurance import ReinsuranceDistWrapper
-from genericclasses import RiskProperties
+from genericclasses import RiskProperties, Distribution
 from metainsurancecontract import MetaInsuranceContract
 
 
 class RiskModel:
     def __init__(
         self,
-        damage_distribution,
+        damage_distribution: Distribution,
         expire_immediately: bool,
-        cat_separation_distribution,
+        cat_separation_distribution: Distribution,
         norm_premium: float,
         category_number: int,
         init_average_exposure: float,
@@ -36,10 +36,10 @@ class RiskModel:
         self.margin_of_safety = margin_of_safety
         """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
            the share of risks suffering damage as part of any single catastrophic peril"""
-        self.damage_distribution: MutableSequence = [
+        self.damage_distribution: MutableSequence[Distribution] = [
             damage_distribution for _ in range(self.category_number)
         ]  # TODO: separate that category wise? -> DONE.
-        self.damage_distribution_stack: Sequence[MutableSequence] = [
+        self.damage_distribution_stack: Sequence[MutableSequence[Distribution]] = [
             [] for _ in range(self.category_number)
         ]
         self.reinsurance_contract_stack: Sequence[
