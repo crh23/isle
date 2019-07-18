@@ -8,6 +8,8 @@ import pickle
 import scipy
 import scipy.stats
 from matplotlib.offsetbox import AnchoredText
+import time
+import os
 
 
 class TimeSeries(object):
@@ -763,6 +765,111 @@ class Histogram:
             plt.show()
 
 
+class RiskModelSpecificCompare:     # TODO: Automate for all filetypes
+    def __init__(self, filetype="_premium.dat", refiletype="_reinpremium.dat", number_riskmodels=4):
+        """Initialises class that plots the insurance and reinsurance data for all risk models for specified data.
+        Currently plots premium data. Need to automate for number of risk models and filenames."""
+        self.timeseries_dict = {}
+        self.timeseries_dict["mean"] = {}
+        self.timeseries_dict["median"] = {}
+        self.timeseries_dict["quantile25"] = {}
+        self.timeseries_dict["quantile75"] = {}
+
+        self.filetypes = [filetype, refiletype]
+        self.riskmodels = ["one", "two", "three", "four"]
+
+        for i in range(number_riskmodels):
+            for j in range(len(self.filetypes)):
+                filename = "data/"+self.riskmodels[i]+self.filetypes[j]
+                rfile = open(filename, "r")
+                data = [eval(k) for k in rfile]
+                rfile.close()
+
+                # compute data series
+                data_means = []
+                data_medians = []
+                data_q25 = []
+                data_q75 = []
+                for k in range(len(data[0])):
+                    data_means.append(np.mean([item[k] for item in data]))
+                    data_q25.append(np.percentile([item[k] for item in data], 25))
+                    data_q75.append(np.percentile([item[k] for item in data], 75))
+                    data_medians.append(np.median([item[k] for item in data]))
+                data_means = np.array(data_means)
+                data_medians = np.array(data_medians)
+                data_q25 = np.array(data_q25)
+                data_q75 = np.array(data_q75)
+
+                # record data series
+                self.timeseries_dict["mean"][filename] = data_means
+                self.timeseries_dict["median"][filename] = data_medians
+                self.timeseries_dict["quantile25"][filename] = data_q25
+                self.timeseries_dict["quantile75"][filename] = data_q75
+
+    def plot(self, outputfile):
+        colors = {"one": "red", "two": "blue", "three": "green", "four": "yellow"}
+        labels = {"reinexcess_capital": "Excess Capital (Reinsurers)", "excess_capital": "Excess Capital (Insurers)",
+                  "cumulative_unrecovered_claims": "Uncovered Claims (cumulative)",
+                  "cumulative_bankruptcies": "Bankruptcies (cumulative)",
+                  "profitslosses": "Profits and Losses (Insurer)", "contracts": "Contracts (Insurers)",
+                  "cash": "Liquidity (Insurers)", "operational": "Active Insurers", "premium": "Premium (Insurance)",
+                  "reinprofitslosses": "Profits and Losses (Reinsurer)", "reincash": "Liquidity (Reinsurers)",
+                  "reincontracts": "Contracts (Reinsurers)", "reinoperational": "Active Reinsurers",
+                  "reinpremium": "Premium (Reinsurance)", "noninsured_risks": "Non-insured risks (Insurance)",
+                  "noninsured_reinrisks": "Non-insured risks (Insurance)"}
+
+        # Backup existing figures (so as not to overwrite them)
+        outputfilename = "data/" + outputfile + ".pdf"
+        backupfilename = "data/" + outputfile + "_old_" + time.strftime('%Y_%b_%d_%H_%M') + ".pdf"
+        if os.path.exists(outputfilename):
+            os.rename(outputfilename, backupfilename)
+
+        self.fig = plt.figure()
+
+        self.ax0 = self.fig.add_subplot(211)
+        maxlen_plots = 0
+        self.ax0.plot(range(len(self.timeseries_dict["mean"]["data/one_premium.dat"]))[1200:], self.timeseries_dict["mean"]["data/one_premium.dat"][1200:], color="red", label="One Riskmodel")
+        self.ax0.plot(range(len(self.timeseries_dict["mean"]["data/two_premium.dat"]))[1200:], self.timeseries_dict["mean"]["data/two_premium.dat"][1200:], color="blue", label="Two Riskmodels")
+        self.ax0.plot(range(len(self.timeseries_dict["mean"]["data/three_premium.dat"]))[1200:], self.timeseries_dict["mean"]["data/three_premium.dat"][1200:], color="green", label="Three Riskmodels")
+        self.ax0.plot(range(len(self.timeseries_dict["mean"]["data/four_premium.dat"]))[1200:], self.timeseries_dict["mean"]["data/four_premium.dat"][1200:], color="yellow", label="Four Riskmodels")
+
+        self.ax0.fill_between(range(len(self.timeseries_dict["quantile25"]["data/one_premium.dat"]))[1200:],self.timeseries_dict["quantile25"]["data/one_premium.dat"][1200:], self.timeseries_dict["quantile75"]["data/one_premium.dat"][1200:],facecolor="red", alpha=0.25)
+        self.ax0.fill_between(range(len(self.timeseries_dict["quantile25"]["data/one_premium.dat"]))[1200:],self.timeseries_dict["quantile25"]["data/two_premium.dat"][1200:], self.timeseries_dict["quantile75"]["data/two_premium.dat"][1200:],facecolor="blue", alpha=0.25)
+        self.ax0.fill_between(range(len(self.timeseries_dict["quantile25"]["data/two_premium.dat"]))[1200:],self.timeseries_dict["quantile25"]["data/three_premium.dat"][1200:], self.timeseries_dict["quantile75"]["data/three_premium.dat"][1200:],facecolor="green", alpha=0.25)
+        self.ax0.fill_between(range(len(self.timeseries_dict["quantile25"]["data/three_premium.dat"]))[1200:],self.timeseries_dict["quantile25"]["data/four_premium.dat"][1200:], self.timeseries_dict["quantile75"]["data/four_premium.dat"][1200:],facecolor="yellow", alpha=0.25)
+
+        maxlen_plots = max(maxlen_plots, len(self.timeseries_dict["mean"]["data/one_premium.dat"]), len(self.timeseries_dict["mean"]["data/two_premium.dat"]), len(self.timeseries_dict["mean"]["data/three_premium.dat"]), len(self.timeseries_dict["mean"]["data/four_premium.dat"]))
+        xticks = np.arange(1200, maxlen_plots, step=600)
+        self.ax0.set_xticks(xticks)
+        self.ax0.set_xticklabels(["${0:d}$".format(int((xtc - 1200) / 12)) for xtc in xticks]);
+        self.ax0.legend(loc='best')
+        self.ax0.set_ylabel(labels["premium"])
+
+        self.ax1 = self.fig.add_subplot(212)
+        maxlen_plots = 0
+        self.ax1.plot(range(len(self.timeseries_dict["mean"]["data/one_reinpremium.dat"]))[1200:], self.timeseries_dict["mean"]["data/one_reinpremium.dat"][1200:], color="red", label="One Riskmodel")
+        self.ax1.plot(range(len(self.timeseries_dict["mean"]["data/two_reinpremium.dat"]))[1200:], self.timeseries_dict["mean"]["data/two_reinpremium.dat"][1200:], color="blue", label="Two Riskmodels")
+        self.ax1.plot(range(len(self.timeseries_dict["mean"]["data/three_reinpremium.dat"]))[1200:], self.timeseries_dict["mean"]["data/three_reinpremium.dat"][1200:], color="green", label="Three Riskmodels")
+        self.ax1.plot(range(len(self.timeseries_dict["mean"]["data/four_reinpremium.dat"]))[1200:], self.timeseries_dict["mean"]["data/four_reinpremium.dat"][1200:], color="yellow", label="Four Riskmodels")
+
+        self.ax1.fill_between(range(len(self.timeseries_dict["quantile25"]["data/one_reinpremium.dat"]))[1200:], self.timeseries_dict["quantile25"]["data/one_reinpremium.dat"][1200:], self.timeseries_dict["quantile75"]["data/one_reinpremium.dat"][1200:], facecolor="red", alpha=0.25)
+        self.ax1.fill_between(range(len(self.timeseries_dict["quantile25"]["data/one_reinpremium.dat"]))[1200:], self.timeseries_dict["quantile25"]["data/two_reinpremium.dat"][1200:], self.timeseries_dict["quantile75"]["data/two_reinpremium.dat"][1200:], facecolor="blue", alpha=0.25)
+        self.ax1.fill_between(range(len(self.timeseries_dict["quantile25"]["data/two_reinpremium.dat"]))[1200:], self.timeseries_dict["quantile25"]["data/three_reinpremium.dat"][1200:], self.timeseries_dict["quantile75"]["data/three_reinpremium.dat"][1200:], facecolor="green", alpha=0.25)
+        self.ax1.fill_between(range(len(self.timeseries_dict["quantile25"]["data/three_reinpremium.dat"]))[1200:], self.timeseries_dict["quantile25"]["data/four_reinpremium.dat"][1200:], self.timeseries_dict["quantile75"]["data/four_reinpremium.dat"][1200:], facecolor="yellow", alpha=0.25)
+
+        maxlen_plots = max(maxlen_plots, len(self.timeseries_dict["mean"]["data/one_reinpremium.dat"]), len(self.timeseries_dict["mean"]["data/two_reinpremium.dat"]), len(self.timeseries_dict["mean"]["data/three_reinpremium.dat"]), len(self.timeseries_dict["mean"]["data/four_reinpremium.dat"]))
+
+        xticks = np.arange(1200, maxlen_plots, step=600)
+        self.ax1.set_xticks(xticks)
+        self.ax1.set_xticklabels(["${0:d}$".format(int((xtc - 1200) / 12)) for xtc in xticks]);
+        self.ax1.set_ylabel(labels["reinpremium"])
+        self.ax1.set_xlabel("Years")
+
+        plt.tight_layout()
+        self.fig.savefig(outputfilename)
+        plt.show()
+
+
 if __name__ == "__main__":
     # Use argparse to handle command line arguments
     parser = argparse.ArgumentParser(description='Model the Insurance sector')
@@ -776,7 +883,10 @@ if __name__ == "__main__":
                              "ensemble")
     parser.add_argument("--bankruptcydistribution", action="store_true",
                         help="plot the histograms of bankruptcy events/unrecovered claims across ensemble")
+    parser.add_argument("--riskmodel_comparison", action="store_true")
     args = parser.parse_args()
+
+    args.riskmodel_comparison = True
 
     if args.single:
 
@@ -837,5 +947,8 @@ if __name__ == "__main__":
         HP.generate_plot(logscale=True, xlabel="Damages not recovered", minmax=[0, 6450000],
                          VaR005guess=0.1)  # =691186.8726311699)    # this is the VaR threshold for 4 risk models with reinsurance
 
+    if args.riskmodel_comparison:
+        compare = RiskModelSpecificCompare()
+        compare.plot("figures/premium.data")
 
 # ਲ਼
