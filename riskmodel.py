@@ -38,7 +38,7 @@ class RiskModel:
            the share of risks suffering damage as part of any single catastrophic peril"""
         self.damage_distribution: MutableSequence[Distribution] = [
             damage_distribution for _ in range(self.category_number)
-        ]  # TODO: separate that category wise? -> DONE.
+        ]
         self.damage_distribution_stack: Sequence[MutableSequence[Distribution]] = [
             [] for _ in range(self.category_number)
         ]
@@ -432,6 +432,8 @@ class RiskModel:
             self.damage_distribution[categ_id]
         )
         self.reinsurance_contract_stack[categ_id].append(contract)
+        # QUERY: The riskmodel is based on the fractions, but these do not precisely correspond to the actual recovered
+        #  claim if the value insured in that category grows or shrinks
         self.damage_distribution[categ_id] = ReinsuranceDistWrapper(
             lower_bound=deductible_fraction,
             upper_bound=excess_fraction,

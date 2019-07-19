@@ -3,12 +3,14 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 import dataclasses
-from typing import Mapping, MutableSequence, Union
+from typing import Mapping, MutableSequence, Union, Tuple
 
 # Not totally sure about the best way to resolve circular dependencies caused by type hinting
 # from metainsurancecontract import MetaInsuranceContract
 from distributiontruncated import TruncatedDistWrapper
 from distributionreinsurance import ReinsuranceDistWrapper
+from reinsurancecontract import ReinsuranceContract
+import isleconfig
 
 Distribution = Union[stats.rv_continuous, TruncatedDistWrapper, ReinsuranceDistWrapper]
 
@@ -163,3 +165,23 @@ class ConstantGen(stats.rv_continuous):
 
 
 Constant = ConstantGen(name="constant")
+
+
+class ReinsuranceProfile:
+    """Class for keeping track of the reinsurance that an insurance firm holds
+
+    All reinsurance is assumed to be on open intervals"""
+    # TODO: add, remove, explode, get uninsured regions
+    def __init__(self):
+        self.reinsured_regions: MutableSequence[MutableSequence[Tuple[float, float, ReinsuranceContract]]] = [[] for _ in range(isleconfig.simulation_parameters["no_categories"])]
+        self.not_reinsured_regions: MutableSequence[MutableSequence[Tuple[float, float]]] = [[(0, np.float_("inf"))] for _ in range(isleconfig.simulation_parameters["no_categories"])]
+
+    def add_reinsurance(self, contract: ReinsuranceContract):
+        lower_bound = contract.deductible
+        upper_bound = contract.excess
+        for index, region in enumerate(self.not_reinsured_regions):
+            if region[0] <= lower_bound:
+                pass
+            self.reinsured_regions[contract.category].append(
+            (contract.deductible_fraction, contract.excess_fraction, contract)
+        )

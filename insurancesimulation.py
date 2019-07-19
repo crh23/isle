@@ -68,6 +68,7 @@ class InsuranceSimulation(GenericAgent):
         self.simulation_parameters: MutableMapping = simulation_parameters
         self.simulation_parameters["simulation"] = self
 
+        # QUERY: The distribution given is bounded by [0.25, 1.0]. Should this always be the case?
         "Unpacks parameters and sets distributions"
         self.damage_distribution: Distribution = damage_distribution
 
