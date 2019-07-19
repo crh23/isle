@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Tuple
+from typing import Optional, Tuple, MutableSequence, Mapping
 
 import numpy as np
 
@@ -490,7 +490,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                     time, damage_extent=claims_this_turn[categ_id]
                 )
 
-    def get_excess_of_loss_reinsurance(self):
+    def get_excess_of_loss_reinsurance(self) -> MutableSequence[Mapping]:
         """Method to return list containing the reinsurance for each category interms of the reinsurer, value of
         contract and category. Only used for network visualisation.
             No accepted values.

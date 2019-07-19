@@ -882,11 +882,12 @@ class InsuranceSimulation(GenericAgent):
                         risks_to_be_sent: Type List"""
         risks_to_be_sent = self.risks[: int(self.insurers_weights[insurer.id])]
         self.risks = self.risks[int(self.insurers_weights[insurer.id]) :]
-        for risk in insurer.risks_kept:
+        for risk in insurer.risks_retained:
             risks_to_be_sent.append(risk)
 
-        # QUERY: what actually is InsuranceFirm.risks_kept?
-        insurer.risks_kept = []
+        # QUERY: what actually is InsuranceFirm.risks_kept? Are we resending all their existing risks?
+        #  Or is it just a list of risk that have rolled over and so need to be re-evaluated
+        insurer.risks_retained = []
 
         np.random.shuffle(risks_to_be_sent)
 
@@ -1003,6 +1004,7 @@ class InsuranceSimulation(GenericAgent):
     def record_claims(self, claims: float):
         """This method records every claim made to insurers and reinsurers. It is called from both insurers and
             reinsurers (metainsuranceorg.py)."""
+        # QUERY: Should insurance and reinsurance claims really be recorded together?
         self.cumulative_claims += claims
 
     def log(self):

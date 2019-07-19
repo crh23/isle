@@ -4,7 +4,10 @@ import scipy.stats
 
 
 class ReinsuranceDistWrapper:
-    # QUERY: Is this the distribution of the risk when excess of loss reinsurance is applied?
+    """ Wrapper for modifying the risk to an insurance company when they have EoL reinsurance
+
+    lower_bound is the least reinsured risk (lowest priority), upper_bound is the greatest reinsured risk
+    Note that the bounds are in terms of the values of the distribution, not the probabilities."""
     def __init__(self, dist, lower_bound=None, upper_bound=None):
         assert lower_bound is not None or upper_bound is not None
         self.dist = dist
@@ -82,10 +85,17 @@ if __name__ == "__main__":
     non_truncated = scipy.stats.pareto(b=2, loc=0, scale=0.5)
     # truncated = ReinsuranceDistWrapper(lower_bound=0, upper_bound=1, dist=non_truncated)
     truncated = ReinsuranceDistWrapper(
-        lower_bound=0.9, upper_bound=1.1, dist=non_truncated
+        lower_bound=0.7, upper_bound=1.5, dist=non_truncated
     )
 
     x1 = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
-    x2 = np.linspace(truncated.ppf(0.01), truncated.ppf(0.99), 100)
+    # x2 = np.linspace(truncated.ppf(0.01), truncated.ppf(0.99), 100)
+    import matplotlib.pyplot as plt
+    y1 = non_truncated.pdf(x1)
+    y2 = truncated.pdf(x1)
+    plt.plot(x1, y1, 'r+')
+    plt.plot(x1, y2, 'bx')
+    plt.legend(["non truncated", "truncated"])
+    plt.show()
 
     # pdb.set_trace()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import metainsurancecontract
 import genericclasses
 import metainsuranceorg
+import insurancesimulation
 
 
 class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
@@ -42,6 +43,9 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             excess_fraction,
             reinsurance,
         )
+        # the property holder in an insurance contract should always be the simulation
+        assert self.property_holder is self.insurer.simulation
+        self.property_holder: insurancesimulation.InsuranceSimulation
 
     def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
@@ -53,7 +57,6 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
                                   damage caused in the risk insured by this contract.
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
-        # np.mean(np.random.beta(1, 1./mu -1, size=90000))
         if uniform_value is None:
             raise ValueError(
                 "uniform_value must be passed to InsuranceContract.explode"

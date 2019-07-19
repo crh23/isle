@@ -1,5 +1,5 @@
 from __future__ import annotations
-from genericclasses import RiskProperties
+from genericclasses import RiskProperties, GenericAgent
 import metainsuranceorg
 
 
@@ -41,16 +41,15 @@ class MetaInsuranceContract:
         # TODO: argument reinsurance seems senseless; remove?
 
         # Save parameters
-        self.insurer = insurer
+        self.insurer: metainsuranceorg.MetaInsuranceOrg = insurer
         self.risk_factor = risk.risk_factor
         self.category = risk.category
-        self.property_holder = risk.owner
+        self.property_holder: GenericAgent = risk.owner
         self.value = risk.value
         self.contract = risk.contract  # May be None
         self.risk = risk
-        self.insurancetype = (
-            risk.insurancetype if insurancetype is None else insurancetype
-        )
+        self.insurancetype = insurancetype or risk.insurancetype
+
         self.runtime = runtime
         self.starttime = time
         self.expiration = runtime + time
@@ -67,7 +66,6 @@ class MetaInsuranceContract:
             if risk.deductible_fraction is not None
             else default_deductible_fraction
         )
-
         self.deductible = self.deductible_fraction * self.value
 
         # set excess from argument, risk property or default value, whichever first is not None

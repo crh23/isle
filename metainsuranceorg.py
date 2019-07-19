@@ -143,7 +143,7 @@ class MetaInsuranceOrg(GenericAgent):
             1 - isleconfig.simulation_parameters["scale_inaccuracy"]
         )
 
-        self.riskmodel = RiskModel(
+        self.riskmodel: RiskModel = RiskModel(
             damage_distribution=rm_config["damage_distribution"],
             expire_immediately=rm_config["expire_immediately"],
             cat_separation_distribution=rm_config["cat_separation_distribution"],
@@ -192,8 +192,7 @@ class MetaInsuranceOrg(GenericAgent):
         self.var_category = np.zeros(
             self.simulation_no_risk_categories
         )  # var_sum disaggregated by category
-        self.naccep = []
-        self.risks_kept = []
+        self.risks_retained = []
         self.reinrisks_kept = []
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
@@ -433,8 +432,8 @@ class MetaInsuranceOrg(GenericAgent):
         # removing (dissolving) all risks immediately after bankruptcy (may not be realistic,
         # they might instead be bought by another company)
         # TODO: implement buyouts
-        self.simulation.return_risks(self.risks_kept)
-        self.risks_kept = []
+        self.simulation.return_risks(self.risks_retained)
+        self.risks_retained = []
         self.reinrisks_kept = []
         obligation = Obligation(
             amount=self.cash,
@@ -474,8 +473,6 @@ class MetaInsuranceOrg(GenericAgent):
             time: Type integer
             No return value"""
         amount = self.cash * self.interest_rate
-        # TODO: agent should not award her own interest.
-        #  This interest rate should be taken from self.simulation with a getter method
         self.simulation.receive_obligation(amount, self, time, "yields")
 
     def mature_contracts(self, time: int) -> int:
@@ -797,7 +794,7 @@ class MetaInsuranceOrg(GenericAgent):
         they should be underwritten or not. It is done in this way to maintain the portfolio as balanced as possible.
         For that reason we process risk[C1], risk[C2], risk[C3], risk[C4], risk[C1], risk[C2], ... and so forth. If
         risks are accepted then a contract is written."""
-        _cached_rvs = self.contract_runtime_dist.rvs()
+        random_runtime = self.contract_runtime_dist.rvs()
         not_accepted_risks = []
         for risk in roundrobin(risks_per_categ):
             assert risk
@@ -842,7 +839,7 @@ class MetaInsuranceOrg(GenericAgent):
                             risk,
                             time,
                             self.simulation.get_market_premium(),
-                            _cached_rvs,
+                            random_runtime,
                             self.default_contract_payment_period,
                             expire_immediately=self.simulation_parameters[
                                 "expire_immediately"
@@ -983,7 +980,7 @@ class MetaInsuranceOrg(GenericAgent):
                             [contract.risk]
                         )  # TODO: This is not a retention, so the roll_over_flag might be confusing in this case
                     else:
-                        self.risks_kept.append(contract.risk)
+                        self.risks_retained.append(contract.risk)
 
             if self.is_reinsurer:
                 for reincontract in maturing_next:

@@ -32,7 +32,7 @@ class CatBond(MetaInsuranceOrg):
         self.underwritten_contracts: MutableSequence[
             metainsurancecontract.MetaInsuranceContract
         ] = []
-        self.cash: int = 0
+        self.cash: float = 0
         self.profits_losses: float = 0
         self.obligations: MutableSequence[genericclasses.Obligation] = []
         self.operational: bool = True

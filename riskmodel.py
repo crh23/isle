@@ -420,7 +420,7 @@ class RiskModel:
     ):
         """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
          distribution to stack of damage distributions per category, then replace with a new distribution. Only used in
-         thad add_reinsurance method of insurancefirm.
+         the add_reinsurance method of insurancefirm.
             Accepts:
                 categ_id: Type Integer.
                 excess_fraction: Type Decimal.

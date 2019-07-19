@@ -1,4 +1,5 @@
 from metainsurancecontract import MetaInsuranceContract
+import insurancefirms
 
 
 class ReinsuranceContract(MetaInsuranceContract):
@@ -39,7 +40,8 @@ class ReinsuranceContract(MetaInsuranceContract):
             reinsurance,
         )
         # self.is_reinsurancecontract = True
-
+        assert type(self.property_holder) is insurancefirms.InsuranceFirm
+        self.property_holder: insurancefirms.InsuranceFirm
         if self.insurancetype not in ["excess-of-loss", "proportional"]:
             raise ValueError(f'Unrecognised insurance type "{self.insurancetype}"')
         if self.insurancetype == "excess-of-loss":
@@ -62,6 +64,7 @@ class ReinsuranceContract(MetaInsuranceContract):
                No return value.
            Method marks the contract for termination.
             """
+        assert uniform_value is None
 
         # QUERY: What is the difference? Also, what happens if damage_extent = None?
         if damage_extent > self.deductible:
