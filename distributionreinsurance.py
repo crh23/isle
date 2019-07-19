@@ -8,6 +8,7 @@ class ReinsuranceDistWrapper:
 
     lower_bound is the least reinsured risk (lowest priority), upper_bound is the greatest reinsured risk
     Note that the bounds are in terms of the values of the distribution, not the probabilities."""
+
     def __init__(self, dist, lower_bound=None, upper_bound=None):
         assert lower_bound is not None or upper_bound is not None
         self.dist = dist
@@ -91,10 +92,11 @@ if __name__ == "__main__":
     x1 = np.linspace(non_truncated.ppf(0.01), non_truncated.ppf(0.99), 100)
     # x2 = np.linspace(truncated.ppf(0.01), truncated.ppf(0.99), 100)
     import matplotlib.pyplot as plt
+
     y1 = non_truncated.pdf(x1)
     y2 = truncated.pdf(x1)
-    plt.plot(x1, y1, 'r+')
-    plt.plot(x1, y2, 'bx')
+    plt.plot(x1, y1, "r+")
+    plt.plot(x1, y2, "bx")
     plt.legend(["non truncated", "truncated"])
     plt.show()
 

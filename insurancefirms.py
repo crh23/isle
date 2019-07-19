@@ -278,7 +278,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         return total_value, avg_risk_factor, number_risks, periodized_total_premium
 
     def ask_reinsurance_non_proportional_by_category(
-        self, time: int, categ_id: int, purpose: str = "newrisk"
+        self, time: int, categ_id: int, purpose: str = "newrisk", tranches: int = 1
     ) -> Optional[genericclasses.RiskProperties]:
         """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
         capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.
@@ -286,11 +286,13 @@ class InsuranceFirm(MetaInsuranceOrg):
                 time: Type Integer.
                 categ_id: Type Integer.
                 purpose: Type String. Needed for when called from roll_over method as the risk is then returned.
+                tranches: Type int. Determines how many layers of reinsurance the risk is split over
             Returns:
                 risk: Type DataDict. Only returned when method used for roll_over.
         This method is given a category, then characterises all the underwritten risks in that category for the firm
-        and, assuming firms has underwritten risks in category, creates new reinsurance risk with values based on firms
-        existing underwritten risks. If the method was called to create a new risks then it is appended to list of
+        and, assuming firms has underwritten risks in category, creates new reinsurance risks with values based on firms
+        existing underwritten risks. If tranches > 1, the risk is split between mutliple layers of reinsurance, each of
+         the same size. If the method was called to create a new risks then it is appended to list of
         'reinrisks', otherwise used for creating the risk when a reinsurance contract rolls over."""
         [
             total_value,
@@ -299,23 +301,35 @@ class InsuranceFirm(MetaInsuranceOrg):
             periodized_total_premium,
         ] = self.characterize_underwritten_risks_by_category(categ_id)
         if number_risks > 0:
-            risk = genericclasses.RiskProperties(
-                value=total_value,
-                category=categ_id,
-                owner=self,
-                insurancetype="excess-of-loss",
-                number_risks=number_risks,
-                deductible_fraction=self.np_reinsurance_deductible_fraction,
-                excess_fraction=self.np_reinsurance_excess_fraction,
-                periodized_total_premium=periodized_total_premium,
-                runtime=12,
-                expiration=time + 12,
-                risk_factor=avg_risk_factor,
-            )  # TODO: make runtime into a parameter
-            if purpose == "newrisk":
-                self.simulation.append_reinrisks(risk)
-            elif purpose == "rollover":
-                return risk
+            lower_boundary, upper_boundary = (
+                self.np_reinsurance_deductible_fraction,
+                self.np_reinsurance_excess_fraction,
+            )
+            # TODO: think about tranche sizes
+            tranche_boundaries = [
+                lower_boundary + n * (upper_boundary - lower_boundary) / tranches
+                for n in range(tranches + 1)
+            ]
+            for tranche in range(tranches):
+                tranche_lower_bound = tranche_boundaries[tranche]
+                tranche_upper_bound = tranche_boundaries[tranche + 1]
+                risk = genericclasses.RiskProperties(
+                    value=total_value,
+                    category=categ_id,
+                    owner=self,
+                    insurancetype="excess-of-loss",
+                    number_risks=number_risks,
+                    deductible_fraction=tranche_lower_bound,
+                    excess_fraction=tranche_upper_bound,
+                    periodized_total_premium=periodized_total_premium,
+                    runtime=12,
+                    expiration=time + 12,
+                    risk_factor=avg_risk_factor,
+                )  # TODO: make runtime into a parameter
+                if purpose == "newrisk":
+                    self.simulation.append_reinrisks(risk)
+                elif purpose == "rollover":
+                    return risk
         elif number_risks == 0 and purpose == "rollover":
             return None
 

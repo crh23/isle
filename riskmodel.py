@@ -418,7 +418,7 @@ class RiskModel:
         deductible_fraction: float,
         contract: MetaInsuranceContract,
     ):
-        """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
+        """Method to add any instance of EoL reinsurance to risk models list of reinsurance contracts, and add damage
          distribution to stack of damage distributions per category, then replace with a new distribution. Only used in
          the add_reinsurance method of insurancefirm.
             Accepts:
@@ -427,6 +427,7 @@ class RiskModel:
                 deductible_fraction: Type Decimal.
                 contract: Type DataDict.
             No return values."""
+        assert contract.insurancetype == "excess-of-loss"
         self.damage_distribution_stack[categ_id].append(
             self.damage_distribution[categ_id]
         )
