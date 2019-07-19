@@ -58,7 +58,12 @@ which takes the arguments ```[--save] [--number_iterations]``` if you want the a
 many time iterations you want in the animation.
 
 #### Ensemble runs
-Ensemble runs can be plotted if the correct data is available using ``visualisation.py``. Takes the arguments 
-``[--comparison]`` for an averaged time series, ``[--firmdistribution]`` for a CDF of firm size using amount of cash, 
-and ``[--bankruptcydistribution]``  for histograms of bankruptcy events per number of risk models.
+Ensemble runs can be plotted if the correct data is available using ``visualisation.py`` which has a number of arguments.
+
+```
+visualiation.py [--timeseries_comparison] [--firmdistribution] 
+                [--bankruptcydistribution] [--compare_riskmodels]
+```
+
+See help for more information.
 
