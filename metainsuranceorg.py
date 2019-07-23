@@ -120,6 +120,8 @@ class MetaInsuranceOrg(GenericAgent):
             "dividend_share_of_profits"
         ]
 
+        # If the firm goes bankrupt then by default any further payments should be made to the simulation
+        self.creditor = self.simulation
         self.owner = self.simulation  # TODO: Make this into agent_parameter value?
         self.per_period_dividend = 0
         self.cash_last_periods = list(np.zeros(4, dtype=int) * self.cash)

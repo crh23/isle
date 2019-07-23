@@ -62,6 +62,7 @@ def main(
         sim_params = d["simulation_parameters"]
         for key in d["isleconfig"]:
             isleconfig.__dict__[key] = d["isleconfig"][key]
+        isleconfig.simulation_parameters = sim_params
     for t in range(time, sim_params["max_time"]):
         # Main time iteration loop
         simulation.iterate(t)

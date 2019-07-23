@@ -182,7 +182,7 @@ class InsuranceSimulation(GenericAgent):
             for i in range(self.simulation_parameters["no_risks"])
         ]
 
-        self.risks_counter: MutableSequence[int] = [0, 0, 0, 0]
+        self.risks_counter: MutableSequence[int] = [0 for _ in range(self.simulation_parameters["no_categories"])]
 
         for risk in self.risks:
             self.risks_counter[risk.category] += 1

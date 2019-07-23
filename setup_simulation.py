@@ -34,11 +34,11 @@ class SetupSim:
         self.no_categories = self.simulation_parameters["no_categories"]
 
         """set distribution"""  # TODO: this should be a parameter
-        self.non_truncated = scipy.stats.pareto(
+        non_truncated = scipy.stats.pareto(
             b=2, loc=0, scale=0.25
         )  # It is assumed that the damages of the catastrophes are drawn from a truncated Pareto distribution.
         self.damage_distribution = TruncatedDistWrapper(
-            lower_bound=0.25, upper_bound=1.0, dist=self.non_truncated
+            lower_bound=0.25, upper_bound=1.0, dist=non_truncated
         )
         self.cat_separation_distribution = scipy.stats.expon(
             0, self.simulation_parameters["event_time_mean_separation"]
@@ -73,6 +73,7 @@ class SetupSim:
                 total = 0
                 while total < self.max_time:
                     separation_time = self.cat_separation_distribution.rvs()
+                    # Note: the ceil of an exponential distribution is just a geometric distribution
                     total += int(math.ceil(separation_time))
                     if total < self.max_time:
                         event_schedule.append(total)

@@ -29,22 +29,35 @@ class GenericAgent:
         self.obligations: MutableSequence["Obligation"] = []
         self.operational: bool = True
         self.profits_losses: float = 0
+        self.creditor = None
+        self.id = -1
 
     def _pay(self, obligation: "Obligation"):
         """Method to _pay other class instances.
             Accepts:
                 Obligation: Type DataDict
             No return value
-            Method removes value payed from the agents cash and adds it to recipient agents cash."""
+            Method removes value payed from the agents cash and adds it to recipient agents cash.
+            If the recipient is not operational, redirect the payment to the creditor"""
         amount = obligation.amount
         recipient = obligation.recipient
         purpose = obligation.purpose
+
+        if not amount >= 0:
+            raise ValueError("Attempting to pay an obligation for a negative ammount - something is wrong")
         # TODO: Think about what happens when paying non-operational firms
-        if self.get_operational() and recipient.get_operational():
+        while not recipient.get_operational():
+            if isleconfig.verbose:
+                print(f"Redirecting payment with purpose {purpose} due to non-operational firm {recipient.id}")
+            recipient = recipient.creditor
+        if self.get_operational():
             self.cash -= amount
             if purpose is not "dividend":
                 self.profits_losses -= amount
             recipient.receive(amount)
+        else:
+            if isleconfig.verbose:
+                print(f"Payment not processed as firm {self.id} is not operational")
 
     def get_operational(self) -> bool:
         """Method to return boolean of if agent is operational. Only used as check for payments.

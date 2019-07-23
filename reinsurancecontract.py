@@ -67,9 +67,11 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         assert uniform_value is None
         if damage_extent is None:
             raise ValueError("Damage extend should be given")
-        # QUERY: What is the difference? Also, what happens if damage_extent = None?
         if damage_extent > self.deductible:
-            # QUERY: Changed this, for the better?
+            # Proportional reinsurance is triggered by the individual reinsured contracts at the time of explosion.
+            # Since EoL reinsurance isn't triggered until the insurer manually makes a claim, this would mean that
+            # proportional reinsurance pays out a turn earlier than EoL. As such, proportional insurance claims are
+            # delayed for 1 turn.
             if self.insurancetype == "excess-of-loss":
                 claim = min(self.excess, damage_extent) - self.deductible
                 self.insurer.receive_obligation(
