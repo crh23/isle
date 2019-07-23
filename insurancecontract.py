@@ -1,9 +1,10 @@
-from __future__ import annotations
-
 import metainsurancecontract
-import genericclasses
-import metainsuranceorg
-import insurancesimulation
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from metainsuranceorg import MetaInsuranceOrg
+    from insurancesimulation import InsuranceSimulation
+    from genericclasses import RiskProperties
 
 
 class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
@@ -16,8 +17,8 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
 
     def __init__(
         self,
-        insurer: metainsuranceorg.MetaInsuranceOrg,
-        risk: genericclasses.RiskProperties,
+        insurer: "MetaInsuranceOrg",
+        risk: "RiskProperties",
         time: int,
         premium: float,
         runtime: int,
@@ -45,7 +46,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
         )
         # the property holder in an insurance contract should always be the simulation
         assert self.property_holder is self.insurer.simulation
-        self.property_holder: insurancesimulation.InsuranceSimulation
+        self.property_holder: "InsuranceSimulation"
 
     def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.

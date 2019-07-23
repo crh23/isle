@@ -1,12 +1,8 @@
-from __future__ import annotations
 import math
 import random
 import copy
-
-import genericclasses
 import logger
 import warnings
-from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
 
 import scipy.stats
 import numpy as np
@@ -15,9 +11,19 @@ from distributiontruncated import TruncatedDistWrapper
 import visualization_network
 import insurancefirms
 import isleconfig
-from genericclasses import GenericAgent, RiskProperties, AgentProperties, Distribution
-from metainsuranceorg import MetaInsuranceOrg
+from genericclasses import (
+    GenericAgent,
+    RiskProperties,
+    AgentProperties,
+    Constant,
+)
 import catbond
+
+from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from genericclasses import Distribution
+    from metainsuranceorg import MetaInsuranceOrg
 
 
 class InsuranceSimulation(GenericAgent):
@@ -39,7 +45,7 @@ class InsuranceSimulation(GenericAgent):
         simulation_parameters: MutableMapping,
         rc_event_schedule: MutableSequence[MutableSequence[int]],
         rc_event_damage: MutableSequence[MutableSequence[float]],
-        damage_distribution: Distribution = TruncatedDistWrapper(
+        damage_distribution: "Distribution" = TruncatedDistWrapper(
             lower_bound=0.25,
             upper_bound=1.0,
             dist=scipy.stats.pareto(b=2, loc=0, scale=0.25),
@@ -70,7 +76,7 @@ class InsuranceSimulation(GenericAgent):
 
         # QUERY: The distribution given is bounded by [0.25, 1.0]. Should this always be the case?
         "Unpacks parameters and sets distributions"
-        self.damage_distribution: Distribution = damage_distribution
+        self.damage_distribution: "Distribution" = damage_distribution
 
         self.catbonds_off: bool = simulation_parameters["catbonds_off"]
         self.reinsurance_off: bool = simulation_parameters["reinsurance_off"]
@@ -93,9 +99,9 @@ class InsuranceSimulation(GenericAgent):
                 loc=self.risk_factor_lower_bound, scale=self.risk_factor_spread
             )
         else:
-            self.risk_factor_distribution = genericclasses.Constant(loc=1.0)
+            self.risk_factor_distribution = Constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
-        self.risk_value_distribution = genericclasses.Constant(loc=1000)
+        self.risk_value_distribution = Constant(loc=1000)
 
         risk_factor_mean = self.risk_factor_distribution.mean()
 
@@ -362,7 +368,7 @@ class InsuranceSimulation(GenericAgent):
         self,
         agent_class: type,
         agent_class_string: str,
-        agents: Sequence[GenericAgent] = None,
+        agents: "Sequence[GenericAgent]" = None,
         n: int = 1,
     ):
         """Method for building agents and adding them to the simulation. Can also add pre-made catbond agents directly
@@ -857,11 +863,17 @@ class InsuranceSimulation(GenericAgent):
             - max_reduction * np_reinsurance_deductible_fraction
         )
 
-    def append_reinrisks(self, item: RiskProperties):
+    def append_reinrisks(self, reinrisk: RiskProperties):
         """Method for appending reinrisks to simulation instance. Called from insurancefirm
                     Accepts: item (Type: List)"""
-        if item:
-            self.reinrisks.append(item)
+
+        # For debugging:
+        # for old_reinrisk in self.reinrisks:
+        #     if reinrisk.owner is old_reinrisk.owner and reinrisk.category == old_reinrisk.category:
+        #         pass
+        if reinrisk:
+            self.reinrisks.append(reinrisk)
+
 
     def remove_reinrisks(self, risko: RiskProperties):
         if risko is not None:
@@ -874,7 +886,7 @@ class InsuranceSimulation(GenericAgent):
         return self.reinrisks
 
     def solicit_insurance_requests(
-        self, insurer: MetaInsuranceOrg
+        self, insurer: "MetaInsuranceOrg"
     ) -> Sequence[RiskProperties]:
         """Method for determining which risks are to be assessed by firms based on insurer weights
                     Accepts:
@@ -895,7 +907,7 @@ class InsuranceSimulation(GenericAgent):
         return risks_to_be_sent
 
     def solicit_reinsurance_requests(
-        self, reinsurer: MetaInsuranceOrg
+        self, reinsurer: "MetaInsuranceOrg"
     ) -> Sequence[RiskProperties]:
         """Method for determining which reinsurance risks are to be assessed by firms based on reinsurer weights
                            Accepts:
@@ -1130,7 +1142,7 @@ class InsuranceSimulation(GenericAgent):
         for cb in self.catbonds:
             cb.reset_pl()
 
-    def get_risk_share(self, firm: MetaInsuranceOrg) -> float:
+    def get_risk_share(self, firm: "MetaInsuranceOrg") -> float:
         """Method to determine the total percentage of risks in the market that are held by a particular firm.
 
         For insurers uses insurance risks, for reinsurers uses reinsurance risks

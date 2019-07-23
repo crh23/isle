@@ -1,16 +1,18 @@
-from __future__ import annotations
-from typing import Optional, Tuple, MutableSequence, Mapping
-
 import numpy as np
 
-from metainsuranceorg import MetaInsuranceOrg
+import metainsuranceorg
 import catbond
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
 import genericclasses
+from typing import Optional, MutableSequence, Mapping
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    pass
 
 
-class InsuranceFirm(MetaInsuranceOrg):
+class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
     """ReinsuranceFirm class.
        Inherits from MetaInsuranceFirm."""
 
@@ -41,26 +43,36 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.per_period_dividend = 0
 
     def get_reinsurance_var_estimate(self, max_var: float) -> float:
-        """Method to estimate the VaR if another reinsurance contract were to be taken.
+        """Method to estimate the VaR if another reinsurance contract were to be taken out.
             Accepts:
                 max_var: Type Decimal. Max value at risk
             Returns:
                 reinsurance_VaR_estimate: Type Decimal.
         This method takes the max VaR and mulitiplies it by a factor that estimates the VaR if another reinsurance
         contract was to be taken. Called by the adjust_target_capacity and get_capacity methods."""
-        reinsurance_factor_estimate = (
-            len(
-                [
-                    1
-                    for categ_id in range(self.simulation_no_risk_categories)
-                    if (self.category_reinsurance[categ_id] is None)
-                ]
-            )
-            * 1.0
-            / self.simulation_no_risk_categories
-        ) * (1.0 - self.np_reinsurance_deductible_fraction)
+        values = [
+            self.underwritten_risk_characterisation[categ][2]
+            for categ in range(self.simulation_parameters["no_categories"])
+        ]
+        reinsurance_factor_estimate = self.get_reinsurable_fraction(values)
         reinsurance_var_estimate = max_var * (1.0 + reinsurance_factor_estimate)
         return reinsurance_var_estimate
+
+    def get_reinsurable_fraction(self, value_by_category):
+        """Returns the proportion of the value of risk held overall that is eligible for reinsurance"""
+        total = 0
+        for categ in range(len(value_by_category)):
+            value: float = value_by_category[categ]
+            uncovered = self.reinsurance_profile.uncovered(categ)
+            maximum_excess: float = self.np_reinsurance_excess_fraction * value
+            miniumum_deductible: float = self.np_reinsurance_deductible_fraction * value
+            for region in uncovered:
+                if region[1] > miniumum_deductible and region[0] < maximum_excess:
+                    total += min(
+                        region[1] / value, self.np_reinsurance_excess_fraction
+                    ) - max(region[0] / value, self.np_reinsurance_deductible_fraction)
+        total = total / len(value_by_category)
+        return total
 
     def adjust_capacity_target(self, max_var: float):
         """Method to adjust capacity target.
@@ -72,7 +84,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
         if max_var + reinsurance_var_estimate == 0:
             # TODO: why is this being called with max_var = 0 anyway?
-            capacity_target_var_ratio_estimate = float("inf")
+            capacity_target_var_ratio_estimate = np.inf
         else:
             capacity_target_var_ratio_estimate = (
                 (self.capacity_target + reinsurance_var_estimate)
@@ -131,9 +143,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         capacity = None
         if not reinsurance_price == cat_bond_price == float("inf"):
             categ_ids = [
-                categ_id
-                for categ_id in range(self.simulation_no_risk_categories)
-                if (self.category_reinsurance[categ_id] is None)
+                categ_id for categ_id in range(self.simulation_no_risk_categories)
             ]
             if len(categ_ids) > 1:
                 np.random.shuffle(categ_ids)
@@ -245,40 +255,11 @@ class InsuranceFirm(MetaInsuranceOrg):
             Returns None."""
         """Evaluate by risk category"""
         for categ_id in range(self.simulation_no_risk_categories):
-            """Seek reinsurance only with probability 10% if not already reinsured"""
-            # QUERY It doesn't actually have the 10% chance?
-            # TODO: find a more generic way to decide whether to request reinsurance for category in this period
-            if self.category_reinsurance[categ_id] is None:
-                self.ask_reinsurance_non_proportional_by_category(time, categ_id)
-
-    def characterize_underwritten_risks_by_category(
-        self, categ_id: int
-    ) -> Tuple[float, float, int, float]:
-        """Method to characterise associated risks in a given category in terms of value, number, avg risk factor, and
-        total premium per iteration.
-            Accepts:
-                categ_id: Type Integer. The given category for characterising risks.
-            Returns:
-                total_value: Type Decimal. Total value of all contracts in the category.
-                avg_risk_facotr: Type Decimal. Avg risk factor of all contracted risks in category.
-                number_risks: Type Integer. Total number of contracted risks in category.
-                periodised_total_premium: Total value per month of all contracts premium payments."""
-        total_value = 0
-        avg_risk_factor = 0
-        number_risks = 0
-        periodized_total_premium = 0
-        for contract in self.underwritten_contracts:
-            if contract.category == categ_id:
-                total_value += contract.value
-                avg_risk_factor += contract.risk_factor
-                number_risks += 1
-                periodized_total_premium += contract.periodized_premium
-        if number_risks > 0:
-            avg_risk_factor /= number_risks
-        return total_value, avg_risk_factor, number_risks, periodized_total_premium
+            # TODO: find a way to decide whether to request reinsurance for category in this period, maybe a threshold?
+            self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
     def ask_reinsurance_non_proportional_by_category(
-        self, time: int, categ_id: int, purpose: str = "newrisk", tranches: int = 1
+        self, time: int, categ_id: int, purpose: str = "newrisk", min_tranches: int = None
     ) -> Optional[genericclasses.RiskProperties]:
         """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
         capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.
@@ -286,7 +267,7 @@ class InsuranceFirm(MetaInsuranceOrg):
                 time: Type Integer.
                 categ_id: Type Integer.
                 purpose: Type String. Needed for when called from roll_over method as the risk is then returned.
-                tranches: Type int. Determines how many layers of reinsurance the risk is split over
+                min_tranches: Type int. Determines how many layers of reinsurance the risk is split over
             Returns:
                 risk: Type DataDict. Only returned when method used for roll_over.
         This method is given a category, then characterises all the underwritten risks in that category for the firm
@@ -294,33 +275,65 @@ class InsuranceFirm(MetaInsuranceOrg):
         existing underwritten risks. If tranches > 1, the risk is split between mutliple layers of reinsurance, each of
          the same size. If the method was called to create a new risks then it is appended to list of
         'reinrisks', otherwise used for creating the risk when a reinsurance contract rolls over."""
+        # TODO: how do we decide how many tranches?
+        if min_tranches is None:
+            min_tranches = isleconfig.simulation_parameters["min_tranches"]
         [
             total_value,
             avg_risk_factor,
             number_risks,
             periodized_total_premium,
-        ] = self.characterize_underwritten_risks_by_category(categ_id)
+        ] = self.underwritten_risk_characterisation[categ_id]
         if number_risks > 0:
-            lower_boundary, upper_boundary = (
-                self.np_reinsurance_deductible_fraction,
-                self.np_reinsurance_excess_fraction,
-            )
-            # TODO: think about tranche sizes
-            tranche_boundaries = [
-                lower_boundary + n * (upper_boundary - lower_boundary) / tranches
-                for n in range(tranches + 1)
-            ]
-            for tranche in range(tranches):
-                tranche_lower_bound = tranche_boundaries[tranche]
-                tranche_upper_bound = tranche_boundaries[tranche + 1]
+            tranches = self.reinsurance_profile.uncovered(categ_id)
+
+            # Don't get reinsurance above maximum excess
+            while tranches[-1][1] > self.np_reinsurance_excess_fraction * total_value:
+                if tranches[-1][0] >= self.np_reinsurance_excess_fraction * total_value:
+                    tranches.pop()
+                else:
+                    tranches[-1] = (
+                        tranches[-1][0],
+                        self.np_reinsurance_excess_fraction * total_value,
+                    )
+            while (
+                tranches[0][0] < self.np_reinsurance_deductible_fraction * total_value
+            ):
+                if (
+                    tranches[0][1]
+                    <= self.np_reinsurance_deductible_fraction * total_value
+                ):
+                    tranches = tranches[1:]
+                    if len(tranches) == 0:
+                        break
+                else:
+                    tranches[0] = (
+                        self.np_reinsurance_deductible_fraction * total_value,
+                        tranches[0][1],
+                    )
+            for tranche in tranches:
+                if tranche[1] - tranche[0] <= 2:
+                    # Small gaps are acceptable to avoid having trivial contracts
+                    tranches.remove(tranche)
+
+            if not tranches:
+                # If we've ended up with no tranches, give up and return
+                return None
+
+            while len(tranches) < min_tranches:
+                tranches = self.reinsurance_profile.split_longest(tranches)
+            if purpose == "rollover":
+                risks_to_return = []
+            for tranche in tranches:
+                assert tranche[1] > tranche[0]
                 risk = genericclasses.RiskProperties(
                     value=total_value,
                     category=categ_id,
                     owner=self,
                     insurancetype="excess-of-loss",
                     number_risks=number_risks,
-                    deductible_fraction=tranche_lower_bound,
-                    excess_fraction=tranche_upper_bound,
+                    deductible_fraction=tranche[0] / total_value,
+                    excess_fraction=tranche[1] / total_value,
                     periodized_total_premium=periodized_total_premium,
                     runtime=12,
                     expiration=time + 12,
@@ -329,7 +342,9 @@ class InsuranceFirm(MetaInsuranceOrg):
                 if purpose == "newrisk":
                     self.simulation.append_reinrisks(risk)
                 elif purpose == "rollover":
-                    return risk
+                    risks_to_return.append(risk)
+            if purpose == "rollover":
+                return risks_to_return
         elif number_risks == 0 and purpose == "rollover":
             return None
 
@@ -369,35 +384,25 @@ class InsuranceFirm(MetaInsuranceOrg):
                 else:
                     break
 
-    def add_reinsurance(
-        self,
-        category: int,
-        excess_fraction: float,
-        deductible_fraction: float,
-        contract: ReinsuranceContract,
-    ):
+    def add_reinsurance(self, contract: ReinsuranceContract):
         """Method called by reinsurancecontract to add the reinsurance contract to the firms counter for the given
         category, normally used so only one reinsurance contract is issued per category at a time.
             Accepts:
                 category: Type Integer.
-                excess_fraction: Type Decimal. Value of excess.
-                deductible_fraction: Type Decimal. Value of deductible.
                 contract: Type Class. Reinsurance contract issued to firm.
             No return values."""
-        self.riskmodel.add_reinsurance(
-            category, excess_fraction, deductible_fraction, contract
-        )
-        self.category_reinsurance[category] = contract
+        value = self.underwritten_risk_characterisation[contract.category][0]
+        self.reinsurance_profile.add(contract, value)
 
-    def delete_reinsurance(self, category: int, contract: ReinsuranceContract):
+    def delete_reinsurance(self, contract: ReinsuranceContract):
         """Method called by reinsurancecontract to delete the reinsurance contract from the firms counter for the given
         category, used so that another reinsurance contract can be issued for that category if needed.
             Accepts:
                 category: Type Integer.
                 contract: Type Class. Reinsurance contract issued to firm.
             No return values."""
-        self.riskmodel.delete_reinsurance(category, contract)
-        self.category_reinsurance[category] = None
+        value = self.underwritten_risk_characterisation[contract.category][0]
+        self.reinsurance_profile.remove(contract, value)
 
     def issue_cat_bond(
         self, time: int, categ_id: int, per_value_per_period_premium: int = 0
@@ -416,7 +421,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             avg_risk_factor,
             number_risks,
             _,
-        ] = self.characterize_underwritten_risks_by_category(categ_id)
+        ] = self.underwritten_risk_characterisation[categ_id]
         if number_risks > 0:
             # TODO: make runtime into a parameter
             risk = genericclasses.RiskProperties(
@@ -496,13 +501,12 @@ class InsuranceFirm(MetaInsuranceOrg):
                 contract.reincontract.explode(time, damage_extent=claims)
 
         for categ_id in range(self.simulation_no_risk_categories):
-            if (
-                claims_this_turn[categ_id] > 0
-                and self.category_reinsurance[categ_id] is not None
-            ):
-                self.category_reinsurance[categ_id].explode(
-                    time, damage_extent=claims_this_turn[categ_id]
+            if claims_this_turn[categ_id] > 0:
+                to_explode = self.reinsurance_profile.contracts_to_explode(
+                    damage=claims_this_turn[categ_id], category=categ_id
                 )
+                for contract in to_explode:
+                    contract.explode(time, damage_extent=claims_this_turn[categ_id])
 
     def get_excess_of_loss_reinsurance(self) -> MutableSequence[Mapping]:
         """Method to return list containing the reinsurance for each category interms of the reinsurer, value of
@@ -511,47 +515,46 @@ class InsuranceFirm(MetaInsuranceOrg):
             Returns:
                 reinsurance: Type list of DataDicts."""
         reinsurance = []
-        for categ_id in range(self.simulation_no_risk_categories):
-            if self.category_reinsurance[categ_id] is not None:
-                reinsurance_contract = {}
-                reinsurance_contract["reinsurer"] = self.category_reinsurance[
-                    categ_id
-                ].insurer
-                reinsurance_contract["value"] = self.category_reinsurance[
-                    categ_id
-                ].value
-                reinsurance_contract["category"] = categ_id
-                reinsurance.append(reinsurance_contract)
+        for contract in self.reinsurance_profile.all_contracts():
+            reinsurance.append(
+                {
+                    "reinsurer": contract.insurer,
+                    # QUERY: value vs excess?
+                    "value": contract.value,
+                    "category": contract.category,
+                }
+            )
         return reinsurance
 
-    def create_reinrisk(
-        self, time: int, categ_id: int
+    def refresh_reinrisk(
+        self, time: int, old_contract: "ReinsuranceContract"
     ) -> Optional[genericclasses.RiskProperties]:
-        """Proceed with creation of reinsurance risk only if category is not empty."""
+        # TODO: Can be merged
+        """Takes an expiring contract and returns a renewed risk to automatically offer to the existing reinsurer.
+        The new risk has the same deductible and excess as the old one, but with an updated time"""
         [
             total_value,
             avg_risk_factor,
             number_risks,
             periodized_total_premium,
-        ] = self.characterize_underwritten_risks_by_category(categ_id)
-        if number_risks > 0:
-            # TODO: make runtime into a parameter
-            risk = genericclasses.RiskProperties(
-                value=total_value,
-                category=categ_id,
-                owner=self,
-                insurancetype="excess-of-loss",
-                number_risks=number_risks,
-                deductible_fraction=self.np_reinsurance_deductible_fraction,
-                excess_fraction=self.np_reinsurance_excess_fraction,
-                periodized_total_premium=periodized_total_premium,
-                runtime=12,
-                expiration=time + 12,
-                risk_factor=avg_risk_factor,
-            )
-            return risk
-        else:
+        ] = self.underwritten_risk_characterisation[old_contract.category]
+        if number_risks == 0:
+            # If the insurerer currently has no risks in that category it probably doesn't want reinsurance
             return None
+        risk = genericclasses.RiskProperties(
+            value=total_value,
+            category=old_contract.category,
+            owner=self,
+            insurancetype="excess-of-loss",
+            number_risks=number_risks,
+            deductible_fraction=old_contract.deductible / total_value,
+            excess_fraction=old_contract.excess / total_value,
+            periodized_total_premium=periodized_total_premium,
+            runtime=12,
+            expiration=time + 12,
+            risk_factor=avg_risk_factor,
+        )
+        return risk
 
 
 class ReinsuranceFirm(InsuranceFirm):

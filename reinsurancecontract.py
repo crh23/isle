@@ -1,8 +1,14 @@
-from metainsurancecontract import MetaInsuranceContract
-import insurancefirms
+import metainsurancecontract
+
+from typing import Optional
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from insurancefirms import InsuranceFirm
+    from metainsuranceorg import MetaInsuranceOrg
+    from genericclasses import RiskProperties
 
 
-class ReinsuranceContract(MetaInsuranceContract):
+class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
     """ReinsuranceContract class.
         Inherits from InsuranceContract.
         Constructor is not currently required but may be used in the future to distinguish InsuranceContract
@@ -12,18 +18,18 @@ class ReinsuranceContract(MetaInsuranceContract):
 
     def __init__(
         self,
-        insurer,
-        risk,
-        time,
-        premium,
-        runtime,
-        payment_period,
-        expire_immediately,
-        initial_var=0.0,
-        insurancetype="proportional",
-        deductible_fraction=None,
-        excess_fraction=None,
-        reinsurance=0,
+        insurer: "MetaInsuranceOrg",
+        risk: "RiskProperties",
+        time: int,
+        premium: float,
+        runtime: int,
+        payment_period: int,
+        expire_immediately: bool,
+        initial_var: float = 0.0,
+        insurancetype: str = "proportional",
+        deductible_fraction: "Optional[float]"=None,
+        excess_fraction: "Optional[float]"=None,
+        reinsurance: float=0,
     ):
         super().__init__(
             insurer,
@@ -40,21 +46,15 @@ class ReinsuranceContract(MetaInsuranceContract):
             reinsurance,
         )
         # self.is_reinsurancecontract = True
-        assert type(self.property_holder) is insurancefirms.InsuranceFirm
-        self.property_holder: insurancefirms.InsuranceFirm
+        self.property_holder: "InsuranceFirm"
         if self.insurancetype not in ["excess-of-loss", "proportional"]:
             raise ValueError(f'Unrecognised insurance type "{self.insurancetype}"')
         if self.insurancetype == "excess-of-loss":
-            self.property_holder.add_reinsurance(
-                category=self.category,
-                excess_fraction=self.excess_fraction,
-                deductible_fraction=self.deductible_fraction,
-                contract=self,
-            )
+            self.property_holder.add_reinsurance(contract=self)
         else:
             assert self.contract is not None
 
-    def explode(self, time, uniform_value=None, damage_extent=None):
+    def explode(self, time: int, uniform_value: None=None, damage_extent: float=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
@@ -65,7 +65,8 @@ class ReinsuranceContract(MetaInsuranceContract):
            Method marks the contract for termination.
             """
         assert uniform_value is None
-
+        if damage_extent is None:
+            raise ValueError("Damage extend should be given")
         # QUERY: What is the difference? Also, what happens if damage_extent = None?
         if damage_extent > self.deductible:
             # QUERY: Changed this, for the better?
@@ -81,7 +82,6 @@ class ReinsuranceContract(MetaInsuranceContract):
                 )
             else:
                 raise ValueError(f"Unexpected insurance type {self.insurancetype}")
-                # Reinsurer pays as soon as possible.
             # Every reinsurance claim made is immediately registered.
             self.insurer.register_claim(claim)
 
@@ -93,7 +93,7 @@ class ReinsuranceContract(MetaInsuranceContract):
                 self.expiration = time
                 # self.terminating = True
 
-    def mature(self, time):
+    def mature(self, time: int):
         """Mature method. 
                Accepts arguments
                     time: Type integer. The current time.
@@ -104,8 +104,6 @@ class ReinsuranceContract(MetaInsuranceContract):
         self.terminate_reinsurance(time)
 
         if self.insurancetype == "excess-of-loss":
-            self.property_holder.delete_reinsurance(
-                category=self.category, contract=self
-            )
+            self.property_holder.delete_reinsurance(contract=self)
         else:  # TODO: ? Instead: if self.insurancetype == "proportional":
             self.contract.unreinsure()

@@ -1,13 +1,14 @@
-from __future__ import annotations
-from genericclasses import RiskProperties, GenericAgent
-import metainsuranceorg
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from metainsuranceorg import MetaInsuranceOrg
+    from genericclasses import GenericAgent, RiskProperties
 
 
 class MetaInsuranceContract:
     def __init__(
         self,
-        insurer: metainsuranceorg.MetaInsuranceOrg,
-        risk: RiskProperties,
+        insurer: "MetaInsuranceOrg",
+        risk: "RiskProperties",
         time: int,
         premium: float,
         runtime: int,
@@ -41,10 +42,10 @@ class MetaInsuranceContract:
         # TODO: argument reinsurance seems senseless; remove?
 
         # Save parameters
-        self.insurer: metainsuranceorg.MetaInsuranceOrg = insurer
+        self.insurer: "MetaInsuranceOrg" = insurer
         self.risk_factor = risk.risk_factor
         self.category = risk.category
-        self.property_holder: GenericAgent = risk.owner
+        self.property_holder: "GenericAgent" = risk.owner
         self.value = risk.value
         self.contract = risk.contract  # May be None
         self.risk = risk
@@ -66,7 +67,7 @@ class MetaInsuranceContract:
             if risk.deductible_fraction is not None
             else default_deductible_fraction
         )
-        self.deductible = self.deductible_fraction * self.value
+        self.deductible = round(self.deductible_fraction * self.value)
 
         # set excess from argument, risk property or default value, whichever first is not None
         default_excess_fraction = 1.0
@@ -78,7 +79,7 @@ class MetaInsuranceContract:
             else default_excess_fraction
         )
 
-        self.excess = self.excess_fraction * self.value
+        self.excess = round(self.excess_fraction * self.value)
 
         self.reinsurance = reinsurance
         self.reinsurer = None

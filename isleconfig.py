@@ -108,4 +108,7 @@ simulation_parameters = {
     # Determines the minimum fraction of inaccuracy that insurers can achieve - a value of 0 means the biggest insurers
     # can be perfectly accurate, a value of 1 disables changes in inaccuracy based on size
     "scale_inaccuracy": 0.3,
+    # The smallest number of tranches that an insurer will issue when asking for reinsurance. Note: even if this is 1,
+    # insurers will still end up with layered reinsurance to fill gaps
+    "min_tranches": 1,
 }

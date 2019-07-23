@@ -1,10 +1,13 @@
-from __future__ import annotations
 import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
-import genericclasses
-import metainsurancecontract
-import insurancesimulation
+from genericclasses import Obligation, GenericAgent
+
 from typing import MutableSequence
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from insurancesimulation import InsuranceSimulation
+    from metainsurancecontract import MetaInsuranceContract
+
 
 # TODO: This and MetaInsuranceOrg should probably both subclass something simple - a MetaAgent, say. MetaInsuranceOrg
 #  can do more than a CatBond should be able to!
@@ -16,9 +19,9 @@ class CatBond(MetaInsuranceOrg):
     # TODO inheret GenericAgent instead of MetaInsuranceOrg?
     def __init__(
         self,
-        simulation: insurancesimulation.InsuranceSimulation,
+        simulation: "InsuranceSimulation",
         per_period_premium: float,
-        owner: genericclasses.GenericAgent,
+        owner: GenericAgent,
         interest_rate: float = 0,
     ):
         """Initialising methods.
@@ -30,13 +33,13 @@ class CatBond(MetaInsuranceOrg):
         self.simulation = simulation
         self.id: int = 0
         self.underwritten_contracts: MutableSequence[
-            metainsurancecontract.MetaInsuranceContract
+            "MetaInsuranceContract"
         ] = []
         self.cash: float = 0
         self.profits_losses: float = 0
-        self.obligations: MutableSequence[genericclasses.Obligation] = []
+        self.obligations: MutableSequence[Obligation] = []
         self.operational: bool = True
-        self.owner: genericclasses.GenericAgent = owner
+        self.owner: GenericAgent = owner
         self.per_period_dividend: float = per_period_premium
         self.interest_rate: float = interest_rate
         # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like
@@ -90,7 +93,7 @@ class CatBond(MetaInsuranceOrg):
 
         # self.estimate_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
 
-    def set_owner(self, owner: genericclasses.GenericAgent):
+    def set_owner(self, owner: GenericAgent):
         """Method to set owner of the Cat Bond.
             Accepts:
                 owner: Type class
@@ -99,7 +102,7 @@ class CatBond(MetaInsuranceOrg):
         if isleconfig.verbose:
             print("SOLD")
 
-    def set_contract(self, contract: metainsurancecontract.MetaInsuranceContract):
+    def set_contract(self, contract: "MetaInsuranceContract"):
         """Method to record new instances of CatBonds.
             Accepts:
                 owner: Type class
@@ -114,7 +117,7 @@ class CatBond(MetaInsuranceOrg):
         When the catbond contract matures this is called which pays the value of the catbond to the simulation, and is
         then deleted from the list of agents."""
         if self.operational:
-            obligation = genericclasses.Obligation(
+            obligation = Obligation(
                 amount=self.cash,
                 recipient=self.simulation,
                 due_time=1,
