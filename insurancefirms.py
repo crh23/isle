@@ -1,16 +1,18 @@
-from __future__ import annotations
-from typing import Optional, Tuple, MutableSequence, Mapping
-
 import numpy as np
 
-from metainsuranceorg import MetaInsuranceOrg
+import metainsuranceorg
 import catbond
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
 import genericclasses
+from typing import Optional, MutableSequence, Mapping, Tuple
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    pass
 
 
-class InsuranceFirm(MetaInsuranceOrg):
+class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
     """ReinsuranceFirm class.
        Inherits from MetaInsuranceFirm."""
 
@@ -41,7 +43,7 @@ class InsuranceFirm(MetaInsuranceOrg):
             self.per_period_dividend = 0
 
     def get_reinsurance_var_estimate(self, max_var: float) -> float:
-        """Method to estimate the VaR if another reinsurance contract were to be taken.
+        """Method to estimate the VaR if another reinsurance contract were to be taken out.
             Accepts:
                 max_var: Type Decimal. Max value at risk
             Returns:
@@ -72,7 +74,7 @@ class InsuranceFirm(MetaInsuranceOrg):
         reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
         if max_var + reinsurance_var_estimate == 0:
             # TODO: why is this being called with max_var = 0 anyway?
-            capacity_target_var_ratio_estimate = float("inf")
+            capacity_target_var_ratio_estimate = np.inf
         else:
             capacity_target_var_ratio_estimate = (
                 (self.capacity_target + reinsurance_var_estimate)

@@ -3,3 +3,4 @@ numpy>=1.13.3
 matplotlib>=2.1.1
 networkx>=2.0
 argparse>=1.1
+dataclasses>=0.6

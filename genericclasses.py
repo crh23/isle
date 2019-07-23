@@ -1,26 +1,36 @@
-from __future__ import annotations
+from itertools import chain
 
+import dataclasses
+from sortedcontainers import SortedList
 import numpy as np
 from scipy import stats
-import dataclasses
-from typing import Mapping, MutableSequence, Union
 
-# Not totally sure about the best way to resolve circular dependencies caused by type hinting
-# from metainsurancecontract import MetaInsuranceContract
-from distributiontruncated import TruncatedDistWrapper
-from distributionreinsurance import ReinsuranceDistWrapper
+import isleconfig
 
-Distribution = Union[stats.rv_continuous, TruncatedDistWrapper, ReinsuranceDistWrapper]
+from typing import Mapping, MutableSequence, Union, Tuple
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from metainsurancecontract import MetaInsuranceContract
+    from distributiontruncated import TruncatedDistWrapper
+    from distributionreinsurance import ReinsuranceDistWrapper
+    from reinsurancecontract import ReinsuranceContract
+    from riskmodel import RiskModel
+
+    Distribution = Union[
+        "stats.rv_continuous",
+        "TruncatedDistWrapper",
+        "ReinsuranceDistWrapper",
+    ]
 
 
 class GenericAgent:
     def __init__(self):
         self.cash: float = 0
-        self.obligations: MutableSequence[Obligation] = []
+        self.obligations: MutableSequence["Obligation"] = []
         self.operational: bool = True
         self.profits_losses: float = 0
 
-    def _pay(self, obligation: Obligation):
+    def _pay(self, obligation: "Obligation"):
         """Method to _pay other class instances.
             Accepts:
                 Obligation: Type DataDict
@@ -29,6 +39,7 @@ class GenericAgent:
         amount = obligation.amount
         recipient = obligation.recipient
         purpose = obligation.purpose
+        # TODO: Think about what happens when paying non-operational firms
         if self.get_operational() and recipient.get_operational():
             self.cash -= amount
             if purpose is not "dividend":
@@ -57,8 +68,7 @@ class GenericAgent:
         #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item.due_time <= time]
         self.obligations = [item for item in self.obligations if item.due_time > time]
-        # QUERY: could this cause a firm to enter illiquidity if it has obligations to non-operational firms? Such
-        #  firms can't recieve payment, so this possibly shouldn't happen.
+
         sum_due = sum([item.amount for item in due])
         if sum_due > self.cash:
             self.obligations += due
@@ -71,7 +81,7 @@ class GenericAgent:
         raise NotImplementedError()
 
     def receive_obligation(
-        self, amount: float, recipient: GenericAgent, due_time: int, purpose: str
+        self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str
     ):
         """Method for receiving obligations that the firm will have to _pay.
                     Accepts:
@@ -100,10 +110,10 @@ class RiskProperties:
     risk_factor: float
     value: float
     category: int
-    owner: GenericAgent
+    owner: "GenericAgent"
 
     number_risks: int = 1
-    contract: "metainsurancecontract.MetaInsuranceContract" = None
+    contract: "MetaInsuranceContract" = None
     insurancetype: str = None
     deductible: float = None
     runtime: int = None
@@ -141,7 +151,7 @@ class Obligation:
     """Class for holding the properties of an obligation"""
 
     amount: float
-    recipient: GenericAgent
+    recipient: "GenericAgent"
     due_time: int
     purpose: str
 
@@ -149,7 +159,7 @@ class Obligation:
 class ConstantGen(stats.rv_continuous):
     def _pdf(self, x: float, *args) -> float:
         a = np.float_(x == 0)
-        a[a == 1.0] = np.float_("inf")
+        a[a == 1.0] = np.inf
         return a
 
     def _cdf(self, x: float, *args) -> float:

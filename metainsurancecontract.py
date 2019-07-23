@@ -1,13 +1,14 @@
-from __future__ import annotations
-from genericclasses import RiskProperties, GenericAgent
-import metainsuranceorg
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from metainsuranceorg import MetaInsuranceOrg
+    from genericclasses import GenericAgent, RiskProperties
 
 
 class MetaInsuranceContract:
     def __init__(
         self,
-        insurer: metainsuranceorg.MetaInsuranceOrg,
-        risk: RiskProperties,
+        insurer: "MetaInsuranceOrg",
+        risk: "RiskProperties",
         time: int,
         premium: float,
         runtime: int,
@@ -41,10 +42,10 @@ class MetaInsuranceContract:
         # TODO: argument reinsurance seems senseless; remove?
 
         # Save parameters
-        self.insurer: metainsuranceorg.MetaInsuranceOrg = insurer
+        self.insurer: "MetaInsuranceOrg" = insurer
         self.risk_factor = risk.risk_factor
         self.category = risk.category
-        self.property_holder: GenericAgent = risk.owner
+        self.property_holder: "GenericAgent" = risk.owner
         self.value = risk.value
         self.contract = risk.contract  # May be None
         self.risk = risk

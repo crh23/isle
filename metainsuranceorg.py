@@ -1,29 +1,28 @@
-from __future__ import annotations
-import copy
 import math
 import functools
-from typing import (
-    Optional,
-    Tuple,
-    Sequence,
-    Mapping,
-    MutableSequence,
-    Iterable,
-    Callable,
-    Any,
-)
-from itertools import cycle, islice
+import copy
+from itertools import cycle, islice, chain
 
 import numpy as np
 import scipy.stats
 
 import isleconfig
-from insurancecontract import InsuranceContract
-import insurancesimulation
-from reinsurancecontract import ReinsuranceContract
-import metainsurancecontract
-from riskmodel import RiskModel
-from genericclasses import GenericAgent, RiskProperties, AgentProperties, Obligation
+import insurancecontract
+import reinsurancecontract
+import riskmodel
+from genericclasses import (
+    GenericAgent,
+    RiskProperties,
+    AgentProperties,
+    Obligation,
+)
+
+from typing import Optional, Tuple, Sequence, Mapping, MutableSequence, Iterable, Callable, Any
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from insurancesimulation import InsuranceSimulation
+    from metainsurancecontract import MetaInsuranceContract
+    from reinsurancecontract import ReinsuranceContract
 
 
 def roundrobin(iterables: Sequence[Iterable]) -> Iterable:
@@ -75,7 +74,7 @@ class MetaInsuranceOrg(GenericAgent):
                     Constructor creates general instance of an insurance company which is inherited by the reinsurance
                      and insurance firm classes. Initialises all necessary values provided by config file."""
         super().__init__()
-        self.simulation: insurancesimulation.InsuranceSimulation = simulation_parameters[
+        self.simulation: "InsuranceSimulation" = simulation_parameters[
             "simulation"
         ]
         self.simulation_parameters: Mapping = simulation_parameters
@@ -143,7 +142,7 @@ class MetaInsuranceOrg(GenericAgent):
             1 - isleconfig.simulation_parameters["scale_inaccuracy"]
         )
 
-        self.riskmodel: RiskModel = RiskModel(
+        self.riskmodel: riskmodel.RiskModel = riskmodel.RiskModel(
             damage_distribution=rm_config["damage_distribution"],
             expire_immediately=rm_config["expire_immediately"],
             cat_separation_distribution=rm_config["cat_separation_distribution"],
@@ -176,9 +175,8 @@ class MetaInsuranceOrg(GenericAgent):
                 "default_non-proportional_reinsurance_premium_share"
             ]
         self.underwritten_contracts: MutableSequence[
-            metainsurancecontract.MetaInsuranceContract
+            "MetaInsuranceContract"
         ] = []
-        # self.reinsurance_contracts = []
         self.is_insurer = True
         self.is_reinsurer = False
 
@@ -476,7 +474,7 @@ class MetaInsuranceOrg(GenericAgent):
         self.simulation.receive_obligation(amount, self, time, "yields")
 
     def mature_contracts(self, time: int) -> int:
-        """Method to mature contracts that have expired
+        """Method to mature underwritten contracts that have expired
         Accepts:
             time: Type integer
             Returns:
@@ -511,7 +509,7 @@ class MetaInsuranceOrg(GenericAgent):
 
     def get_underwritten_contracts(
         self
-    ) -> Sequence[metainsurancecontract.MetaInsuranceContract]:
+    ) -> Sequence["MetaInsuranceContract"]:
         return self.underwritten_contracts
 
     def get_profitslosses(self) -> float:
@@ -650,14 +648,14 @@ class MetaInsuranceOrg(GenericAgent):
             percentage_value_at_risk = self.riskmodel.get_ppf(
                 categ_id=risk.category, tail_size=self.riskmodel.var_tail_prob
             )
-            expected_damage = (
+            var_damage = (
                 percentage_value_at_risk
                 * risk.value
                 * risk.risk_factor
                 * self.riskmodel.inaccuracy[risk.category]
             )
-            expected_claim = (
-                min(expected_damage, risk.value * risk.excess_fraction)
+            var_claim = (
+                min(var_damage, risk.value * risk.excess_fraction)
                 - risk.value * risk.deductible_fraction
             )
 
@@ -665,7 +663,7 @@ class MetaInsuranceOrg(GenericAgent):
 
             # Compute how the cash reserved by category would change if the new reinsurance risk was accepted
             cash_reserved_by_categ_store[risk.category] += (
-                expected_claim * self.riskmodel.margin_of_safety
+                var_claim * self.riskmodel.margin_of_safety
             )
 
         else:
@@ -750,7 +748,7 @@ class MetaInsuranceOrg(GenericAgent):
                 )
 
                 if condition:
-                    contract = ReinsuranceContract(
+                    contract = reinsurancecontract.ReinsuranceContract(
                         self,
                         risk,
                         time,
@@ -808,7 +806,7 @@ class MetaInsuranceOrg(GenericAgent):
                     # Here we check whether the portfolio is balanced or not if the reinrisk (risk_to_insure) is
                     # underwritten. Return True if it is balanced. False otherwise.
                     if condition:
-                        contract = ReinsuranceContract(
+                        contract = reinsurancecontract.ReinsuranceContract(
                             self,
                             risk,
                             time,
@@ -834,7 +832,7 @@ class MetaInsuranceOrg(GenericAgent):
                     # Here it is check whether the portfolio is balanced or not if the risk (risk_to_insure) is
                     # underwritten. Return True if it is balanced. False otherwise.
                     if condition:
-                        contract = InsuranceContract(
+                        contract = insurancecontract.InsuranceContract(
                             self,
                             risk,
                             time,
