@@ -134,11 +134,11 @@ class RiskProperties:
     deductible: float = None
     runtime: int = None
     expiration: int = None
-    excess_fraction: float = None
+    limit_fraction: float = None
     deductible_fraction: float = None
     reinsurance_share: float = None
     periodized_total_premium: float = None
-    excess: float = None
+    limit: float = None
     runtime_left: int = None
 
 
@@ -215,7 +215,7 @@ class ReinsuranceProfile:
 
     def add(self, contract: "ReinsuranceContract", value: float) -> None:
         lower_bound: int = contract.deductible
-        upper_bound: int = contract.excess
+        upper_bound: int = contract.limit
         category = contract.category
 
         self.reinsured_regions[category].add((lower_bound, upper_bound, contract))
@@ -246,7 +246,7 @@ class ReinsuranceProfile:
 
     def remove(self, contract: "ReinsuranceContract", value: float) -> None:
         lower_bound = contract.deductible
-        upper_bound = contract.excess
+        upper_bound = contract.limit
         category = contract.category
 
         try:

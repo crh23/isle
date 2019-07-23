@@ -18,7 +18,7 @@ class MetaInsuranceContract:
         initial_var: float = 0.0,
         insurancetype: str = "proportional",
         deductible_fraction: float = None,
-        excess_fraction: float = None,
+        limit_fraction: float = None,
         reinsurance: float = 0,
     ):
         """Constructor method.
@@ -72,15 +72,15 @@ class MetaInsuranceContract:
 
         # set excess from argument, risk property or default value, whichever first is not None
         default_excess_fraction = 1.0
-        self.excess_fraction = (
-            excess_fraction
-            if excess_fraction is not None
-            else risk.excess_fraction
-            if risk.excess_fraction is not None
+        self.limit_fraction = (
+            limit_fraction
+            if limit_fraction is not None
+            else risk.limit_fraction
+            if risk.limit_fraction is not None
             else default_excess_fraction
         )
 
-        self.excess = round(self.excess_fraction * self.value)
+        self.limit = round(self.limit_fraction * self.value)
 
         self.reinsurance = reinsurance
         self.reinsurer = None

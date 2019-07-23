@@ -316,7 +316,7 @@ class MetaInsuranceOrg(GenericAgent):
                     category=contract.category,
                     risk_factor=contract.risk_factor,
                     deductible=contract.deductible,
-                    excess=contract.excess,
+                    limit=contract.limit,
                     insurancetype=contract.insurancetype,
                     runtime=contract.runtime,
                 )
@@ -704,7 +704,7 @@ class MetaInsuranceOrg(GenericAgent):
                 * self.riskmodel.inaccuracy[risk.category]
             )
             var_claim = (
-                min(var_damage, risk.value * risk.excess_fraction)
+                min(var_damage, risk.value * risk.limit_fraction)
                 - risk.value * risk.deductible_fraction
             )
 
@@ -766,7 +766,7 @@ class MetaInsuranceOrg(GenericAgent):
                     category=contract.category,
                     risk_factor=contract.risk_factor,
                     deductible=contract.deductible,
-                    excess=contract.excess,
+                    limit=contract.limit,
                     insurancetype=contract.insurancetype,
                     runtime_left=(contract.expiration - time),
                 )

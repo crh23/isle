@@ -292,7 +292,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         if number_risks > 0:
             tranches = self.reinsurance_profile.uncovered(categ_id)
 
-            # Don't get reinsurance above maximum excess
+            # Don't get reinsurance above maximum limit
             while tranches[-1][1] > self.np_reinsurance_excess_fraction * total_value:
                 if tranches[-1][0] >= self.np_reinsurance_excess_fraction * total_value:
                     tranches.pop()
@@ -338,7 +338,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                     insurancetype="excess-of-loss",
                     number_risks=number_risks,
                     deductible_fraction=tranche[0] / total_value,
-                    excess_fraction=tranche[1] / total_value,
+                    limit_fraction=tranche[1] / total_value,
                     periodized_total_premium=periodized_total_premium,
                     runtime=12,
                     expiration=time + 12,
@@ -436,7 +436,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 insurancetype="excess-of-loss",
                 number_risks=number_risks,
                 deductible_fraction=self.np_reinsurance_deductible_fraction,
-                excess_fraction=self.np_reinsurance_excess_fraction,
+                limit_fraction=self.np_reinsurance_excess_fraction,
                 periodized_total_premium=0,
                 runtime=12,
                 expiration=time + 12,
@@ -553,7 +553,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             insurancetype="excess-of-loss",
             number_risks=number_risks,
             deductible_fraction=old_contract.deductible / total_value,
-            excess_fraction=old_contract.excess / total_value,
+            limit_fraction=old_contract.limit / total_value,
             periodized_total_premium=periodized_total_premium,
             runtime=12,
             expiration=time + 12,

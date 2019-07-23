@@ -29,7 +29,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         initial_var: float = 0.0,
         insurancetype: str = "proportional",
         deductible_fraction: "Optional[float]" = None,
-        excess_fraction: "Optional[float]" = None,
+        limit_fraction: "Optional[float]" = None,
         reinsurance: float = 0,
     ):
         super().__init__(
@@ -43,7 +43,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             initial_var,
             insurancetype,
             deductible_fraction,
-            excess_fraction,
+            limit_fraction,
             reinsurance,
         )
         # self.is_reinsurancecontract = True
@@ -76,12 +76,12 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             # proportional reinsurance pays out a turn earlier than EoL. As such, proportional insurance claims are
             # delayed for 1 turn.
             if self.insurancetype == "excess-of-loss":
-                claim = min(self.excess, damage_extent) - self.deductible
+                claim = min(self.limit, damage_extent) - self.deductible
                 self.insurer.receive_obligation(
                     claim, self.property_holder, time, "claim"
                 )
             elif self.insurancetype == "proportional":
-                claim = min(self.excess, damage_extent) - self.deductible
+                claim = min(self.limit, damage_extent) - self.deductible
                 self.insurer.receive_obligation(
                     claim, self.property_holder, time + 1, "claim"
                 )

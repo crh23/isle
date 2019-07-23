@@ -86,7 +86,7 @@ class RiskModel:
         runtimes = np.zeros(len(categ_risks))
         for i, risk in enumerate(categ_risks):
             # TODO: factor in excess instead of value?
-            assert risk.excess is not None
+            assert risk.limit is not None
             exposures[i] = risk.value - risk.deductible
             risk_factors[i] = risk.risk_factor
             runtimes[i] = risk.runtime
@@ -280,7 +280,7 @@ class RiskModel:
                     * self.inaccuracy[categ_id]
                 )
 
-                var_claim = max(min(var_damage, risk.excess) - risk.deductible, 0)
+                var_claim = max(min(var_damage, risk.limit) - risk.deductible, 0)
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
                 cash_left_by_categ[categ_id] -= var_claim * self.margin_of_safety
@@ -293,7 +293,7 @@ class RiskModel:
                     * self.inaccuracy[categ_id]
                 )
                 var_claim_fraction = (
-                    min(var_damage_fraction, offered_risk.excess_fraction)
+                    min(var_damage_fraction, offered_risk.limit_fraction)
                     - offered_risk.deductible_fraction
                 )
                 var_claim_total = var_claim_fraction * offered_risk.value
