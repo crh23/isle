@@ -17,8 +17,18 @@ from genericclasses import (
     ReinsuranceProfile,
 )
 
-from typing import Optional, Tuple, Sequence, Mapping, MutableSequence, Iterable, Callable, Any
+from typing import (
+    Optional,
+    Tuple,
+    Sequence,
+    Mapping,
+    MutableSequence,
+    Iterable,
+    Callable,
+    Any,
+)
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from insurancesimulation import InsuranceSimulation
     from metainsurancecontract import MetaInsuranceContract
@@ -74,9 +84,7 @@ class MetaInsuranceOrg(GenericAgent):
                     Constructor creates general instance of an insurance company which is inherited by the reinsurance
                      and insurance firm classes. Initialises all necessary values provided by config file."""
         super().__init__()
-        self.simulation: "InsuranceSimulation" = simulation_parameters[
-            "simulation"
-        ]
+        self.simulation: "InsuranceSimulation" = simulation_parameters["simulation"]
         self.simulation_parameters: Mapping = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
             simulation_parameters["mean_contract_runtime"]
@@ -176,9 +184,7 @@ class MetaInsuranceOrg(GenericAgent):
             self.np_reinsurance_premium_share = simulation_parameters[
                 "default_non-proportional_reinsurance_premium_share"
             ]
-        self.underwritten_contracts: MutableSequence[
-            "MetaInsuranceContract"
-        ] = []
+        self.underwritten_contracts: MutableSequence["MetaInsuranceContract"] = []
         self.is_insurer = True
         self.is_reinsurer = False
 
@@ -519,9 +525,7 @@ class MetaInsuranceOrg(GenericAgent):
     def number_underwritten_contracts(self) -> int:
         return len(self.underwritten_contracts)
 
-    def get_underwritten_contracts(
-        self
-    ) -> Sequence["MetaInsuranceContract"]:
+    def get_underwritten_contracts(self) -> Sequence["MetaInsuranceContract"]:
         return self.underwritten_contracts
 
     def get_profitslosses(self) -> float:

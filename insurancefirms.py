@@ -8,6 +8,7 @@ import genericclasses
 from typing import Optional, MutableSequence, Mapping
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     pass
 
@@ -259,7 +260,11 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             self.ask_reinsurance_non_proportional_by_category(time, categ_id)
 
     def ask_reinsurance_non_proportional_by_category(
-        self, time: int, categ_id: int, purpose: str = "newrisk", min_tranches: int = None
+        self,
+        time: int,
+        categ_id: int,
+        purpose: str = "newrisk",
+        min_tranches: int = None,
     ) -> Optional[genericclasses.RiskProperties]:
         """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
         capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.

@@ -11,16 +11,12 @@ from distributiontruncated import TruncatedDistWrapper
 import visualization_network
 import insurancefirms
 import isleconfig
-from genericclasses import (
-    GenericAgent,
-    RiskProperties,
-    AgentProperties,
-    Constant,
-)
+from genericclasses import GenericAgent, RiskProperties, AgentProperties, Constant
 import catbond
 
 from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from genericclasses import Distribution
     from metainsuranceorg import MetaInsuranceOrg
@@ -182,7 +178,9 @@ class InsuranceSimulation(GenericAgent):
             for i in range(self.simulation_parameters["no_risks"])
         ]
 
-        self.risks_counter: MutableSequence[int] = [0 for _ in range(self.simulation_parameters["no_categories"])]
+        self.risks_counter: MutableSequence[int] = [
+            0 for _ in range(self.simulation_parameters["no_categories"])
+        ]
 
         for risk in self.risks:
             self.risks_counter[risk.category] += 1
@@ -873,7 +871,6 @@ class InsuranceSimulation(GenericAgent):
         #         pass
         if reinrisk:
             self.reinrisks.append(reinrisk)
-
 
     def remove_reinrisks(self, risko: RiskProperties):
         if risko is not None:

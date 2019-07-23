@@ -40,7 +40,7 @@ simulation_parameters = {
     "acceptance_threshold_friction": 0.9,
     "insurance_firm_market_entry_probability": 0.3,  # 0.02,
     "reinsurance_firm_market_entry_probability": 0.05,  # 0.004,
-    # Determines the reinsurance type of the simulation. Should be "non-proportional" or "excess-of-loss" 
+    # Determines the reinsurance type of the simulation. Should be "non-proportional" or "excess-of-loss"
     "simulation_reinsurance_type": "non-proportional",
     "default_non-proportional_reinsurance_deductible": 0.3,
     "default_non-proportional_reinsurance_excess": 1.0,

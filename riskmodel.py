@@ -8,6 +8,7 @@ from distributionreinsurance import ReinsuranceDistWrapper
 from typing import Sequence, Tuple, Union, Optional, MutableSequence
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from genericclasses import Distribution, RiskProperties
 
@@ -298,9 +299,7 @@ class RiskModel:
                 var_claim_total = var_claim_fraction * offered_risk.value
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
-                additional_required[categ_id] += (
-                    var_claim_total * self.margin_of_safety
-                )
+                additional_required[categ_id] += var_claim_total * self.margin_of_safety
                 additional_var_per_categ[categ_id] += var_claim_total
 
         # Additional value at risk should only occur in one category. Assert that this is the case.
@@ -399,7 +398,12 @@ class RiskModel:
                 min(cash_left_by_categ),
             )
 
-    def set_reinsurance_coverage(self, value: float, coverage: MutableSequence[Tuple[float, float]], category: int):
+    def set_reinsurance_coverage(
+        self,
+        value: float,
+        coverage: MutableSequence[Tuple[float, float]],
+        category: int,
+    ):
         """Updates the riskmodel for the category given to have the reinsurance given by coverage"""
         # sometimes value==0, in which case we don't try to update the distribution
         # (as the current coverage is effectively infinite)

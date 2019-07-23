@@ -2,6 +2,7 @@ import metainsurancecontract
 
 from typing import Optional
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from insurancefirms import InsuranceFirm
     from metainsuranceorg import MetaInsuranceOrg
@@ -27,9 +28,9 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         expire_immediately: bool,
         initial_var: float = 0.0,
         insurancetype: str = "proportional",
-        deductible_fraction: "Optional[float]"=None,
-        excess_fraction: "Optional[float]"=None,
-        reinsurance: float=0,
+        deductible_fraction: "Optional[float]" = None,
+        excess_fraction: "Optional[float]" = None,
+        reinsurance: float = 0,
     ):
         super().__init__(
             insurer,
@@ -54,7 +55,9 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         else:
             assert self.contract is not None
 
-    def explode(self, time: int, uniform_value: None=None, damage_extent: float=None):
+    def explode(
+        self, time: int, uniform_value: None = None, damage_extent: float = None
+    ):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.

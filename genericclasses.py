@@ -9,6 +9,7 @@ import isleconfig
 
 from typing import Mapping, MutableSequence, Union, Tuple
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from metainsurancecontract import MetaInsuranceContract
     from distributiontruncated import TruncatedDistWrapper
@@ -17,9 +18,7 @@ if TYPE_CHECKING:
     from riskmodel import RiskModel
 
     Distribution = Union[
-        "stats.rv_continuous",
-        "TruncatedDistWrapper",
-        "ReinsuranceDistWrapper",
+        "stats.rv_continuous", "TruncatedDistWrapper", "ReinsuranceDistWrapper"
     ]
 
 
@@ -44,11 +43,15 @@ class GenericAgent:
         purpose = obligation.purpose
 
         if not amount >= 0:
-            raise ValueError("Attempting to pay an obligation for a negative ammount - something is wrong")
+            raise ValueError(
+                "Attempting to pay an obligation for a negative ammount - something is wrong"
+            )
         # TODO: Think about what happens when paying non-operational firms
         while not recipient.get_operational():
             if isleconfig.verbose:
-                print(f"Redirecting payment with purpose {purpose} due to non-operational firm {recipient.id}")
+                print(
+                    f"Redirecting payment with purpose {purpose} due to non-operational firm {recipient.id}"
+                )
             recipient = recipient.creditor
         if self.get_operational():
             self.cash -= amount
@@ -96,12 +99,12 @@ class GenericAgent:
     def receive_obligation(
         self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str
     ):
-        """Method for receiving obligations that the firm will have to _pay.
+        """Method for receiving obligations that the firm will have to pay.
                     Accepts:
-                        amount: Type integer, how much will be payed
-                        recipient: Type Class instance, who will be payed
-                        due_time: Type Integer, what time value they will be payed
-                        purpose: Type string, why they are being payed
+                        amount: Type integer, how much will be paid
+                        recipient: Type Class instance, who will be paid
+                        due_time: Type Integer, what time value they will be paid
+                        purpose: Type string, why they are being paid
                     No return value
                     Adds obligation (Type DataDict) to list of obligations owed by the firm."""
 
@@ -198,7 +201,9 @@ class ReinsuranceProfile:
 
     # TODO: add, remove, explode, get uninsured regions
     def __init__(self, riskmodel: "RiskModel"):
-        self.reinsured_regions: MutableSequence[SortedList[Tuple[int, int, "ReinsuranceContract"]]]
+        self.reinsured_regions: MutableSequence[
+            SortedList[Tuple[int, int, "ReinsuranceContract"]]
+        ]
 
         self.reinsured_regions = [
             SortedList(key=lambda x: x[0])
@@ -208,9 +213,7 @@ class ReinsuranceProfile:
         # Used for automatically updating the riskmodel when reinsurance is modified
         self.riskmodel = riskmodel
 
-    def add(
-        self, contract: "ReinsuranceContract", value: float
-    ) -> None:
+    def add(self, contract: "ReinsuranceContract", value: float) -> None:
         lower_bound: int = contract.deductible
         upper_bound: int = contract.excess
         category = contract.category
@@ -221,24 +224,27 @@ class ReinsuranceProfile:
         )
 
         # Check for overlap with region to the right...
-        if index + 1 < len(self.reinsured_regions[category]) and self.reinsured_regions[category][index + 1][0] < upper_bound:
+        if (
+            index + 1 < len(self.reinsured_regions[category])
+            and self.reinsured_regions[category][index + 1][0] < upper_bound
+        ):
             raise ValueError(
-                "Attempted to add reinsurance overlapping with existing reinsurance"
+                "Attempted to add reinsurance overlapping with existing reinsurance \n"
+                f"Reinsured regions are {self.reinsured_regions[category]}"
             )
 
         # ... and to the left
         if index != 0 and self.reinsured_regions[category][index - 1][1] > lower_bound:
             raise ValueError(
-                "Attempted to add reinsurance overlapping with existing reinsurance"
+                "Attempted to add reinsurance overlapping with existing reinsurance \n"
+                f"Reinsured regions are {self.reinsured_regions[category]}"
             )
 
         self.riskmodel.set_reinsurance_coverage(
             value=value, coverage=self.reinsured_regions[category], category=category
         )
 
-    def remove(
-        self, contract: "ReinsuranceContract", value: float
-    ) -> None:
+    def remove(self, contract: "ReinsuranceContract", value: float) -> None:
         lower_bound = contract.deductible
         upper_bound = contract.excess
         category = contract.category
@@ -288,7 +294,9 @@ class ReinsuranceProfile:
         )
 
     @staticmethod
-    def split_longest(l: MutableSequence[Tuple[float, float]]) -> MutableSequence[Tuple[float, float]]:
+    def split_longest(
+        l: MutableSequence[Tuple[float, float]]
+    ) -> MutableSequence[Tuple[float, float]]:
         max_width = 0
         max_width_index = None
         for i, region in enumerate(l):
