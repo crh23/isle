@@ -62,7 +62,7 @@ class SetupSim():
                     total += int(math.ceil(separation_time))
                     if total < self.max_time:
                         event_schedule.append(total)
-                        event_damage.append(self.damage_distribution.rvs())
+                        event_damage.append(self.damage_distribution.rvs()[0])
                 rc_event_schedule.append(event_schedule)
                 rc_event_damage.append(event_damage)
 
