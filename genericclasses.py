@@ -55,7 +55,7 @@ class GenericAgent:
             recipient = recipient.creditor
         if self.get_operational():
             self.cash -= amount
-            if purpose is not "dividend":
+            if purpose != "dividend":
                 self.profits_losses -= amount
             recipient.receive(amount)
         else:

@@ -62,8 +62,8 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                Accepts arguments
                    time: Type integer. The current time.
                    uniform_value: Not used
-                   damage_extent: Type float. The absolute damage in excess-of-loss reinsurance (not relative as in 
-                                       proportional contracts. 
+                   damage_extent: Type float. The absolute damage in excess-of-loss reinsurance (not relative as in
+                                       proportional contracts.
                No return value.
            Method marks the contract for termination.
             """
@@ -99,11 +99,11 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 # self.terminating = True
 
     def mature(self, time: int):
-        """Mature method. 
+        """Mature method.
                Accepts arguments
                     time: Type integer. The current time.
                No return value.
-           Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this 
+           Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this
            contract."""
         # self.terminating = True
         self.terminate_reinsurance(time)

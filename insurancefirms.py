@@ -251,7 +251,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         """ Method for requesting excess of loss reinsurance for all underwritten contracts by category.
             The method calculates the combined value at risk. With a probability it then creates a combined
             reinsurance risk that may then be underwritten by a reinsurance firm.
-            Arguments: 
+            Arguments:
                 time: integer
             Returns None."""
         """Evaluate by risk category"""

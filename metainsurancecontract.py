@@ -23,7 +23,7 @@ class MetaInsuranceContract:
     ):
         """Constructor method.
                Accepts arguments
-                    insurer: Type InsuranceFirm. 
+                    insurer: Type InsuranceFirm.
                     risk: Type RiskProperties.
                     time: Type integer. The current time.
                     premium: Type float.

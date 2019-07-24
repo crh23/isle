@@ -7,23 +7,23 @@ def listify(d):
         Arguments:
             d: dict - input dict
         Returns:
-            list with dict values as elements [:-1] and dict keys as 
+            list with dict values as elements [:-1] and dict keys as
                 last element."""
 
     """extract keys"""
     keys = list(d.keys())
 
     """create list"""
-    l = [d[key] for key in keys]
-    l.append(keys)
+    lst = [d[key] for key in keys]
+    lst.append(keys)
 
-    return l
+    return lst
 
 
 def delistify(l):
     """Function to convert listified dict back to dict.
         Arguments:
-            l: list - input listified dict. This must be a list of dict 
+            l: list - input listified dict. This must be a list of dict
                         elements as elements [:-1] and the corresponding
                         dict keys as list in the last element.
         Returns:

@@ -540,24 +540,7 @@ class InsuranceSimulation(GenericAgent):
             self.simulation_parameters["no_categories"]
         )
 
-        # TODO: this and the next look like they could be cleaner
-        for insurer in self.insurancefirms:
-            if insurer.operational:
-                for i in range(len(self.inaccuracy)):
-                    if np.array_equal(insurer.riskmodel.inaccuracy, self.inaccuracy[i]):
-                        self.insurance_models_counter[i] += 1
-
-        self.reinsurance_models_counter = np.zeros(
-            self.simulation_parameters["no_categories"]
-        )
-
-        for reinsurer in self.reinsurancefirms:
-            for i in range(len(self.inaccuracy)):
-                if reinsurer.operational:
-                    if np.array_equal(
-                        reinsurer.riskmodel.inaccuracy, self.inaccuracy[i]
-                    ):
-                        self.reinsurance_models_counter[i] += 1
+        self._update_model_counters()
 
         network_division = 1  # How often network is updated.
         if isleconfig.show_network and t % network_division == 0 and t > 0:
@@ -569,7 +552,7 @@ class InsuranceSimulation(GenericAgent):
             self.RN.visualize()
 
     def save_data(self):
-        """Method to collect statistics about the current state of the simulation. Will pass these to the 
+        """Method to collect statistics about the current state of the simulation. Will pass these to the
            Logger object (self.logger) to be recorded.
             No arguments.
             Returns None."""
@@ -752,6 +735,26 @@ class InsuranceSimulation(GenericAgent):
                 for i in range(len(self.risks)):
                     s = math.floor(np.random.uniform(0, len(operational_firms), 1))
                     self.insurers_weights[operational_firms[s].id] += 1
+
+    def _update_model_counters(self):
+        # TODO: this and the next look like they could be cleaner
+        for insurer in self.insurancefirms:
+            if insurer.operational:
+                for i in range(len(self.inaccuracy)):
+                    if np.array_equal(insurer.riskmodel.inaccuracy, self.inaccuracy[i]):
+                        self.insurance_models_counter[i] += 1
+
+        self.reinsurance_models_counter = np.zeros(
+            self.simulation_parameters["no_categories"]
+        )
+
+        for reinsurer in self.reinsurancefirms:
+            for i in range(len(self.inaccuracy)):
+                if reinsurer.operational:
+                    if np.array_equal(
+                        reinsurer.riskmodel.inaccuracy, self.inaccuracy[i]
+                    ):
+                        self.reinsurance_models_counter[i] += 1
 
     def _shuffle_risks(self):
         """Method for shuffling risks."""

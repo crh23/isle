@@ -136,7 +136,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         rm_config = agent_parameters.riskmodel_config
 
-        """Here we modify the margin of safety depending on the number of risks models available in the market. 
+        """Here we modify the margin of safety depending on the number of risks models available in the market.
            When is 0 all risk models have the same margin of safety. The reason for doing this is that with more risk
            models the firms tend to be closer to the max capacity"""
         margin_of_safety_correction = (

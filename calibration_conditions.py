@@ -1,7 +1,7 @@
 """Collection of calibration test conditions as functions to be imported by the CalibrationScore class.
    Each function accepts a Logger object as argument and runs the tests on this. Auxiliary functions are
    in calibration_aux.py.
-   
+
 Components of Logger log, that can used for validation/calibration are:
 
                 [0]: 'total_cash'

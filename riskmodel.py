@@ -38,7 +38,7 @@ class RiskModel:
         self.init_average_risk_factor = init_average_risk_factor
         self.init_profit_estimate = init_profit_estimate
         self.margin_of_safety = margin_of_safety
-        """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
+        """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates
            the share of risks suffering damage as part of any single catastrophic peril"""
         self.damage_distribution: MutableSequence["Distribution"] = [
             damage_distribution for _ in range(self.category_number)
@@ -50,7 +50,7 @@ class RiskModel:
     def get_ppf(self, categ_id: int, tail_size: float) -> float:
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
-              categ_id  integer:            category 
+              categ_id  integer:           category
               tailSize  (float 0<=x<=1):   quantile
            Returns value-at-risk."""
         return self.damage_distribution[categ_id].ppf(1 - tail_size)

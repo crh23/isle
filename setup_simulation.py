@@ -3,7 +3,7 @@
    Every event schedule dictionary has:
       - event_times: list of list of int - iteration periods of risk events in each category
       - event_damages: list of list of float (0, 1) - damage as share of possible damage for each risk event
-      - num_categories: int - number of risk categories 
+      - num_categories: int - number of risk categories
       - np_seed: int - numpy module random seed
       - random_seed: int - random module random seed
    A simulation given event schedule dictionary d should be set up like so:
