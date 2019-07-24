@@ -1,6 +1,7 @@
 import metainsurancecontract
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from metainsuranceorg import MetaInsuranceOrg
     from insurancesimulation import InsuranceSimulation
@@ -27,7 +28,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
         initial_var: float = 0.0,
         insurancetype: str = "proportional",
         deductible_fraction: float = None,
-        excess_fraction: float = None,
+        limit_fraction: float = None,
         reinsurance: float = 0,
     ):
         super().__init__(
@@ -41,7 +42,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             initial_var,
             insurancetype,
             deductible_fraction,
-            excess_fraction,
+            limit_fraction,
             reinsurance,
         )
         # the property holder in an insurance contract should always be the simulation
@@ -67,7 +68,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 "damage_extent must be passed to InsuranceContract.explode"
             )
         if uniform_value < self.risk_factor:
-            claim = min(self.excess, damage_extent * self.value) - self.deductible
+            claim = min(self.limit, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(
                 claim
             )  # Every insurance claim made is immediately registered.

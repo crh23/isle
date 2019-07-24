@@ -15,6 +15,7 @@ class TruncatedDistWrapper:
 
     @functools.lru_cache(maxsize=1024)
     def pdf(self, x):
+        # TODO: begone, arrays
         x = np.array(x, ndmin=1)
         r = map(
             lambda y: self.dist.pdf(y) / self.normalizing_factor
@@ -29,6 +30,7 @@ class TruncatedDistWrapper:
 
     @functools.lru_cache(maxsize=1024)
     def cdf(self, x):
+        # TODO: rm arrays
         x = np.array(x, ndmin=1)
         r = map(
             lambda y: 0
@@ -46,6 +48,7 @@ class TruncatedDistWrapper:
 
     @functools.lru_cache(maxsize=1024)
     def ppf(self, x):
+        # TODO: probably no need for arrays
         x = np.array(x, ndmin=1)
         assert (x >= 0).all() and (x <= 1).all()
         return self.dist.ppf(

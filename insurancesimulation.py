@@ -11,19 +11,15 @@ from distributiontruncated import TruncatedDistWrapper
 import visualization_network
 import insurancefirms
 import isleconfig
-from genericclasses import (
-    GenericAgent,
-    RiskProperties,
-    AgentProperties,
-    Constant,
-)
+from genericclasses import GenericAgent, RiskProperties, AgentProperties, Constant
 import catbond
 
 from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from genericclasses import Distribution
-from metainsuranceorg import MetaInsuranceOrg
+    from metainsuranceorg import MetaInsuranceOrg
 
 
 class InsuranceSimulation(GenericAgent):
@@ -182,7 +178,9 @@ class InsuranceSimulation(GenericAgent):
             for i in range(self.simulation_parameters["no_risks"])
         ]
 
-        self.risks_counter: MutableSequence[int] = [0, 0, 0, 0]
+        self.risks_counter: MutableSequence[int] = [
+            0 for _ in range(self.simulation_parameters["no_categories"])
+        ]
 
         for risk in self.risks:
             self.risks_counter[risk.category] += 1
@@ -368,7 +366,7 @@ class InsuranceSimulation(GenericAgent):
         self,
         agent_class: type,
         agent_class_string: str,
-        agents: Sequence["GenericAgent"] = None,
+        agents: "Sequence[GenericAgent]" = None,
         n: int = 1,
     ):
         """Method for building agents and adding them to the simulation. Can also add pre-made catbond agents directly
@@ -542,24 +540,7 @@ class InsuranceSimulation(GenericAgent):
             self.simulation_parameters["no_categories"]
         )
 
-        # TODO: this and the next look like they could be cleaner
-        for insurer in self.insurancefirms:
-            if insurer.operational:
-                for i in range(len(self.inaccuracy)):
-                    if np.array_equal(insurer.riskmodel.inaccuracy, self.inaccuracy[i]):
-                        self.insurance_models_counter[i] += 1
-
-        self.reinsurance_models_counter = np.zeros(
-            self.simulation_parameters["no_categories"]
-        )
-
-        for reinsurer in self.reinsurancefirms:
-            for i in range(len(self.inaccuracy)):
-                if reinsurer.operational:
-                    if np.array_equal(
-                        reinsurer.riskmodel.inaccuracy, self.inaccuracy[i]
-                    ):
-                        self.reinsurance_models_counter[i] += 1
+        self._update_model_counters()
 
         network_division = 1  # How often network is updated.
         if isleconfig.show_network and t % network_division == 0 and t > 0:
@@ -571,7 +552,7 @@ class InsuranceSimulation(GenericAgent):
             self.RN.visualize()
 
     def save_data(self):
-        """Method to collect statistics about the current state of the simulation. Will pass these to the 
+        """Method to collect statistics about the current state of the simulation. Will pass these to the
            Logger object (self.logger) to be recorded.
             No arguments.
             Returns None."""
@@ -755,6 +736,26 @@ class InsuranceSimulation(GenericAgent):
                     s = math.floor(np.random.uniform(0, len(operational_firms), 1))
                     self.insurers_weights[operational_firms[s].id] += 1
 
+    def _update_model_counters(self):
+        # TODO: this and the next look like they could be cleaner
+        for insurer in self.insurancefirms:
+            if insurer.operational:
+                for i in range(len(self.inaccuracy)):
+                    if np.array_equal(insurer.riskmodel.inaccuracy, self.inaccuracy[i]):
+                        self.insurance_models_counter[i] += 1
+
+        self.reinsurance_models_counter = np.zeros(
+            self.simulation_parameters["no_categories"]
+        )
+
+        for reinsurer in self.reinsurancefirms:
+            for i in range(len(self.inaccuracy)):
+                if reinsurer.operational:
+                    if np.array_equal(
+                        reinsurer.riskmodel.inaccuracy, self.inaccuracy[i]
+                    ):
+                        self.reinsurance_models_counter[i] += 1
+
     def _shuffle_risks(self):
         """Method for shuffling risks."""
         np.random.shuffle(self.reinrisks)
@@ -863,11 +864,16 @@ class InsuranceSimulation(GenericAgent):
             - max_reduction * np_reinsurance_deductible_fraction
         )
 
-    def append_reinrisks(self, item: RiskProperties):
+    def append_reinrisks(self, reinrisk: RiskProperties):
         """Method for appending reinrisks to simulation instance. Called from insurancefirm
                     Accepts: item (Type: List)"""
-        if item:
-            self.reinrisks.append(item)
+
+        # For debugging:
+        # for old_reinrisk in self.reinrisks:
+        #     if reinrisk.owner is old_reinrisk.owner and reinrisk.category == old_reinrisk.category:
+        #         pass
+        if reinrisk:
+            self.reinrisks.append(reinrisk)
 
     def remove_reinrisks(self, risko: RiskProperties):
         if risko is not None:

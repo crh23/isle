@@ -4,6 +4,7 @@ from genericclasses import Obligation, GenericAgent
 
 from typing import MutableSequence
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from insurancesimulation import InsuranceSimulation
     from metainsurancecontract import MetaInsuranceContract
@@ -32,9 +33,7 @@ class CatBond(MetaInsuranceOrg):
         This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
         self.id: int = 0
-        self.underwritten_contracts: MutableSequence[
-            "MetaInsuranceContract"
-        ] = []
+        self.underwritten_contracts: MutableSequence["MetaInsuranceContract"] = []
         self.cash: float = 0
         self.profits_losses: float = 0
         self.obligations: MutableSequence[Obligation] = []

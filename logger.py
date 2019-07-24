@@ -116,12 +116,12 @@ class Logger:
         return listify.listify(log)
 
     def restore_logger_object(self, log):
-        """Method to restore logger object. A log can be restored later. It can also be restored 
+        """Method to restore logger object. A log can be restored later. It can also be restored
            on a different machine. This is useful in the case of ensemble runs to move the log to
            the master node from the computation nodes.
             Arguments:
-                log - listified dict - The log. This must be a list of dict values plus the dict 
-                                        keys in the last element. It should have been created by 
+                log - listified dict - The log. This must be a list of dict values plus the dict
+                                        keys in the last element. It should have been created by
                                         listify.listify()
             Returns None."""
 
@@ -179,7 +179,7 @@ class Logger:
         return to_log
 
     def add_insurance_agent(self):
-        """Method for adding an additional insurer agent to the history log. This is necessary to keep the number 
+        """Method for adding an additional insurer agent to the history log. This is necessary to keep the number
            of individual insurance firm logs constant in time.
             No arguments.
             Returns None."""

@@ -131,7 +131,7 @@ def scaler(
 ):  # TODO: find a better way to scale heavy-tailed distributions than to use standard score scaling on logs
     """Function to do a standard score scaling of the log of a heavy-tailed distribution. This is used to calibrate
        distributions where the unit is not important (distributions of sizes of firms e.g.). This would be perfectly
-       appropriate for lognormal distributions, but should work reasonably well for calibration of other heavy-tailed 
+       appropriate for lognormal distributions, but should work reasonably well for calibration of other heavy-tailed
        distributions. An alternative would be a scaling robust towards outliers (as included in the sklearn package).
         Arguments:
             series: Type list of numeric or numpy array. The time series

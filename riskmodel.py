@@ -1,4 +1,5 @@
 import math
+from copy import deepcopy
 
 import numpy as np
 
@@ -7,9 +8,9 @@ from distributionreinsurance import ReinsuranceDistWrapper
 from typing import Sequence, Tuple, Union, Optional, MutableSequence
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from genericclasses import Distribution, RiskProperties
-    from metainsurancecontract import MetaInsuranceContract
 
 
 class RiskModel:
@@ -37,24 +38,19 @@ class RiskModel:
         self.init_average_risk_factor = init_average_risk_factor
         self.init_profit_estimate = init_profit_estimate
         self.margin_of_safety = margin_of_safety
-        """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates 
+        """damage_distribution is some scipy frozen rv distribution which is bound between 0 and 1 and indicates
            the share of risks suffering damage as part of any single catastrophic peril"""
         self.damage_distribution: MutableSequence["Distribution"] = [
             damage_distribution for _ in range(self.category_number)
-        ]  # TODO: separate that category wise? -> DONE.
-        self.damage_distribution_stack: Sequence[MutableSequence["Distribution"]] = [
-            [] for _ in range(self.category_number)
         ]
-        self.reinsurance_contract_stack: Sequence[
-            MutableSequence["MetaInsuranceContract"]
-        ] = [[] for _ in range(self.category_number)]
+        self.underlying_distribution = deepcopy(self.damage_distribution)
         # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
         self.inaccuracy: Sequence[float] = inaccuracy
 
     def get_ppf(self, categ_id: int, tail_size: float) -> float:
         """Method for getting quantile function of the damage distribution (value at risk) by category.
            Positional arguments:
-              categ_id  integer:            category 
+              categ_id  integer:           category
               tailSize  (float 0<=x<=1):   quantile
            Returns value-at-risk."""
         return self.damage_distribution[categ_id].ppf(1 - tail_size)
@@ -90,6 +86,7 @@ class RiskModel:
         runtimes = np.zeros(len(categ_risks))
         for i, risk in enumerate(categ_risks):
             # TODO: factor in excess instead of value?
+            assert risk.limit is not None
             exposures[i] = risk.value - risk.deductible
             risk_factors[i] = risk.risk_factor
             runtimes[i] = risk.runtime
@@ -268,12 +265,14 @@ class RiskModel:
 
             # TODO: allow for different risk distributions for different categories
             # TODO: factor in risk_factors
+            # QUERY: both done?
             percentage_value_at_risk = self.get_ppf(
                 categ_id=categ_id, tail_size=self.var_tail_prob
             )
 
             # compute liquidity requirements from existing contracts
             for risk in categ_risks:
+                # QUERY: Expected in this context means damage at var_tail_prob rather than expectation?
                 var_damage = (
                     percentage_value_at_risk
                     * risk.value
@@ -281,7 +280,7 @@ class RiskModel:
                     * self.inaccuracy[categ_id]
                 )
 
-                var_claim = max(min(var_damage, risk.excess) - risk.deductible, 0)
+                var_claim = max(min(var_damage, risk.limit) - risk.deductible, 0)
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
                 cash_left_by_categ[categ_id] -= var_claim * self.margin_of_safety
@@ -294,15 +293,13 @@ class RiskModel:
                     * self.inaccuracy[categ_id]
                 )
                 var_claim_fraction = (
-                    min(var_damage_fraction, offered_risk.excess_fraction)
+                    min(var_damage_fraction, offered_risk.limit_fraction)
                     - offered_risk.deductible_fraction
                 )
                 var_claim_total = var_claim_fraction * offered_risk.value
 
                 # record liquidity requirement and apply margin of safety for liquidity requirement
-                additional_required[categ_id] += (
-                    var_claim_total * self.margin_of_safety
-                )
+                additional_required[categ_id] += var_claim_total * self.margin_of_safety
                 additional_var_per_categ[categ_id] += var_claim_total
 
         # Additional value at risk should only occur in one category. Assert that this is the case.
@@ -401,42 +398,16 @@ class RiskModel:
                 min(cash_left_by_categ),
             )
 
-    def add_reinsurance(
+    def set_reinsurance_coverage(
         self,
-        categ_id: int,
-        excess_fraction: float,
-        deductible_fraction: float,
-        contract: "MetaInsuranceContract",
+        value: float,
+        coverage: MutableSequence[Tuple[float, float]],
+        category: int,
     ):
-        """Method to add any instance of reinsurance to risk models list of reinsurance contracts, and add damage
-         distribution to stack of damage distributions per category, then replace with a new distribution. Only used in
-         the add_reinsurance method of insurancefirm.
-            Accepts:
-                categ_id: Type Integer.
-                excess_fraction: Type Decimal.
-                deductible_fraction: Type Decimal.
-                contract: Type DataDict.
-            No return values."""
-        self.damage_distribution_stack[categ_id].append(
-            self.damage_distribution[categ_id]
-        )
-        self.reinsurance_contract_stack[categ_id].append(contract)
-        self.damage_distribution[categ_id] = ReinsuranceDistWrapper(
-            lower_bound=deductible_fraction,
-            upper_bound=excess_fraction,
-            dist=self.damage_distribution[categ_id],
-        )
-
-    def delete_reinsurance(self, categ_id: int, contract: "MetaInsuranceContract"):
-        """Method to remove any instance of reinsurance to risk models list of reinsurance contracts, and remove its
-        damage distribution from the stack of damage distributions per category. Only used in the delete_reinsurance
-        method of insurancefirm.
-            Accepts:
-                categ_id: Type Integer.
-                contract: Type DataDict.
-            No return values."""
-        assert self.reinsurance_contract_stack[categ_id][-1] == contract
-        self.reinsurance_contract_stack[categ_id].pop()
-        self.damage_distribution[categ_id] = self.damage_distribution_stack[
-            categ_id
-        ].pop()
+        """Updates the riskmodel for the category given to have the reinsurance given by coverage"""
+        # sometimes value==0, in which case we don't try to update the distribution
+        # (as the current coverage is effectively infinite)
+        if value > 0:
+            self.damage_distribution[category] = ReinsuranceDistWrapper(
+                self.underlying_distribution[category], coverage=coverage, value=value
+            )

@@ -13,7 +13,7 @@ simulation_parameters = {
     "no_categories": 4,
     "no_insurancefirms": 20,
     "no_reinsurancefirms": 4,
-    "no_riskmodels": 2,
+    "no_riskmodels": 3,
     # values >=1; inaccuracy higher with higher values
     "riskmodel_inaccuracy_parameter": 2,
     # values >=1; factor of additional liquidity beyond value at risk
@@ -40,6 +40,7 @@ simulation_parameters = {
     "acceptance_threshold_friction": 0.9,
     "insurance_firm_market_entry_probability": 0.3,  # 0.02,
     "reinsurance_firm_market_entry_probability": 0.05,  # 0.004,
+    # Determines the reinsurance type of the simulation. Should be "non-proportional" or "excess-of-loss"
     "simulation_reinsurance_type": "non-proportional",
     "default_non-proportional_reinsurance_deductible": 0.3,
     "default_non-proportional_reinsurance_excess": 1.0,
@@ -108,4 +109,7 @@ simulation_parameters = {
     # Determines the minimum fraction of inaccuracy that insurers can achieve - a value of 0 means the biggest insurers
     # can be perfectly accurate, a value of 1 disables changes in inaccuracy based on size
     "scale_inaccuracy": 0.3,
+    # The smallest number of tranches that an insurer will issue when asking for reinsurance. Note: even if this is 1,
+    # insurers will still end up with layered reinsurance to fill gaps
+    "min_tranches": 5,
 }

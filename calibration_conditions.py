@@ -1,7 +1,7 @@
 """Collection of calibration test conditions as functions to be imported by the CalibrationScore class.
    Each function accepts a Logger object as argument and runs the tests on this. Auxiliary functions are
    in calibration_aux.py.
-   
+
 Components of Logger log, that can used for validation/calibration are:
 
                 [0]: 'total_cash'
@@ -143,11 +143,14 @@ def condition_insurance_coverage(logobj):
 
 def condition_reinsurance_coverage(logobj, minimum=0.6):
     """Test for reinsurance coverage close to some minimum that may be less than 100% (default 60%)"""
-    score = (
-        logobj.history_logs["total_reincontracts"][-1]
-        * 1.0
-        / (minimum * logobj.history_logs["total_contracts"][-1])
-    )
+    try:
+        score = (
+            logobj.history_logs["total_reincontracts"][-1]
+            * 1.0
+            / (minimum * logobj.history_logs["total_contracts"][-1])
+        )
+    except ZeroDivisionError:
+        score = 0
     score = 1 if score > 1 else score
     return score
 
