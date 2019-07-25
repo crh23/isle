@@ -11,6 +11,8 @@ from matplotlib.offsetbox import AnchoredText
 import time
 import os
 
+if not os.path.isdir("figures"):
+    os.makedirs("figures")
 
 class TimeSeries(object):
     def __init__(self, series_list, event_schedule, damage_schedule, title="",xlabel="Time", colour='k', axlst=None, fig=None, percentiles=None, alpha=0.7):
