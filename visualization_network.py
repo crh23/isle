@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import argparse
+import os
 
 
 class ReinsuranceNetwork:
@@ -187,7 +188,9 @@ class LoadNetwork:
         """Method to save animation as MP4.
             No accepted values.
             No return values."""
-        self.network_ani.save("data/animated_network.mp4", writer="ffmpeg", dpi=200, fps=5)
+        if not os.path.isdir("figures"):
+            os.makedirs("figures")
+        self.network_ani.save("figures/animated_network.mp4", writer="ffmpeg", dpi=200, fps=5)
 
 
 if __name__ == "__main__":
