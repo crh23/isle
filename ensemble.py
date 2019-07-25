@@ -1,6 +1,6 @@
-#This script allows to launch an ensemble of simulations for different number of risks models.
-#It can be run locally if no argument is passed when called from the terminal.
-#It can be run in the cloud if it is passed as argument the server that will be used.
+"""This script allows to launch an ensemble of simulations for different number of risks models.
+It can be run locally if no argument is passed when called from the terminal.
+It can be run in the cloud if it is passed as argument the server that will be used."""
 import sys
 import random
 import os
@@ -14,7 +14,6 @@ import isleconfig
 from distributiontruncated import TruncatedDistWrapper
 from setup import SetupSim
 from sandman2.api import operation, Session
-
 
 
 @operation
@@ -73,10 +72,12 @@ def rake(hostname):
                'rc_event_schedule_initial':     '_rc_event_schedule.dat',
                'rc_event_damage_initial':       '_rc_event_damage.dat',
                'number_riskmodels':             '_number_riskmodels.dat'
+               'individual_contracts'           '_insurance_contracts.dat'
+               'reinsurance_contracts'          '_reinsurance_contracts.dat'
                 } 
     
     if isleconfig.slim_log:
-        for name in ['insurance_firms_cash', 'reinsurance_firms_cash']:
+        for name in ['insurance_firms_cash', 'reinsurance_firms_cash', 'individual_contracts', 'reinsurance_contracts']:
             del requested_logs[name]
     
     assert "number_riskmodels" in requested_logs
@@ -119,17 +120,14 @@ def rake(hostname):
             
             """Run simulation and obtain result"""
             result = sess.submit(job)
-            
-            
-            """find number of riskmodels from log"""
+
+
+            """Find number of riskmodels from log"""
             delistified_result = [listify.delistify(list(res)) for res in result]
-            #nrmidx = result[0][-1].index("number_riskmodels")
-            #nrm = result[0][nrmidx]
             nrm = delistified_result[0]["number_riskmodels"]
 
             """These are the files created to collect the results"""
             wfiles_dict = {}
-
             logfile_dict = {}
             
             for name in requested_logs.keys():
@@ -155,8 +153,10 @@ def rake(hostname):
                 
                 """Save logs as dict (to <num>_history_logs.dat)"""
                 L.save_log(True)
+                if isleconfig.save_network:
+                    L.save_network_data(ensemble=True)
                 
-                """Save logs as indivitual files"""
+                """Save logs as individual files"""
                 for name in logfile_dict:
                     wfiles_dict[name].write(str(delistified_result[i][name]) + "\n")
             
@@ -169,5 +169,9 @@ def rake(hostname):
 if __name__ == '__main__':
     host = None
     if len(sys.argv) > 1:
-        host = sys.argv[1]     #The server is passed as an argument.
+        host = sys.argv[1]     # The server is passed as an argument.
     rake(host)
+
+# ID = OxeChiwQ3l0vsBnkLLXKMnpSBn948ptW
+# Secret = lfK_Gav8EK2B_gN0bsNXjUVQq84ua1iL2xlYs8Ef58tFyTSwzzJcWeDdSH21BnHx
+# Hostname = bright-lemur.clusters.sandman.ai

@@ -10,7 +10,8 @@ LOG_DEFAULT = (
     'total_reincontracts total_reinoperational total_catbondsoperational market_premium '
     'market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims '
     'cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar '
-    'rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts'
+    'rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts '
+    'unweighted_network_data network_node_labels network_edge_labels number_of_agents'
 ).split(' ')
 
 class Logger():
@@ -67,7 +68,20 @@ class Logger():
         self.history_logs['market_premium'] = []
         self.history_logs['market_reinpremium'] = []
         self.history_logs['market_diffvar'] = []
-            
+
+
+        "Network Data Logs to be stored in separate file"
+        self.network_data = {}
+        self.network_data["unweighted_network_data"] = []
+        self.network_data["network_node_labels"] = []
+        self.network_data["network_edge_labels"] = []
+        self.network_data["number_of_agents"] = []
+
+        self.history_logs["unweighted_network_data"] = []
+        self.history_logs["network_node_labels"] = []
+        self.history_logs["network_edge_labels"] = []
+        self.history_logs["number_of_agents"] = []
+
     def record_data(self, data_dict):
         """Method to record data for one period
             Arguments
@@ -114,7 +128,13 @@ class Logger():
 
         """Restore dict"""
         log = listify.delistify(log)
-        
+
+        self.network_data["unweighted_network_data"] = log["unweighted_network_data"]
+        self.network_data["network_node_labels"] = log["network_node_labels"]
+        self.network_data["network_edge_labels"] = log["network_edge_labels"]
+        self.network_data["number_of_agents"] = log["number_of_agents"]
+        del log["number_of_agents"], log["network_edge_labels"], log["network_node_labels"], log["unweighted_network_data"]
+
         """Extract environment variables (number of risk models and risk event schedule)"""
         self.rc_event_schedule_initial = log["rc_event_schedule_initial"]
         self.rc_event_damage_initial = log["rc_event_damage_initial"]
@@ -164,14 +184,27 @@ class Logger():
         to_log = []
         to_log.append(("data/history_logs.dat", self.history_logs, "w"))
         return to_log
-    
+
+    def save_network_data(self, ensemble):
+        if ensemble is True:
+            filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
+            fpf = filename_prefix[self.number_riskmodels]
+            network_logs = []
+            network_logs.append(("data/" + fpf + "_network_data.dat", self.network_data, "a"))
+
+            for filename, data, operation_character in network_logs:
+                with open(filename, operation_character) as wfile:
+                    wfile.write(str(data) + "\n")
+        else:
+            with open("data/network_data.dat", "w") as wfile:
+                wfile.write(str(self.network_data) + "\n")
+                wfile.write(str(self.rc_event_schedule_initial) + "\n")
+
     def add_insurance_agent(self):           
         """Method for adding an additional insurer agent to the history log. This is necessary to keep the number 
            of individual insurance firm logs constant in time.
             No arguments.
             Returns None."""
-        # TODO: should this not also be done for self.history_logs['insurance_firms_cash'] and 
-        #                                        self.history_logs['reinsurance_firms_cash']
         if len(self.history_logs['individual_contracts']) > 0:
             zeroes_to_append = list(np.zeros(len(self.history_logs['individual_contracts'][0]), dtype=int))
         else:

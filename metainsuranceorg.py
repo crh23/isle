@@ -136,12 +136,6 @@ class MetaInsuranceOrg(GenericAgent):
         [contract.check_payment_due(time) for contract in self.underwritten_contracts]
 
         if self.operational:
-            # Allow firms to buy those going bankrupt this iteration.
-            if self.is_insurer:
-                self.consider_buyout(type="insurer")
-            if self.is_reinsurer:
-                self.consider_buyout(type="reinsurer")
-
             """request risks to be considered for underwriting in the next period, organised by insurance type"""
             new_nonproportional_risks, new_risks = self.get_newrisks_by_type()
             contracts_offered = len(new_risks)
@@ -226,12 +220,15 @@ class MetaInsuranceOrg(GenericAgent):
            This method is used when a firm does not have enough cash to pay all its obligations. It is only called from
            the method self.enter_illiquidity() which is only called from the method self.effect_payments(). This method
            dissolves the firm through the method self.dissolve()."""
-        if self.is_insurer and self.operational:
-            self.simulation.add_bankrupt_firm(self, time)
-            self.operational = False
-        elif self.is_reinsurer and self.operational:
-            self.simulation.add_bankrupt_firm(self, time)
-            self.operational = False
+        if isleconfig.buy_bankruptcies:
+            if self.is_insurer and self.operational:
+                self.simulation.add_bankrupt_firm(self, time)
+                self.operational = False
+            elif self.is_reinsurer and self.operational:
+                self.simulation.add_bankrupt_firm(self, time)
+                self.operational = False
+            else:
+                self.dissolve(time, 'record_bankruptcy')
         else:
             self.dissolve(time, 'record_bankruptcy')
 
@@ -698,14 +695,13 @@ class MetaInsuranceOrg(GenericAgent):
         firms_further_considered = []
 
         for firm in firms_to_consider:
-            total_contract_value = sum([contract.value for contract in firm.underwritten_contracts])
-            firm_cost = total_contract_value
+            # total_contract_value = sum([contract.value for contract in firm.underwritten_contracts])
+            # firm_cost = total_contract_value
             all_firms_cash = self.simulation.get_total_firm_cash(type)
-
-            if self.excess_capital - firm_cost > self.riskmodel.margin_of_safety * firm.var_sum:
+            if self.excess_capital > self.riskmodel.margin_of_safety * firm.var_sum:
                 firm_likelihood = 0.25 + (1.5 * firm.cash + np.mean(firm.cash_last_periods[1:4]) + self.cash)/all_firms_cash
                 firm_likelihood = min(1, 2*firm_likelihood)
-                firms_further_considered.append([firm, firm_likelihood, firm_cost])
+                firms_further_considered.append([firm, firm_likelihood, firm.var_sum])
 
         if len(firms_further_considered) > 0:
             best_likelihood = 0
@@ -729,6 +725,7 @@ class MetaInsuranceOrg(GenericAgent):
     This method causes buyer to receive obligation to buy firm. Sets all the bought firms contracts as its own. Then
     clears bought firms contracts and dissolves it. Only called from consider_buyout()."""
         self.receive_obligation(firm_cost, self.simulation, time, 'buyout')
+
         if self.is_insurer and firm.is_insurer:
             print("Insurer %i has bought %i" % (self.id, firm.id))
         elif self.is_reinsurer and firm.is_reinsurer:
@@ -737,6 +734,10 @@ class MetaInsuranceOrg(GenericAgent):
         for contract in firm.underwritten_contracts:
             contract.insurer = self
             self.underwritten_contracts.append(contract)
+        for obli in firm.obligations:
+            self.receive_obligation(obli['amount'], obli["recipient"], obli["due_time"], obli["purpose"])
+
+        firm.obligations = []
         firm.underwritten_contracts = []
         firm.dissolve(time, 'buyout')
 

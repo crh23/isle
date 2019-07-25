@@ -311,9 +311,13 @@ class InsuranceSimulation():
         # Reset reinweights
         self.reset_reinsurance_weights()
                     
-        # Iterate reinsurnace firm agents
+        # Iterate reinsurance firm agents
         for reinagent in self.reinsurancefirms:
             reinagent.iterate(t)
+        if isleconfig.buy_bankruptcies:
+            for reinagent in self.reinsurancefirms:
+                if reinagent.operational:
+                    reinagent.consider_buyout(type="reinsurer")
 
         self.reinrisks = []
 
@@ -323,6 +327,10 @@ class InsuranceSimulation():
         # Iterate insurance firm agents
         for agent in self.insurancefirms:
             agent.iterate(t)
+        if isleconfig.buy_bankruptcies:
+            for agent in self.insurancefirms:
+                if agent.operational:
+                    agent.consider_buyout(type="insurer")
 
         # Reset list of bankrupt insurance firms
         self.reset_bankrupt_firms()
@@ -347,7 +355,7 @@ class InsuranceSimulation():
                     if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
                         self.reinsurance_models_counter[i] += 1
 
-        network_division = 1        # How often network is updated.
+        """network_division = 1        # How often network is updated.
         if (isleconfig.show_network or isleconfig.save_network) and t % network_division == 0 and t > 0:
             if t == network_division:       # Only creates once instance so only one figure.
                 self.RN = visualization_network.ReinsuranceNetwork(self.rc_event_schedule_initial)
@@ -358,7 +366,7 @@ class InsuranceSimulation():
                 self.RN.visualize()
             if isleconfig.save_network and t == (self.simulation_parameters['max_time']-5):
                 self.RN.save_network_data()
-                print("Network data has been saved to data/network_data.dat")
+                print("Network data has been saved to data/network_data.dat")"""
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the 
@@ -369,11 +377,11 @@ class InsuranceSimulation():
         """ collect data """
         total_cash_no = sum([insurancefirm.cash for insurancefirm in self.insurancefirms])
         total_excess_capital = sum([insurancefirm.get_excess_capital() for insurancefirm in self.insurancefirms])
-        total_profitslosses =  sum([insurancefirm.get_profitslosses() for insurancefirm in self.insurancefirms])
+        total_profitslosses = sum([insurancefirm.get_profitslosses() for insurancefirm in self.insurancefirms])
         total_contracts_no = sum([len(insurancefirm.underwritten_contracts) for insurancefirm in self.insurancefirms])
         total_reincash_no = sum([reinsurancefirm.cash for reinsurancefirm in self.reinsurancefirms])
         total_reinexcess_capital = sum([reinsurancefirm.get_excess_capital() for reinsurancefirm in self.reinsurancefirms])
-        total_reinprofitslosses =  sum([reinsurancefirm.get_profitslosses() for reinsurancefirm in self.reinsurancefirms])
+        total_reinprofitslosses = sum([reinsurancefirm.get_profitslosses() for reinsurancefirm in self.reinsurancefirms])
         total_reincontracts_no = sum([len(reinsurancefirm.underwritten_contracts) for reinsurancefirm in self.reinsurancefirms])
         operational_no = sum([insurancefirm.operational for insurancefirm in self.insurancefirms])
         reinoperational_no = sum([reinsurancefirm.operational for reinsurancefirm in self.reinsurancefirms])
@@ -401,7 +409,7 @@ class InsuranceSimulation():
         current_log['cumulative_bankruptcies'] = self.cumulative_bankruptcies
         current_log['cumulative_market_exits'] = self.cumulative_market_exits
         current_log['cumulative_unrecovered_claims'] = self.cumulative_unrecovered_claims
-        current_log['cumulative_claims'] = self.cumulative_claims    #Log the cumulative claims received so far.
+        current_log['cumulative_claims'] = self.cumulative_claims
         
         """ add agent-level data to dict""" 
         current_log['insurance_firms_cash'] = insurance_firms
@@ -418,6 +426,15 @@ class InsuranceSimulation():
         for i in range(len(reinsurance_contracts_no)):
             current_log['reinsurance_contracts'].append(reinsurance_contracts_no[i])
 
+        if isleconfig.save_network and not isleconfig.slim_log:
+            adj_list, node_labels, edge_labels, agent_numbers = self.update_network_data()
+        else:
+            adj_list = node_labels = edge_labels = agent_numbers = []
+        current_log["unweighted_network_data"] = adj_list
+        current_log["network_node_labels"] = node_labels
+        current_log["network_edge_labels"] = edge_labels
+        current_log["number_of_agents"] = agent_numbers
+
         """ call to Logger object """
         self.logger.record_data(current_log)
         
@@ -425,15 +442,6 @@ class InsuranceSimulation():
         """This function allows to return in a list all the data generated by the model. There is no other way to
             transfer it back from the cloud."""
         return self.logger.obtain_log(requested_logs)
-    
-    def finalize(self, *args):
-        """Function to handle operations after the end of the simulation run.
-           Currently empty.
-           It may be used to handle e.g. logging by including:
-            self.log()
-           but logging has been moved to start.py and ensemble.py
-           """
-        pass
 
     def inflict_peril(self, categ_id, damage, t):
         """Method that calculates percentage damage done to each underwritten risk that is affected in the category
@@ -994,3 +1002,40 @@ class InsuranceSimulation():
         for reinfirm, time in self.current_reinsurer_bankruptcies:
             reinfirm.dissolve(time)
         self.current_reinsurer_bankruptcies = []
+
+    def update_network_data(self):
+        """Method to update the network data.
+            No accepted values.
+            No return values.
+        This method is called from save_data() for every iteration to get the current adjacency list so network
+        visualisation can be saved."""
+        """obtain lists of operational entities"""
+        op_entities = {}
+        num_entities = {}
+        for firmtype, firmlist in [("insurers", self.insurancefirms), ("reinsurers", self.reinsurancefirms),
+                                   ("catbonds", self.catbonds)]:
+            op_firmtype = [firm for firm in firmlist if firm.operational]
+            op_entities[firmtype] = op_firmtype
+            num_entities[firmtype] = len(op_firmtype)
+
+        network_size = sum(num_entities.values())
+
+        """Create weighted adjacency matrix and category edge labels"""
+        weights_matrix = np.zeros(network_size ** 2).reshape(network_size, network_size)
+        edge_labels = {}
+        node_labels = {}
+        for idx_to, firm in enumerate(op_entities["insurers"] + op_entities["reinsurers"]):
+            node_labels[idx_to] = firm.id
+            eolrs = firm.get_excess_of_loss_reinsurance()
+            for eolr in eolrs:
+                try:
+                    idx_from = num_entities["insurers"] + (
+                                op_entities["reinsurers"] + op_entities["catbonds"]).index(eolr["reinsurer"])
+                    weights_matrix[idx_from][idx_to] = eolr["value"]
+                    edge_labels[idx_to, idx_from] = eolr["category"]
+                except ValueError:
+                    print("Reinsurer is not in list of reinsurance companies")
+
+        """unweighted adjacency matrix"""
+        adj_matrix = np.sign(weights_matrix)
+        return adj_matrix.tolist(), node_labels, edge_labels, num_entities
