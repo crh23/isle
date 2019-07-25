@@ -418,6 +418,7 @@ class compare_riskmodels(object):
                                                                              colour=colour, percentiles=percentiles,
                                                                              title="%i Risk Model Insurer" % risk_model)
             self.insurer_fig.savefig("figures/"+str(risk_model)+"risk_model(s)_insurer_ensemble_timeseries.png")
+            print("Saved " + str(risk_model) + " risk_model(s)_insurer_ensemble_timeseries")
 
     def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=[25,75]):
         """Method to create separate reinsurer time series for all numbers of risk models using visualisations'
@@ -435,6 +436,7 @@ class compare_riskmodels(object):
                                                                                    colour=colour, percentiles=percentiles,
                                                                                    title="%i Risk Model Reinsurer" % risk_model)
             self.reinsurer_fig.savefig("figures/"+str(risk_model)+"risk_model(s)_reinsurer_ensemble_timeseries.png")
+            print("Saved " + str(risk_model) + " risk_model(s)_reinsurer_ensemble_timeseries")
 
     def show(self):
         plt.show()
@@ -511,6 +513,7 @@ class CDF_distribution_plot:
         self.fig.tight_layout()
         self.fig.savefig(filename + ".pdf")
         self.fig.savefig(filename + ".png", density=300)
+        print("Saved " + self.variable + " CDF")
 
 
 class Histogram_plot:
@@ -578,6 +581,7 @@ class Histogram_plot:
         self.fig.tight_layout(pad=.1, w_pad=.1, h_pad=.1)
         self.fig.savefig(filename + ".pdf")
         self.fig.savefig(filename + ".png", density=300)
+        print("Saved " + self.variable + " histogram")
 
 
 class CDFDistribution:
@@ -930,10 +934,10 @@ if __name__ == "__main__":
             reinsurerfig, axs = vis.reinsurer_time_series()
             insurerfig.savefig("figures/insurer_singlerun_timeseries.png")
             reinsurerfig.savefig("figures/reinsurer_singlerun_timeseries.png")
-        vis.show()
+        # vis.show()
         N = len(history_logs_list)
 
-    if args.timeseries_comparison or args.firmdistribution or args.bankruptcydistribution:
+    if args.timeseries_comparison or args.bankruptcydistribution:
         vis_list = []
         colour_list = ['red', 'blue', 'green', 'yellow']
 
@@ -949,16 +953,7 @@ if __name__ == "__main__":
         cmp_rsk = compare_riskmodels(vis_list, colour_list)
         cmp_rsk.create_insurer_timeseries(percentiles=[10, 90])
         cmp_rsk.create_reinsurer_timeseries(percentiles=[10, 90])
-        cmp_rsk.show()
-
-    if args.firmdistribution:
-        # Creates CDF for firm size using cash as measure of size.
-        CP = CDF_distribution_plot(vis_list, colour_list, variable="insurance_firms_cash", timestep=-1, plot_cCDF=True)
-        CP.generate_plot(xlabel="Firm size (capital)")
-        if not isleconfig.simulation_parameters["reinsurance_off"]:
-            CP = CDF_distribution_plot(vis_list, colour_list, variable="reinsurance_firms_cash", timestep=-1,
-                                       plot_cCDF=True)
-            CP.generate_plot(xlabel="Firm size (capital)")
+        # cmp_rsk.show()
 
     if args.bankruptcydistribution:
         # Creates histogram for each number of risk models for size and frequency of bankruptcies/unrecovered claims.
@@ -972,6 +967,25 @@ if __name__ == "__main__":
         HP = Histogram_plot(vis_list, colour_list, variable="unrecovered_claims")
         HP.generate_plot(logscale=True, xlabel="Damages not recovered", minmax=[0, 6450000],
                          VaR005guess=0.1)  # =691186.8726311699)    # this is the VaR threshold for 4 risk models with reinsurance
+
+    if args.firmdistribution:
+        vis_list = []
+        colour_list = ['red', 'blue', 'green', 'yellow']
+
+        # Loads all risk model history logs data (very long :'( ) and creates list of visualisation class instances.
+        filenames = ["./data/" + x + "_history_logs_complete.dat" for x in ["one", "two", "three", "four"]]
+        for filename in filenames:
+            with open(filename, 'r') as rfile:
+                history_logs_list = [eval(k) for k in rfile]  # one dict on each line
+                vis_list.append(visualisation(history_logs_list))
+
+        # Creates CDF for firm size using cash as measure of size.
+        CP = CDF_distribution_plot(vis_list, colour_list, variable="insurance_firms_cash", timestep=-1, plot_cCDF=True)
+        CP.generate_plot(xlabel="Firm size (capital)")
+        if not isleconfig.simulation_parameters["reinsurance_off"]:
+            CP = CDF_distribution_plot(vis_list, colour_list, variable="reinsurance_firms_cash", timestep=-1,
+                                       plot_cCDF=True)
+            CP.generate_plot(xlabel="Firm size (capital)")
 
     if args.riskmodel_comparison:
         # Lists of insurance and reinsurance data files to be compared (Must be same size and equivalent).
