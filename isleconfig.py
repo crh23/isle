@@ -5,6 +5,7 @@ verbose = False
 showprogress = False
 # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 show_network = False
+save_network = True
 # Should logs be small in ensemble runs (only aggregated level data)?
 slim_log = True
 
