@@ -71,7 +71,7 @@ class InsuranceSimulation():
         "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.money_supply = self.simulation_parameters["money_supply"]
         self.obligations = []
-        self.bank = CentralBank()
+        self.bank = CentralBank(self.money_supply)
 
         "Set up risk categories"
         self.riskcategories = list(range(self.simulation_parameters["no_categories"]))
@@ -140,6 +140,8 @@ class InsuranceSimulation():
         "Cumulative variables for history and logging"
         self.cumulative_bankruptcies = 0
         self.cumulative_market_exits = 0
+        self.bought_firms = 0
+        self.cumulative_nonregulation_firms = 0
         self.cumulative_unrecovered_claims = 0.0
         self.cumulative_claims = 0.0
         self.current_bankruptcies = []
@@ -313,7 +315,10 @@ class InsuranceSimulation():
                     
         # Iterate reinsurance firm agents
         for reinagent in self.reinsurancefirms:
-            reinagent.iterate(t)
+            if reinagent.operational is True:
+                reinagent.iterate(t)
+                if reinagent.cash < 0:
+                    print("Reinsurer %i has negative cash" % reinagent.id)
         if isleconfig.buy_bankruptcies:
             for reinagent in self.reinsurancefirms:
                 if reinagent.operational:
@@ -323,10 +328,13 @@ class InsuranceSimulation():
 
         # Reset weights
         self.reset_insurance_weights()
-                    
+
         # Iterate insurance firm agents
         for agent in self.insurancefirms:
-            agent.iterate(t)
+            if agent.operational is True:
+                agent.iterate(t)
+                if agent.cash < 0:
+                    print("Insurer %i has negative cash" % agent.id)
         if isleconfig.buy_bankruptcies:
             for agent in self.insurancefirms:
                 if agent.operational:
@@ -495,6 +503,7 @@ class InsuranceSimulation():
             print("Something wrong: economy out of money", file=sys.stderr)
         if self.get_operational() and recipient.get_operational():
             self.money_supply -= amount
+            self.bank.update_money_supply(amount, reduce=True)
             recipient.receive(amount)
 
     def receive(self, amount):
@@ -503,6 +512,7 @@ class InsuranceSimulation():
                 Amount due: Type Integer
             Returns None"""
         self.money_supply += amount
+        self.bank.update_money_supply(amount, reduce=False)
 
     def reduce_money_supply(self, amount):
         """Method to reduce money supply immediately and without payment recipient
@@ -510,6 +520,7 @@ class InsuranceSimulation():
             Accepts:
                 amount: Type Integer"""
         self.money_supply -= amount
+        self.bank.update_money_supply(amount, reduce=True)
         assert self.money_supply >= 0
 
     def reset_reinsurance_weights(self):
@@ -824,6 +835,12 @@ class InsuranceSimulation():
            from the method dissolve() from the class metainsuranceorg.py after the dissolution of the firm."""
         self.cumulative_market_exits += 1
 
+    def record_bought_firm(self):
+        self.bought_firms += 1
+
+    def record_nonregulation_firm(self):
+        self.cumulative_nonregulation_firms += 1
+
     def record_unrecovered_claims(self, loss):
         """Method for recording unrecovered claims. If firm runs out of money it cannot pay more claims and so that
             money is lost and recorded using this method.
@@ -955,7 +972,7 @@ class InsuranceSimulation():
             if len(self.current_bankruptcies) > 0:
                 bankruptcy_time = self.current_bankruptcies[0][1]
         elif type == "reinsurer":
-            bankruptcies_sent = [firm for firm in self.current_reinsurer_bankruptcies]
+            bankruptcies_sent = [firm for firm, time in self.current_reinsurer_bankruptcies]
             bankruptcy_time = 0
             if len(self.current_reinsurer_bankruptcies) > 0:
                 bankruptcy_time = self.current_reinsurer_bankruptcies[0][1]
@@ -997,10 +1014,16 @@ class InsuranceSimulation():
         and relevant list attribute is reset."""
         for firm, time in self.current_bankruptcies:
             firm.dissolve(time, 'record_bankruptcy')
+            for contract in firm.underwritten_contracts:
+                contract.mature(time)
+            firm.underwritten_contracts = []
         self.current_bankruptcies = []
 
         for reinfirm, time in self.current_reinsurer_bankruptcies:
-            reinfirm.dissolve(time)
+            reinfirm.dissolve(time, 'record_bankruptcy')
+            for contract in reinfirm.underwritten_contracts:
+                contract.mature(time)
+            reinfirm.underwritten_contracts = []
         self.current_reinsurer_bankruptcies = []
 
     def update_network_data(self):
@@ -1008,7 +1031,7 @@ class InsuranceSimulation():
             No accepted values.
             No return values.
         This method is called from save_data() for every iteration to get the current adjacency list so network
-        visualisation can be saved."""
+        visualisation can be saved. Only called if conditions save_network is True and slim logs is False."""
         """obtain lists of operational entities"""
         op_entities = {}
         num_entities = {}

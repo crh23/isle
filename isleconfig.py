@@ -4,10 +4,11 @@ force_foreground = False
 verbose = False
 showprogress = True
 show_network = False             # Should network be visualized? This should be False by default, to be overridden by commandline arguments
-save_network = True
+save_network = False
 slim_log = False                        # Should logs be small in ensemble runs (only aggregated level data)?
-buy_bankruptcies = False
-                       
+buy_bankruptcies = True
+enforce_regulations = True
+
 simulation_parameters = {"no_categories": 4,
                          "no_insurancefirms": 20,
                          "no_reinsurancefirms": 4,
