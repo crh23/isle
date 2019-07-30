@@ -16,6 +16,7 @@ class CentralBank:
         self.prices_list = []
         self.economy_money = money_supply
         self.warnings = {}
+        self.aid_budget = 1000000
 
     def update_money_supply(self, amount, reduce=True):
         if reduce:
@@ -106,3 +107,28 @@ class CentralBank:
             return "Warning"
         elif self.warnings[firm_id] >= 2:
             return "LoseControl"
+
+    def adjust_aid_budget(self, time):
+        if time % 12 == 0:
+            money_left = self.aid_budget
+            self.aid_budget = 1000000
+            money_taken = self.aid_budget - money_left
+
+    def provide_aid(self, insurance_firms, damage_fraction, time):
+        all_firms_aid = 0
+        given_aid_dict = {}
+        if damage_fraction > 0.50:
+            for insurer in insurance_firms:
+                claims = sum([ob['amount'] for ob in insurer.obligations if ob["purpose"] == "claim" and ob["due_time"] == time + 2])
+                aid = claims * damage_fraction
+                all_firms_aid += aid
+                given_aid_dict[insurer] = aid
+            for fraction in [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0]:
+                if self.aid_budget - (all_firms_aid * fraction) > 0:
+                    self.aid_budget -= (all_firms_aid * fraction)
+                    for key in given_aid_dict:
+                        given_aid_dict[key] *= fraction
+                    print("Damage %f causes %d to be given out in aid. %d budget left." % (damage_fraction, all_firms_aid * fraction, self.aid_budget))
+                    return given_aid_dict
+        else:
+            return given_aid_dict

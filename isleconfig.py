@@ -6,8 +6,9 @@ showprogress = True
 show_network = False             # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 save_network = False
 slim_log = False                        # Should logs be small in ensemble runs (only aggregated level data)?
-buy_bankruptcies = True
-enforce_regulations = True
+buy_bankruptcies = False
+enforce_regulations = False
+aid_relief = False
 
 simulation_parameters = {"no_categories": 4,
                          "no_insurancefirms": 20,

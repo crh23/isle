@@ -300,13 +300,22 @@ class InsuranceSimulation():
                 print("Something wrong; past events not deleted", file=sys.stderr)
             if len(self.rc_event_schedule[categ_id]) > 0 and self.rc_event_schedule[categ_id][0] == t:
                 self.rc_event_schedule[categ_id] = self.rc_event_schedule[categ_id][1:]
-                damage_extent = copy.copy(self.rc_event_damage[categ_id][0])       # Schedules of catastrophes and damages must be generated at the same time.
-                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t) # TODO: consider splitting the following lines from this method and running it with nb.jit
+                damage_extent = copy.copy(self.rc_event_damage[categ_id][0])
+                self.inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
                 self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
             else:
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
-        
+
+        # Provide government aid if damage severe enough
+        if isleconfig.aid_relief is True:
+            self.bank.adjust_aid_budget(time=t)
+            if 'damage_extent' in locals():
+                op_firms = [firm for firm in self.insurancefirms if firm.operational is True]
+                aid_dict = self.bank.provide_aid(op_firms, damage_extent, time=t)
+                for key in aid_dict.keys():
+                    self.receive_obligation(amount=aid_dict[key], recipient=key, due_time=t, purpose="aid")
+
         # Shuffle risks (insurance and reinsurance risks)
         self.shuffle_risks()
 
