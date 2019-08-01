@@ -140,12 +140,14 @@ class InsuranceSimulation():
         "Cumulative variables for history and logging"
         self.cumulative_bankruptcies = 0
         self.cumulative_market_exits = 0
-        self.bought_firms = 0
+        self.cumulative_bought_firms = 0
         self.cumulative_nonregulation_firms = 0
         self.cumulative_unrecovered_claims = 0.0
         self.cumulative_claims = 0.0
-        self.current_bankruptcies = []
-        self.current_reinsurer_bankruptcies = []
+
+        "Lists for firms that are to be sold."
+        self.selling_insurance_firms = []
+        self.selling_reinsurance_firms = []
 
         "Lists for logging history"
         self.logger = logger.Logger(no_riskmodels=simulation_parameters["no_riskmodels"], 
@@ -350,7 +352,7 @@ class InsuranceSimulation():
                     agent.consider_buyout(type="insurer")
 
         # Reset list of bankrupt insurance firms
-        self.reset_bankrupt_firms()
+        self.reset_selling_firms()
 
         # Iterate catbonds
         for agent in self.catbonds:
@@ -427,11 +429,12 @@ class InsuranceSimulation():
         current_log['cumulative_market_exits'] = self.cumulative_market_exits
         current_log['cumulative_unrecovered_claims'] = self.cumulative_unrecovered_claims
         current_log['cumulative_claims'] = self.cumulative_claims
+        current_log["cumulative_bought_firms"] = self.cumulative_bought_firms
+        current_log["cumulative_nonregulation_firms"] = self.cumulative_nonregulation_firms
         
         """ add agent-level data to dict""" 
         current_log['insurance_firms_cash'] = insurance_firms
         current_log['reinsurance_firms_cash'] = reinsurance_firms
-        current_log['market_diffvar'] = self.compute_market_diffvar()
 
         current_log['individual_contracts'] = []
         individual_contracts_no = [len(insurancefirm.underwritten_contracts) for insurancefirm in self.insurancefirms]
@@ -845,9 +848,15 @@ class InsuranceSimulation():
         self.cumulative_market_exits += 1
 
     def record_bought_firm(self):
-        self.bought_firms += 1
+        """Method to record number of firms bought when buy_bankruptcies is enabled.
+            No accepted values.
+            No return values."""
+        self.cumulative_bought_firms += 1
 
     def record_nonregulation_firm(self):
+        """Method to record number of firms shut down by regulator (when enabled).
+            No accepted values.
+            No return values."""
         self.cumulative_nonregulation_firms += 1
 
     def record_unrecovered_claims(self, loss):
@@ -957,38 +966,6 @@ class InsuranceSimulation():
         for catbond in self.catbonds:
             catbond.reset_pl()
 
-    def add_bankrupt_firm(self, firm, time):
-        """Method to add bankrupt firm to list of those being considered to buy dependant on firm type.
-            Accepts:
-                firm: Type Class.
-                time: Type Integer.
-            No return values."""
-        if firm.is_insurer:
-            self.current_bankruptcies.append([firm, time])
-        elif firm.is_reinsurer:
-            self.current_reinsurer_bankruptcies.append([firm, time])
-
-    def get_bankrupt_firms(self, type):
-        """Method to get list of bankrupt firms up for selling based on type.
-            Accepts:
-                type: Type String.
-            Returns:
-                bankruptcies_sent: List of Classes.
-                bankruptcy_time: Type Integer."""
-        if type == "insurer":
-            bankruptcies_sent = [firm for firm, time in self.current_bankruptcies]
-            bankruptcy_time = 0
-            if len(self.current_bankruptcies) > 0:
-                bankruptcy_time = self.current_bankruptcies[0][1]
-        elif type == "reinsurer":
-            bankruptcies_sent = [firm for firm, time in self.current_reinsurer_bankruptcies]
-            bankruptcy_time = 0
-            if len(self.current_reinsurer_bankruptcies) > 0:
-                bankruptcy_time = self.current_reinsurer_bankruptcies[0][1]
-        else:
-            print("No accepted type for bankruptcies")
-        return bankruptcies_sent, bankruptcy_time
-
     def get_total_firm_cash(self, type):
         """Method to get sum of all cash of firms of a given type. Called from consider_buyout() but could be used for
         setting market premium.
@@ -1004,36 +981,63 @@ class InsuranceSimulation():
             print("No accepted type for cash")
         return sum_capital
 
-    def remove_bankrupt_firm(self, firm, time):
-        """Method to remove firm from list of bankrupt firms. Called when firm is bought buy another.
+    def add_firm_to_be_sold(self, firm, time, reason):
+        """Method to add firm to list of those being considered to buy dependant on firm type.
             Accepts:
                 firm: Type Class.
                 time: Type Integer.
+                reason: Type String. Used in case of dissolution for logging.
             No return values."""
         if firm.is_insurer:
-            self.current_bankruptcies.remove([firm, time])
+            self.selling_insurance_firms.append([firm, time, reason])
         elif firm.is_reinsurer:
-            self.current_reinsurer_bankruptcies.remove([firm, time])
+            self.selling_reinsurance_firms.append([firm, time, reason])
 
-    def reset_bankrupt_firms(self):
-        """Method to reset list of bankrupt firms being sold. Called every iteration of insurance simulation.
-        No accepted values.
-        No return values.
-        Firms going bankrupt only considered for iteration they go bankrupt, after this not wanted so all are dissolved
-        and relevant list attribute is reset."""
-        for firm, time in self.current_bankruptcies:
-            firm.dissolve(time, 'record_bankruptcy')
+    def get_firms_to_sell(self, type):
+        """Method to get list of firms that are up for selling based on type.
+            Accepts:
+               type: Type String.
+            Returns:
+               firms_info_sent: Type List of Lists. Contains firm, type and reason."""
+        if type == "insurer":
+            firms_info_sent = [(firm, time, reason) for firm, time, reason in self.selling_insurance_firms]
+        elif type == "reinsurer":
+            firms_info_sent = [(firm, time, reason) for firm, time, reason in self.selling_reinsurance_firms]
+        else:
+            print("No accepted type for selling")
+        return firms_info_sent
+
+    def remove_sold_firm(self, firm, time, reason):
+        """Method to remove firm from list of firms being sold. Called when firm is bought buy another.
+            Accepts:
+                firm: Type Class.
+                time: Type Integer.
+                reason: Type String.
+            No return values."""
+        if firm.is_insurer:
+            self.selling_insurance_firms.remove([firm, time, reason])
+        elif firm.is_reinsurer:
+            self.selling_reinsurance_firms.remove([firm, time, reason])
+
+    def reset_selling_firms(self):
+        """Method to reset list of firms being offered to sell. Called every iteration of insurance simulation.
+            No accepted values.
+            No return values.
+        Firms being sold only considered for iteration they are added for given reason, after this not wanted so all
+        are dissolved and relevant list attribute is reset."""
+        for firm, time, reason in self.selling_insurance_firms:
+            firm.dissolve(time, reason)
             for contract in firm.underwritten_contracts:
                 contract.mature(time)
             firm.underwritten_contracts = []
-        self.current_bankruptcies = []
+        self.selling_insurance_firms = []
 
-        for reinfirm, time in self.current_reinsurer_bankruptcies:
-            reinfirm.dissolve(time, 'record_bankruptcy')
+        for reinfirm, time, reason in self.selling_reinsurance_firms:
+            reinfirm.dissolve(time, reason)
             for contract in reinfirm.underwritten_contracts:
                 contract.mature(time)
             reinfirm.underwritten_contracts = []
-        self.current_reinsurer_bankruptcies = []
+        self.selling_reinsurance_firms = []
 
     def update_network_data(self):
         """Method to update the network data.

@@ -3,6 +3,8 @@
 import numpy as np
 import pdb
 import listify
+import os
+import time
 
 LOG_DEFAULT = (
     'total_cash total_excess_capital total_profitslosses total_contracts '
@@ -11,7 +13,8 @@ LOG_DEFAULT = (
     'market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims '
     'cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar '
     'rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts '
-    'unweighted_network_data network_node_labels network_edge_labels number_of_agents'
+    'unweighted_network_data network_node_labels network_edge_labels number_of_agents '
+    'cumulative_bought_firms cumulative_nonregulation_firms'
 ).split(' ')
 
 class Logger():
@@ -34,6 +37,7 @@ class Logger():
 
         """Prepare history log dict"""
         self.history_logs = {}
+        self.history_logs_to_save = []
         
         """Variables pertaining to insurance sector"""
         # TODO: should we not have `cumulative_bankruptcies` and
@@ -42,7 +46,8 @@ class Logger():
         # by the whole insurance sector until a certain time.
         insurance_sector = ('total_cash total_excess_capital total_profitslosses '
                             'total_contracts total_operational cumulative_bankruptcies '
-                            'cumulative_market_exits cumulative_claims cumulative_unrecovered_claims').split(' ')
+                            'cumulative_market_exits cumulative_claims cumulative_unrecovered_claims '
+                            'cumulative_bought_firms cumulative_nonregulation_firms').split(' ')
         for _v in insurance_sector:
             self.history_logs[_v] = []
         
@@ -141,7 +146,7 @@ class Logger():
         self.number_riskmodels = log["number_riskmodels"]
         
         """Restore history log"""
-        self.history_logs = log
+        self.history_logs_to_save.append(log)
 
     def save_log(self, background_run):
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
@@ -182,10 +187,19 @@ class Logger():
                     Element 2: data structure to save
                     Element 3: operation parameter (w-write or a-append)."""
         to_log = []
-        to_log.append(("data/history_logs.dat", self.history_logs, "w"))
+        filename = "data/single_history_logs.dat"
+        backupfilename = "data/single_history_logs_old_" + time.strftime('%Y_%b_%d_%H_%M') + ".dat"
+        if os.path.exists(filename):
+            os.rename(filename, backupfilename)
+        for data in self.history_logs_to_save:
+            to_log.append((filename, data, "a"))
         return to_log
 
     def save_network_data(self, ensemble):
+        """Method to save network data to its own file.
+            Accepts:
+                ensemble: Type Boolean. Saves to files based on number risk models.
+            No return values."""
         if ensemble is True:
             filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
             fpf = filename_prefix[self.number_riskmodels]
