@@ -7,7 +7,7 @@ show_network = False             # Should network be visualized? This should be 
 save_network = False
 slim_log = False                        # Should logs be small in ensemble runs (only aggregated level data)?
 buy_bankruptcies = False
-enforce_regulations = False
+enforce_regulations = True
 aid_relief = False
 
 simulation_parameters = {"no_categories": 4,
@@ -40,7 +40,7 @@ simulation_parameters = {"no_categories": 4,
                          "default_non-proportional_reinsurance_excess": 1.0,
                          "default_non-proportional_reinsurance_premium_share": 0.3,
                          "static_non-proportional_reinsurance_levels": False,
-                         "catbonds_off": False,
+                         "catbonds_off": True,
                          "reinsurance_off": False,
                          "capacity_target_decrement_threshold": 1.8,
                          "capacity_target_increment_threshold": 1.2,
@@ -77,5 +77,6 @@ simulation_parameters = {"no_categories": 4,
                          "reinsurance_limit": 0.1,
                          "upper_price_limit": 1.2,
                          "lower_price_limit": 0.85,
-                         "no_risks": 20000}
+                         "no_risks": 20000,
+                         "aid_budget": 1000000}
 

@@ -50,41 +50,51 @@ def rake(hostname):
 
     """Configure the return values and corresponding file suffixes where they should be saved"""
     requested_logs = {'total_cash':                   '_cash.dat',
-               'total_excess_capital':          '_excess_capital.dat',
-               'total_profitslosses':           '_profitslosses.dat',
-               'total_contracts':               '_contracts.dat',
-               'total_operational':             '_operational.dat',
-               'total_reincash':                '_reincash.dat',
-               'total_reinexcess_capital':      '_reinexcess_capital.dat',
-               'total_reinprofitslosses':       '_reinprofitslosses.dat',
-               'total_reincontracts':           '_reincontracts.dat',
-               'total_reinoperational':         '_reinoperational.dat',
-               'total_catbondsoperational':     '_total_catbondsoperational.dat',
-               'market_premium':                '_premium.dat',
-               'market_reinpremium':            '_reinpremium.dat',
-               'cumulative_bankruptcies':       '_cumulative_bankruptcies.dat',
-               'cumulative_market_exits':       '_cumulative_market_exits',             # TODO: correct filename
-               'cumulative_unrecovered_claims': '_cumulative_unrecovered_claims.dat',
-               'cumulative_claims':             '_cumulative_claims.dat',
-               'insurance_firms_cash':          '_insurance_firms_cash.dat',
-               'reinsurance_firms_cash':        '_reinsurance_firms_cash.dat',
-               'market_diffvar':                '_market_diffvar.dat',
-               'rc_event_schedule_initial':     '_rc_event_schedule.dat',
-               'rc_event_damage_initial':       '_rc_event_damage.dat',
-               'number_riskmodels':             '_number_riskmodels.dat'
-               'individual_contracts'           '_insurance_contracts.dat'
-               'reinsurance_contracts'          '_reinsurance_contracts.dat'
-                } 
+                      'total_excess_capital':          '_excess_capital.dat',
+                      'total_profitslosses':           '_profitslosses.dat',
+                      'total_contracts':               '_contracts.dat',
+                      'total_operational':             '_operational.dat',
+                      'total_reincash':                '_reincash.dat',
+                      'total_reinexcess_capital':      '_reinexcess_capital.dat',
+                      'total_reinprofitslosses':       '_reinprofitslosses.dat',
+                      'total_reincontracts':           '_reincontracts.dat',
+                      'total_reinoperational':         '_reinoperational.dat',
+                      'total_catbondsoperational':     '_total_catbondsoperational.dat',
+                      'market_premium':                '_premium.dat',
+                      'market_reinpremium':            '_reinpremium.dat',
+                      'cumulative_bankruptcies':       '_cumulative_bankruptcies.dat',
+                      'cumulative_market_exits':       '_cumulative_market_exits',             # TODO: correct filename
+                      'cumulative_unrecovered_claims': '_cumulative_unrecovered_claims.dat',
+                      'cumulative_claims':             '_cumulative_claims.dat',
+                      'cumulative_bought_firms':       '_cumulative_bought_firms.dat',
+                      'cumulative_nonregulation_firms':'_cumulative_nonregulation_firms.dat',
+                      'insurance_firms_cash':          '_insurance_firms_cash.dat',
+                      'reinsurance_firms_cash':        '_reinsurance_firms_cash.dat',
+                      'market_diffvar':                '_market_diffvar.dat',
+                      'rc_event_schedule_initial':     '_rc_event_schedule.dat',
+                      'rc_event_damage_initial':       '_rc_event_damage.dat',
+                      'number_riskmodels':             '_number_riskmodels.dat',
+                      'individual_contracts':          '_insurance_contracts.dat',
+                      'reinsurance_contracts':         '_reinsurance_contracts.dat',
+                      'unweighted_network_data':       '_unweighted_network_data.dat',
+                      'network_node_labels':           '_network_node_labels.dat',
+                      'network_edge_labels':           '_network_edge_labels.dat',
+                      'number_of_agents':              '_number_of_agents'}
     
     if isleconfig.slim_log:
-        for name in ['insurance_firms_cash', 'reinsurance_firms_cash', 'individual_contracts', 'reinsurance_contracts']:
+        for name in ['insurance_firms_cash', 'reinsurance_firms_cash', 'individual_contracts', 'reinsurance_contracts'
+                     'unweighted_network_data', 'network_node_labels', 'network_edge_labels', 'number_of_agents']:
             del requested_logs[name]
-    
+
+    if not isleconfig.save_network:
+        for name in ['unweighted_network_data', 'network_node_labels', 'network_edge_labels', 'number_of_agents']:
+            del requested_logs[name]
+
     assert "number_riskmodels" in requested_logs
 
 
     """Configure log directory and ensure that the directory exists"""
-    dir_prefix = "/data/"
+    dir_prefix = "/new_data/"
     directory = os.getcwd() + dir_prefix
     try:  # Here it is checked whether the directory to collect the results exists or not. If not it is created.
         os.stat(directory)
