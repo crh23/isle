@@ -7,7 +7,7 @@ class CentralBank:
         """Constructor Method.
             No accepted arguments.
         Constructs the CentralBank class. This class is currently only used to award interest payments."""
-        self.interest_rate = simulation_parameters['interest_rate']
+        self.interest_rate = simulation_parameters["interest_rate"]
         self.inflation_target = 0.02
         self.actual_inflation = 0
         self.onemonth_CPI = 0
@@ -16,7 +16,7 @@ class CentralBank:
         self.prices_list = []
         self.economy_money = money_supply
         self.warnings = {}
-        self.aid_budget = self.aid_budget_reset = simulation_parameters['aid_budget']
+        self.aid_budget = self.aid_budget_reset = simulation_parameters["aid_budget"]
 
     def update_money_supply(self, amount, reduce=True):
         """Method to update the current supply of money in the insurance simulation economy. Only used to monitor
@@ -74,8 +74,12 @@ class CentralBank:
         if time < 13:
             self.actual_inflation = self.inflation_target
         else:
-            self.onemonth_CPI = (current_price - self.prices_list[-2])/self.prices_list[-2]
-            self.twelvemonth_CPI = (current_price - self.prices_list[-13])/self.prices_list[-13]
+            self.onemonth_CPI = (
+                current_price - self.prices_list[-2]
+            ) / self.prices_list[-2]
+            self.twelvemonth_CPI = (
+                current_price - self.prices_list[-13]
+            ) / self.prices_list[-13]
             self.actual_inflation = self.twelvemonth_CPI
 
     def regulate(self, firm_id, firm_cash, firm_var, reinsurance, age):
@@ -102,15 +106,25 @@ class CentralBank:
         for iter in range(len(reinsurance)):
             reinsurance_capital = 0
             for categ in range(len(reinsurance[iter])):
-                if firm_var[iter][categ] >= reinsurance[iter][categ][0]:        # Check VaR greater than deductible
-                    if firm_var[iter][categ] >= reinsurance[iter][categ][1]:    # Check VaR greater than excess
-                        reinsurance_capital += (reinsurance[iter][categ][1] - reinsurance[iter][categ][0])
+                if (
+                    firm_var[iter][categ] >= reinsurance[iter][categ][0]
+                ):  # Check VaR greater than deductible
+                    if (
+                        firm_var[iter][categ] >= reinsurance[iter][categ][1]
+                    ):  # Check VaR greater than excess
+                        reinsurance_capital += (
+                            reinsurance[iter][categ][1] - reinsurance[iter][categ][0]
+                        )
                     else:
-                        reinsurance_capital += (firm_var[iter][categ] - reinsurance[iter][categ][0])
+                        reinsurance_capital += (
+                            firm_var[iter][categ] - reinsurance[iter][categ][0]
+                        )
                 else:
-                    reinsurance_capital += 0                                    # If below deductible no reinsurance
+                    reinsurance_capital += 0  # If below deductible no reinsurance
             if sum(firm_var[iter]) > 0:
-                cash_fractions.append((firm_cash[iter]+reinsurance_capital)/sum(firm_var[iter]))
+                cash_fractions.append(
+                    (firm_cash[iter] + reinsurance_capital) / sum(firm_var[iter])
+                )
             else:
                 cash_fractions.append(1)
 
@@ -158,17 +172,26 @@ class CentralBank:
         given_aid_dict = {}
         if damage_fraction > 0.50:
             for insurer in insurance_firms:
-                claims = sum([ob['amount'] for ob in insurer.obligations if ob["purpose"] == "claim" and ob["due_time"] == time + 2])
+                claims = sum(
+                    [
+                        ob["amount"]
+                        for ob in insurer.obligations
+                        if ob["purpose"] == "claim" and ob["due_time"] == time + 2
+                    ]
+                )
                 aid = claims * damage_fraction
                 all_firms_aid += aid
                 given_aid_dict[insurer] = aid
             # Give each firm an equal fraction of claims
             for fraction in [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0]:
                 if self.aid_budget - (all_firms_aid * fraction) > 0:
-                    self.aid_budget -= (all_firms_aid * fraction)
+                    self.aid_budget -= all_firms_aid * fraction
                     for key in given_aid_dict:
                         given_aid_dict[key] *= fraction
-                    print("Damage %f causes %d to be given out in aid. %d budget left." % (damage_fraction, all_firms_aid * fraction, self.aid_budget))
+                    print(
+                        "Damage %f causes %d to be given out in aid. %d budget left."
+                        % (damage_fraction, all_firms_aid * fraction, self.aid_budget)
+                    )
                     return given_aid_dict
         else:
             return given_aid_dict

@@ -7,18 +7,24 @@ import os
 import time
 
 LOG_DEFAULT = (
-    'total_cash total_excess_capital total_profitslosses total_contracts '
-    'total_operational total_reincash total_reinexcess_capital total_reinprofitslosses '
-    'total_reincontracts total_reinoperational total_catbondsoperational market_premium '
-    'market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims '
-    'cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar '
-    'rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts '
-    'unweighted_network_data network_node_labels network_edge_labels number_of_agents '
-    'cumulative_bought_firms cumulative_nonregulation_firms'
-).split(' ')
+    "total_cash total_excess_capital total_profitslosses total_contracts "
+    "total_operational total_reincash total_reinexcess_capital total_reinprofitslosses "
+    "total_reincontracts total_reinoperational total_catbondsoperational market_premium "
+    "market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims "
+    "cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar "
+    "rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts "
+    "unweighted_network_data network_node_labels network_edge_labels number_of_agents "
+    "cumulative_bought_firms cumulative_nonregulation_firms"
+).split(" ")
 
-class Logger():
-    def __init__(self, no_riskmodels=None, rc_event_schedule_initial=None, rc_event_damage_initial=None):
+
+class Logger:
+    def __init__(
+        self,
+        no_riskmodels=None,
+        rc_event_schedule_initial=None,
+        rc_event_damage_initial=None,
+    ):
         """Constructor. Prepares history_logs atribute as dict for the logs. Records initial event schedule of
            simulation run.
             Arguments
@@ -26,11 +32,11 @@ class Logger():
                 rc_event_schedule_initial: list of lists of int. Times of risk events by category
                 rc_event_damage_initial: list of arrays (or lists) of float. Damage by peril for each category
                                          as share of total possible damage (maximum insured or excess).
-            Returns class instance."""        
-        
+            Returns class instance."""
+
         """Record number of riskmodels"""
         self.number_riskmodels = no_riskmodels
-            
+
         """Record initial event schedule"""
         self.rc_event_schedule_initial = rc_event_schedule_initial
         self.rc_event_damage_initial = rc_event_damage_initial
@@ -38,42 +44,43 @@ class Logger():
         """Prepare history log dict"""
         self.history_logs = {}
         self.history_logs_to_save = []
-        
+
         """Variables pertaining to insurance sector"""
         # TODO: should we not have `cumulative_bankruptcies` and
         # `cumulative_market_exits` for both insurance firms and reinsurance firms?
         # `cumulative_claims`: Here are stored the total cumulative claims received
         # by the whole insurance sector until a certain time.
-        insurance_sector = ('total_cash total_excess_capital total_profitslosses '
-                            'total_contracts total_operational cumulative_bankruptcies '
-                            'cumulative_market_exits cumulative_claims cumulative_unrecovered_claims '
-                            'cumulative_bought_firms cumulative_nonregulation_firms').split(' ')
+        insurance_sector = (
+            "total_cash total_excess_capital total_profitslosses "
+            "total_contracts total_operational cumulative_bankruptcies "
+            "cumulative_market_exits cumulative_claims cumulative_unrecovered_claims "
+            "cumulative_bought_firms cumulative_nonregulation_firms"
+        ).split(" ")
         for _v in insurance_sector:
             self.history_logs[_v] = []
-        
+
         """Variables pertaining to individual insurance firms"""
-        self.history_logs['individual_contracts'] = []
-        self.history_logs['insurance_firms_cash'] = []
-        
+        self.history_logs["individual_contracts"] = []
+        self.history_logs["insurance_firms_cash"] = []
+
         """Variables pertaining to reinsurance sector"""
-        self.history_logs['total_reincash'] = []
-        self.history_logs['total_reinexcess_capital'] = []
-        self.history_logs['total_reinprofitslosses'] = []
-        self.history_logs['total_reincontracts'] = []
-        self.history_logs['total_reinoperational'] = []
+        self.history_logs["total_reincash"] = []
+        self.history_logs["total_reinexcess_capital"] = []
+        self.history_logs["total_reinprofitslosses"] = []
+        self.history_logs["total_reincontracts"] = []
+        self.history_logs["total_reinoperational"] = []
 
         """Variables pertaining to individual reinsurance firms"""
-        self.history_logs['reinsurance_firms_cash'] = []
-        self.history_logs['reinsurance_contracts'] = []
+        self.history_logs["reinsurance_firms_cash"] = []
+        self.history_logs["reinsurance_contracts"] = []
 
         """Variables pertaining to cat bonds"""
-        self.history_logs['total_catbondsoperational'] = []
+        self.history_logs["total_catbondsoperational"] = []
 
         """Variables pertaining to premiums"""
-        self.history_logs['market_premium'] = []
-        self.history_logs['market_reinpremium'] = []
-        self.history_logs['market_diffvar'] = []
-
+        self.history_logs["market_premium"] = []
+        self.history_logs["market_reinpremium"] = []
+        self.history_logs["market_diffvar"] = []
 
         "Network Data Logs to be stored in separate file"
         self.network_data = {}
@@ -91,36 +98,42 @@ class Logger():
         """Method to record data for one period
             Arguments
                 data_dict: Type dict. Data with the same keys as are used in self.history_log().
-            Returns None."""        
+            Returns None."""
         for key in data_dict.keys():
-            if key != "individual_contracts" and key != 'reinsurance_contracts':
+            if key != "individual_contracts" and key != "reinsurance_contracts":
                 self.history_logs[key].append(data_dict[key])
             if key == "individual_contracts":
                 for i in range(len(data_dict["individual_contracts"])):
-                    self.history_logs['individual_contracts'][i].append(data_dict["individual_contracts"][i])
+                    self.history_logs["individual_contracts"][i].append(
+                        data_dict["individual_contracts"][i]
+                    )
             if key == "reinsurance_contracts":
                 for i in range(len(data_dict["reinsurance_contracts"])):
-                    self.history_logs["reinsurance_contracts"][i].append(data_dict["reinsurance_contracts"][i])
+                    self.history_logs["reinsurance_contracts"][i].append(
+                        data_dict["reinsurance_contracts"][i]
+                    )
 
-    def obtain_log(self, requested_logs=LOG_DEFAULT):   #This function allows to return in a list all the data generated by the model. There is no other way to transfer it back from the cloud.
+    def obtain_log(
+        self, requested_logs=LOG_DEFAULT
+    ):  # This function allows to return in a list all the data generated by the model. There is no other way to transfer it back from the cloud.
         """Method to transfer entire log (self.history_log as well as risk event schedule). This is
            used to transfer the log to master core from work cores in ensemble runs in the cloud.
             No arguments.
             Returns list (listified dict)."""
-        
+
         """Include environment variables (number of risk models and risk event schedule)"""
         self.history_logs["number_riskmodels"] = self.number_riskmodels
         self.history_logs["rc_event_damage_initial"] = self.rc_event_damage_initial
         self.history_logs["rc_event_schedule_initial"] = self.rc_event_schedule_initial
-        
+
         """Parse logs to be returned"""
         if requested_logs == None:
             requested_logs = LOG_DEFAULT
         log = {name: self.history_logs[name] for name in requested_logs}
-        
+
         """Convert to list and return"""
         return listify.listify(log)
-    
+
     def restore_logger_object(self, log):
         """Method to restore logger object. A log can be restored later. It can also be restored 
            on a different machine. This is useful in the case of ensemble runs to move the log to
@@ -138,13 +151,18 @@ class Logger():
         self.network_data["network_node_labels"] = log["network_node_labels"]
         self.network_data["network_edge_labels"] = log["network_edge_labels"]
         self.network_data["number_of_agents"] = log["number_of_agents"]
-        del log["number_of_agents"], log["network_edge_labels"], log["network_node_labels"], log["unweighted_network_data"]
+        del (
+            log["number_of_agents"],
+            log["network_edge_labels"],
+            log["network_node_labels"],
+            log["unweighted_network_data"],
+        )
 
         """Extract environment variables (number of risk models and risk event schedule)"""
         self.rc_event_schedule_initial = log["rc_event_schedule_initial"]
         self.rc_event_damage_initial = log["rc_event_damage_initial"]
         self.number_riskmodels = log["number_riskmodels"]
-        
+
         """Restore history log"""
         self.history_logs_to_save.append(log)
 
@@ -154,18 +172,18 @@ class Logger():
             Arguments:
                 background_run: Type bool. Is this an ensemble run (true) or not (false).
             Returns None."""
-        
+
         """Prepare writing tasks"""
         if background_run:
             to_log = self.replication_log_prepare()
         else:
             to_log = self.single_log_prepare()
-        
+
         """Write to disk"""
         for filename, data, operation_character in to_log:
             with open(filename, operation_character) as wfile:
                 wfile.write(str(data) + "\n")
-    
+
     def replication_log_prepare(self):
         """Method to prepare writing tasks for ensemble run saving.
             No arguments
@@ -178,7 +196,7 @@ class Logger():
         to_log = []
         to_log.append(("data/" + fpf + "_history_logs.dat", self.history_logs, "a"))
         return to_log
-      
+
     def single_log_prepare(self):
         """Method to prepare writing tasks for single run saving.
             No arguments
@@ -188,7 +206,9 @@ class Logger():
                     Element 3: operation parameter (w-write or a-append)."""
         to_log = []
         filename = "data/single_history_logs.dat"
-        backupfilename = "data/single_history_logs_old_" + time.strftime('%Y_%b_%d_%H_%M') + ".dat"
+        backupfilename = (
+            "data/single_history_logs_old_" + time.strftime("%Y_%b_%d_%H_%M") + ".dat"
+        )
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
         for data in self.history_logs_to_save:
@@ -204,7 +224,9 @@ class Logger():
             filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
             fpf = filename_prefix[self.number_riskmodels]
             network_logs = []
-            network_logs.append(("data/" + fpf + "_network_data.dat", self.network_data, "a"))
+            network_logs.append(
+                ("data/" + fpf + "_network_data.dat", self.network_data, "a")
+            )
 
             for filename, data, operation_character in network_logs:
                 with open(filename, operation_character) as wfile:
@@ -214,25 +236,28 @@ class Logger():
                 wfile.write(str(self.network_data) + "\n")
                 wfile.write(str(self.rc_event_schedule_initial) + "\n")
 
-    def add_insurance_agent(self):           
+    def add_insurance_agent(self):
         """Method for adding an additional insurer agent to the history log. This is necessary to keep the number 
            of individual insurance firm logs constant in time.
             No arguments.
             Returns None."""
-        if len(self.history_logs['individual_contracts']) > 0:
-            zeroes_to_append = list(np.zeros(len(self.history_logs['individual_contracts'][0]), dtype=int))
+        if len(self.history_logs["individual_contracts"]) > 0:
+            zeroes_to_append = list(
+                np.zeros(len(self.history_logs["individual_contracts"][0]), dtype=int)
+            )
         else:
             zeroes_to_append = []
-        self.history_logs['individual_contracts'].append(zeroes_to_append)
+        self.history_logs["individual_contracts"].append(zeroes_to_append)
 
     def add_reinsurance_agent(self):
         """Method for adding an additional insurer agent to the history log. This is necessary to keep the number
             of individual insurance firm logs constant in time.
                 No arguments.
                 Returns None."""
-        if len(self.history_logs['reinsurance_contracts']) > 0:
-            zeroes_to_append = list(np.zeros(len(self.history_logs['reinsurance_contracts'][0]), dtype=int))
+        if len(self.history_logs["reinsurance_contracts"]) > 0:
+            zeroes_to_append = list(
+                np.zeros(len(self.history_logs["reinsurance_contracts"][0]), dtype=int)
+            )
         else:
             zeroes_to_append = []
-        self.history_logs['reinsurance_contracts'].append(zeroes_to_append)
-
+        self.history_logs["reinsurance_contracts"].append(zeroes_to_append)
