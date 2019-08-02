@@ -9,6 +9,7 @@ import numpy as np
 
 from distributiontruncated import TruncatedDistWrapper
 import insurancefirms
+from centralbank import CentralBank
 import isleconfig
 from genericclasses import GenericAgent, RiskProperties, AgentProperties, Constant
 import catbond
@@ -63,7 +64,7 @@ class InsuranceSimulation(GenericAgent):
         # QUERY: why do we keep duplicates of so many simulation parameters (and then not use many of them)?
         self.number_riskmodels: int = simulation_parameters["no_riskmodels"]
 
-        # save parameters
+        "Save parameters, sets parameters of sim according to isleconfig.py"
         if (replic_id is None) or isleconfig.force_foreground:
             self.background_run = False
         else:
@@ -130,6 +131,7 @@ class InsuranceSimulation(GenericAgent):
 
         "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.cash: float = self.simulation_parameters["money_supply"]
+        self.bank = CentralBank(self.cash)
 
         "set up risk categories"
         # QUERY What do risk categories represent? Different types of catastrophes?
@@ -250,8 +252,14 @@ class InsuranceSimulation(GenericAgent):
         "Cumulative variables for history and logging"
         self.cumulative_bankruptcies: int = 0
         self.cumulative_market_exits: int = 0
+        self.cumulative_bought_firms: int = 0
+        self.cumulative_nonregulation_firms: int = 0
         self.cumulative_unrecovered_claims: float = 0.0
         self.cumulative_claims: float = 0.0
+
+        "Lists for firms that are to be sold."
+        self.selling_insurance_firms = []
+        self.selling_reinsurance_firms = []
 
         "Lists for logging history"
         self.logger: logger.Logger = logger.Logger(
@@ -514,6 +522,19 @@ class InsuranceSimulation(GenericAgent):
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
 
+        # Provide government aid if damage severe enough
+        if isleconfig.aid_relief:
+            self.bank.adjust_aid_budget(time=t)
+            if "damage_extent" in locals():
+                op_firms = [
+                    firm for firm in self.insurancefirms if firm.operational is True
+                ]
+                aid_dict = self.bank.provide_aid(op_firms, damage_extent, time=t)
+                for key in aid_dict.keys():
+                    self.receive_obligation(
+                        amount=aid_dict[key], recipient=key, due_time=t, purpose="aid"
+                    )
+
         # Shuffle risks (insurance and reinsurance risks)
         self._shuffle_risks()
 
@@ -522,7 +543,14 @@ class InsuranceSimulation(GenericAgent):
 
         # Iterate reinsurnace firm agents
         for reinagent in self.reinsurancefirms:
-            reinagent.iterate(t)
+            if reinagent.operational:
+                reinagent.iterate(t)
+                if reinagent.cash < 0:
+                    print(f"Reinsurer {reinagent.id} has negative cash")
+        if isleconfig.buy_bankruptcies:
+            for reinagent in self.reinsurancefirms:
+                if reinagent.operational:
+                    reinagent.consider_buyout(type="reinsurer")
 
         # remove all non-accepted reinsurance risks
         self.reinrisks = []
@@ -532,7 +560,17 @@ class InsuranceSimulation(GenericAgent):
 
         # Iterate insurance firm agents
         for agent in self.insurancefirms:
-            agent.iterate(t)
+            if agent.operational:
+                agent.iterate(t)
+                if agent.cash < 0:
+                    print(f"Insurer {agent.id} has negative cash")
+        if isleconfig.buy_bankruptcies:
+            for agent in self.insurancefirms:
+                if agent.operational:
+                    agent.consider_buyout(type="insurer")
+
+        # Reset list of bankrupt insurance firms
+        self.reset_selling_firms()
 
         # Iterate catbonds
         for agent in self.catbonds:
@@ -543,6 +581,12 @@ class InsuranceSimulation(GenericAgent):
         )
 
         self._update_model_counters()
+
+        for reinsurer in self.reinsurancefirms:
+            for i in range(len(self.inaccuracy)):
+                if reinsurer.operational:
+                    if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
+                        self.reinsurance_models_counter[i] += 1
 
         network_division = 1  # How often network is updated.
         if (
@@ -624,8 +668,11 @@ class InsuranceSimulation(GenericAgent):
         current_log[
             "cumulative_unrecovered_claims"
         ] = self.cumulative_unrecovered_claims
-        # Log the cumulative claims received so far.
         current_log["cumulative_claims"] = self.cumulative_claims
+        current_log["cumulative_bought_firms"] = self.cumulative_bought_firms
+        current_log[
+            "cumulative_nonregulation_firms"
+        ] = self.cumulative_nonregulation_firms
 
         """ add agent-level data to dict"""
         current_log["insurance_firms_cash"] = insurance_firms
@@ -643,19 +690,10 @@ class InsuranceSimulation(GenericAgent):
         """ call to Logger object """
         self.logger.record_data(current_log)
 
-    # This function allows to return in a list all the data generated by the model. There is no other way to transfer
-    # it back from the cloud.
     def obtain_log(self, requested_logs: Mapping = None) -> MutableSequence:
+        """This function allows to return in a list all the data generated by the model. There is no other way to
+            transfer it back from the cloud."""
         return self.logger.obtain_log(requested_logs)
-
-    def finalize(self, *args):
-        """Function to handle operations after the end of the simulation run.
-           Currently empty.
-           It may be used to handle e.g. logging by including:
-            self.log()
-           but logging has been moved to start.py and ensemble.py
-           """
-        pass
 
     def _inflict_peril(self, categ_id: int, damage: float, t: int):
         """Method that calculates percentage damage done to each underwritten risk that is affected in the category
@@ -689,6 +727,7 @@ class InsuranceSimulation(GenericAgent):
          Accepts:
                 amount: Type Integer"""
         self.cash -= amount
+        self.bank.update_money_supply(amount, reduce=True)
         assert self.cash >= 0
 
     def _reset_reinsurance_weights(self):
@@ -711,9 +750,7 @@ class InsuranceSimulation(GenericAgent):
 
         if operational_no > 0:
 
-            if (
-                reinrisks_no > operational_no
-            ):  # QUERY: verify this - should all risk go to a reinsurer?
+            if reinrisks_no > operational_no:
                 weights = reinrisks_no / operational_no
                 for reinsurer in self.reinsurancefirms:
                     self.reinsurers_weights[reinsurer.id] = math.floor(weights)
@@ -1181,3 +1218,125 @@ class InsuranceSimulation(GenericAgent):
             return 0
         else:
             return firm.number_underwritten_contracts() / total
+
+    def get_total_firm_cash(self, type):
+        """Method to get sum of all cash of firms of a given type. Called from consider_buyout() but could be used for
+        setting market premium.
+            Accepts:
+                type: Type String.
+            Returns:
+                sum_capital: Type Integer."""
+        if type == "insurer":
+            sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
+        elif type == "reinsurer":
+            sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
+        else:
+            print("No accepted type for cash")
+        return sum_capital
+
+    def add_firm_to_be_sold(self, firm, time, reason):
+        """Method to add firm to list of those being considered to buy dependant on firm type.
+            Accepts:
+                firm: Type Class.
+                time: Type Integer.
+                reason: Type String. Used in case of dissolution for logging.
+            No return values."""
+        if firm.is_insurer:
+            self.selling_insurance_firms.append([firm, time, reason])
+        elif firm.is_reinsurer:
+            self.selling_reinsurance_firms.append([firm, time, reason])
+
+    def get_firms_to_sell(self, type):
+        """Method to get list of firms that are up for selling based on type.
+            Accepts:
+               type: Type String.
+            Returns:
+               firms_info_sent: Type List of Lists. Contains firm, type and reason."""
+        if type == "insurer":
+            firms_info_sent = [
+                (firm, time, reason)
+                for firm, time, reason in self.selling_insurance_firms
+            ]
+        elif type == "reinsurer":
+            firms_info_sent = [
+                (firm, time, reason)
+                for firm, time, reason in self.selling_reinsurance_firms
+            ]
+        else:
+            print("No accepted type for selling")
+        return firms_info_sent
+
+    def remove_sold_firm(self, firm, time, reason):
+        """Method to remove firm from list of firms being sold. Called when firm is bought buy another.
+            Accepts:
+                firm: Type Class.
+                time: Type Integer.
+                reason: Type String.
+            No return values."""
+        if firm.is_insurer:
+            self.selling_insurance_firms.remove([firm, time, reason])
+        elif firm.is_reinsurer:
+            self.selling_reinsurance_firms.remove([firm, time, reason])
+
+    def reset_selling_firms(self):
+        """Method to reset list of firms being offered to sell. Called every iteration of insurance simulation.
+            No accepted values.
+            No return values.
+        Firms being sold only considered for iteration they are added for given reason, after this not wanted so all
+        are dissolved and relevant list attribute is reset."""
+        for firm, time, reason in self.selling_insurance_firms:
+            firm.dissolve(time, reason)
+            for contract in firm.underwritten_contracts:
+                contract.mature(time)
+            firm.underwritten_contracts = []
+        self.selling_insurance_firms = []
+
+        for reinfirm, time, reason in self.selling_reinsurance_firms:
+            reinfirm.dissolve(time, reason)
+            for contract in reinfirm.underwritten_contracts:
+                contract.mature(time)
+            reinfirm.underwritten_contracts = []
+        self.selling_reinsurance_firms = []
+
+    def update_network_data(self):
+        """Method to update the network data.
+            No accepted values.
+            No return values.
+        This method is called from save_data() for every iteration to get the current adjacency list so network
+        visualisation can be saved. Only called if conditions save_network is True and slim logs is False."""
+        """obtain lists of operational entities"""
+        op_entities = {}
+        num_entities = {}
+        for firmtype, firmlist in [
+            ("insurers", self.insurancefirms),
+            ("reinsurers", self.reinsurancefirms),
+            ("catbonds", self.catbonds),
+        ]:
+            op_firmtype = [firm for firm in firmlist if firm.operational]
+            op_entities[firmtype] = op_firmtype
+            num_entities[firmtype] = len(op_firmtype)
+
+        network_size = sum(num_entities.values())
+
+        """Create weighted adjacency matrix and category edge labels"""
+        weights_matrix = np.zeros(network_size ** 2).reshape(network_size, network_size)
+        edge_labels = {}
+        node_labels = {}
+        for idx_to, firm in enumerate(
+            op_entities["insurers"] + op_entities["reinsurers"]
+        ):
+            node_labels[idx_to] = firm.id
+            eolrs = firm.get_excess_of_loss_reinsurance()
+            for eolr in eolrs:
+                try:
+                    idx_from = num_entities["insurers"] + (
+                        op_entities["reinsurers"] + op_entities["catbonds"]
+                    ).index(eolr["reinsurer"])
+                    weights_matrix[idx_from][idx_to] = eolr["value"]
+                    edge_labels[idx_to, idx_from] = eolr["category"]
+                except ValueError:
+                    print("Reinsurer is not in list of reinsurance companies")
+
+        """unweighted adjacency matrix"""
+        adj_matrix = np.sign(weights_matrix)
+        return adj_matrix.tolist(), node_labels, edge_labels, num_entities

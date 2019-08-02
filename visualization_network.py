@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import argparse
+import os
 
 
 class ReinsuranceNetwork:
@@ -104,18 +105,9 @@ class ReinsuranceNetwork:
         """unweighted adjacency matrix"""
         adj_matrix = np.sign(weights_matrix)
 
-        """define network"""
-        self.network = nx.from_numpy_array(
-            weights_matrix, create_using=nx.DiGraph()
-        )  # weighted
-        self.network_unweighted = nx.from_numpy_array(
-            adj_matrix, create_using=nx.DiGraph()
-        )  # unweighted
-
         """Add this iteration of network data to be saved"""
         self.save_data["unweighted_network"].append(adj_matrix.tolist())
-        self.save_data["weighted_network"].append(weights_matrix.tolist())
-        self.save_data["network_edgelabels"].append(self.edge_labels)
+        self.save_data["network_edge_labels"].append(self.edge_labels)
         self.save_data["network_node_labels"].append(self.node_labels)
         self.save_data["number_of_agents"].append(self.num_entities)
 
@@ -208,11 +200,6 @@ class ReinsuranceNetwork:
         self.figure.canvas.flush_events()
         self.figure.clear()
 
-    def save_network_data(self):
-        with open("data/network_data.dat", "w") as wfile:
-            wfile.write(str(self.save_data) + "\n")
-            wfile.write(str(self.event_schedule) + "\n")
-
 
 class LoadNetwork:
     def __init__(self, network_data, num_iter):
@@ -225,9 +212,8 @@ class LoadNetwork:
         self.figure = plt.figure(
             num=None, figsize=(10, 8), dpi=100, facecolor="w", edgecolor="k"
         )
-        self.unweighted_network_data = network_data[0]["unweighted_network"]
-        # self.weighted_network_data = network_data[0]["weighted_network"]           # Unused for now
-        self.network_edge_labels = network_data[0]["network_edgelabels"]
+        self.unweighted_network_data = network_data[0]["unweighted_network_data"]
+        self.network_edge_labels = network_data[0]["network_edge_labels"]
         self.network_node_labels = network_data[0]["network_node_labels"]
         self.number_agent_type = network_data[0]["number_of_agents"]
         self.event_schedule = network_data[1]
@@ -249,7 +235,9 @@ class LoadNetwork:
         unweighted_nx_network = nx.from_numpy_array(
             np.array(self.unweighted_network_data[i])
         )
-        pos = nx.shell_layout(unweighted_nx_network)
+        pos = nx.kamada_kawai_layout(
+            unweighted_nx_network
+        )  # Can also use circular/shell/spring
 
         nx.draw_networkx_nodes(
             unweighted_nx_network,
@@ -300,20 +288,20 @@ class LoadNetwork:
             self.unweighted_network_data[i],
             pos,
             self.network_edge_labels[i],
-            font_size=5,
+            font_size=3,
         )
         nx.draw_networkx_labels(
             self.unweighted_network_data[i],
             pos,
             self.network_node_labels[i],
-            font_size=10,
+            font_size=7,
         )
 
         while self.all_events[0] == i:
             plt.title("EVENT!")
             self.all_events = self.all_events[1:]
 
-        plt.legend()
+        plt.legend(loc="upper right")
         plt.axis("off")
 
     def animate(self):
@@ -325,7 +313,7 @@ class LoadNetwork:
             self.update,
             frames=self.num_iter,
             repeat=False,
-            interval=20,
+            interval=50,
             save_count=self.num_iter,
         )
 
@@ -333,8 +321,10 @@ class LoadNetwork:
         """Method to save animation as MP4.
             No accepted values.
             No return values."""
+        if not os.path.isdir("figures"):
+            os.makedirs("figures")
         self.network_ani.save(
-            "data/animated_network.mp4", writer="ffmpeg", dpi=200, fps=5
+            "figures/animated_network.mp4", writer="ffmpeg", dpi=200, fps=5
         )
 
 
@@ -350,7 +340,8 @@ if __name__ == "__main__":
         "--number_iterations", type=int, help="number of frames for animation"
     )
     args = parser.parse_args()
-
+    args.save = True
+    # args.number_iterations = 199
     if args.number_iterations:
         num_iter = args.number_iterations
     else:

@@ -30,7 +30,7 @@ class RiskModel:
     ) -> None:
         self.cat_separation_distribution = cat_separation_distribution
         self.norm_premium = norm_premium
-        # QUERY: Whis is this passed as an argument and then ignored?
+        # QUERY: Whis was this passed as an argument and then ignored?
         self.var_tail_prob = var_tail_prob
         self.expire_immediately = expire_immediately
         self.category_number = category_number

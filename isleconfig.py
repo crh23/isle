@@ -5,10 +5,12 @@ verbose = False
 showprogress = False
 # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 show_network = False
-save_network = True
+save_network = False
 # Should logs be small in ensemble runs (only aggregated level data)?
 slim_log = True
-
+buy_bankruptcies = False
+enforce_regulations = True
+aid_relief = False
 
 simulation_parameters = {
     "no_categories": 4,
@@ -113,4 +115,5 @@ simulation_parameters = {
     # The smallest number of tranches that an insurer will issue when asking for reinsurance. Note: even if this is 1,
     # insurers will still end up with layered reinsurance to fill gaps
     "min_tranches": 5,
+    "aid_budget": 1000000,
 }

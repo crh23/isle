@@ -70,16 +70,41 @@ def rake(hostname):
         "cumulative_market_exits": "_cumulative_market_exits",  # TODO: correct filename
         "cumulative_unrecovered_claims": "_cumulative_unrecovered_claims.dat",
         "cumulative_claims": "_cumulative_claims.dat",
+        "cumulative_bought_firms": "_cumulative_bought_firms.dat",
+        "cumulative_nonregulation_firms": "_cumulative_nonregulation_firms.dat",
         "insurance_firms_cash": "_insurance_firms_cash.dat",
         "reinsurance_firms_cash": "_reinsurance_firms_cash.dat",
         "market_diffvar": "_market_diffvar.dat",
         "rc_event_schedule_initial": "_rc_event_schedule.dat",
         "rc_event_damage_initial": "_rc_event_damage.dat",
         "number_riskmodels": "_number_riskmodels.dat",
+        "individual_contracts": "_insurance_contracts.dat",
+        "reinsurance_contracts": "_reinsurance_contracts.dat",
+        "unweighted_network_data": "_unweighted_network_data.dat",
+        "network_node_labels": "_network_node_labels.dat",
+        "network_edge_labels": "_network_edge_labels.dat",
+        "number_of_agents": "_number_of_agents",
     }
 
     if isleconfig.slim_log:
-        for name in ["insurance_firms_cash", "reinsurance_firms_cash"]:
+        for name in [
+            "insurance_firms_cash",
+            "reinsurance_firms_cash",
+            "individual_contracts",
+            "reinsurance_contracts" "unweighted_network_data",
+            "network_node_labels",
+            "network_edge_labels",
+            "number_of_agents",
+        ]:
+            del requested_logs[name]
+
+    if not isleconfig.save_network:
+        for name in [
+            "unweighted_network_data",
+            "network_node_labels",
+            "network_edge_labels",
+            "number_of_agents",
+        ]:
             del requested_logs[name]
 
     assert "number_riskmodels" in requested_logs
@@ -146,10 +171,8 @@ def rake(hostname):
             """Run simulation and obtain result"""
             result = sess.submit(job)
 
-            """find number of riskmodels from log"""
+            """Find number of riskmodels from log"""
             delistified_result = [listify.delistify(list(res)) for res in result]
-            # nrmidx = result[0][-1].index("number_riskmodels")
-            # nrm = result[0][nrmidx]
             nrm = delistified_result[0]["number_riskmodels"]
 
             """These are the files created to collect the results"""
@@ -197,8 +220,10 @@ def rake(hostname):
 
                 """Save logs as dict (to <num>_history_logs.dat)"""
                 L.save_log(True)
+                if isleconfig.save_network:
+                    L.save_network_data(ensemble=True)
 
-                """Save logs as indivitual files"""
+                """Save logs as individual files"""
                 for name in logfile_dict:
                     wfiles_dict[name].write(str(delistified_result[i][name]) + "\n")
 

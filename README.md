@@ -78,4 +78,4 @@ See help for more information.
 [PEP 8](https://www.python.org/dev/peps/pep-0008/) styling should be used where possible. 
 The Python code formatter [black](https://github.com/python/black) is a good way
 to automatically fix style problems - install it with `$ pip install black` and
-then run it with, say, `black *.py`.
+then run it with, say, `black *.py`. Additionally, it is good to run flake8 over your code.

@@ -53,7 +53,7 @@ class CatBond(MetaInsuranceOrg):
             No return values
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
         _pay obligations, mature the contract if ended, make payments."""
-        self.obtain_yield(time)
+        self.simulation.bank.award_interest(self, self.cash)
         self._effect_payments(time)
         if isleconfig.verbose:
             print(
@@ -89,8 +89,6 @@ class CatBond(MetaInsuranceOrg):
         else:
             if self.operational:
                 self.pay_dividends(time)
-
-        # self.estimate_var()   # cannot compute VaR for catbond as catbond does not have a riskmodel
 
     def set_owner(self, owner: GenericAgent):
         """Method to set owner of the Cat Bond.
