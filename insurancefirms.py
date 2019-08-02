@@ -65,12 +65,12 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         for categ in range(len(value_by_category)):
             value: float = value_by_category[categ]
             uncovered = self.reinsurance_profile.uncovered(categ)
-            maximum_excess: float = self.np_reinsurance_excess_fraction * value
+            maximum_excess: float = self.np_reinsurance_limit_fraction * value
             miniumum_deductible: float = self.np_reinsurance_deductible_fraction * value
             for region in uncovered:
                 if region[1] > miniumum_deductible and region[0] < maximum_excess:
                     total += min(
-                        region[1] / value, self.np_reinsurance_excess_fraction
+                        region[1] / value, self.np_reinsurance_limit_fraction
                     ) - max(region[0] / value, self.np_reinsurance_deductible_fraction)
         total = total / len(value_by_category)
         return total
@@ -293,13 +293,13 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             tranches = self.reinsurance_profile.uncovered(categ_id)
 
             # Don't get reinsurance above maximum limit
-            while tranches[-1][1] > self.np_reinsurance_excess_fraction * total_value:
-                if tranches[-1][0] >= self.np_reinsurance_excess_fraction * total_value:
+            while tranches[-1][1] > self.np_reinsurance_limit_fraction * total_value:
+                if tranches[-1][0] >= self.np_reinsurance_limit_fraction * total_value:
                     tranches.pop()
                 else:
                     tranches[-1] = (
                         tranches[-1][0],
-                        self.np_reinsurance_excess_fraction * total_value,
+                        self.np_reinsurance_limit_fraction * total_value,
                     )
             while (
                 tranches[0][0] < self.np_reinsurance_deductible_fraction * total_value
@@ -317,18 +317,28 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                         tranches[0][1],
                     )
             for tranche in tranches:
-                if tranche[1] - tranche[0] <= 2:
-                    # Small gaps are acceptable to avoid having trivial contracts
+                if (tranche[1] - tranche[0]) / total_value <= min(
+                    2 / total_value,
+                    0.05
+                    * (
+                        self.np_reinsurance_limit_fraction
+                        - self.np_reinsurance_deductible_fraction
+                    ),
+                ):
+                    # Small gaps are acceptable to avoid having trivial contracts - we don't accept tranches with
+                    # size less than two or 5% of the total reinsurable ammount
                     tranches.remove(tranche)
 
             if not tranches:
                 # If we've ended up with no tranches, give up and return
                 return None
 
-            while len(tranches) < min_tranches:
+            while (
+                len(tranches) < min_tranches
+                and not self.reinsurance_profile.all_contracts()
+            ):
                 tranches = self.reinsurance_profile.split_longest(tranches)
-            if purpose == "rollover":
-                risks_to_return = []
+            risks_to_return = []
             for tranche in tranches:
                 assert tranche[1] > tranche[0]
                 risk = genericclasses.RiskProperties(
@@ -436,7 +446,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 insurancetype="excess-of-loss",
                 number_risks=number_risks,
                 deductible_fraction=self.np_reinsurance_deductible_fraction,
-                limit_fraction=self.np_reinsurance_excess_fraction,
+                limit_fraction=self.np_reinsurance_limit_fraction,
                 periodized_total_premium=0,
                 runtime=12,
                 expiration=time + 12,

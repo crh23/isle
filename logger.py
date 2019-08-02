@@ -11,7 +11,7 @@ LOG_DEFAULT = (
     "total_reincontracts total_reinoperational total_catbondsoperational market_premium "
     "market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims "
     "cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar "
-    "rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts"
+    "rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts "
     "unweighted_network_data network_node_labels network_edge_labels number_of_agents "
     "cumulative_bought_firms cumulative_nonregulation_firms"
 ).split(" ")
@@ -52,7 +52,7 @@ class Logger:
         insurance_sector = (
             "total_cash total_excess_capital total_profitslosses "
             "total_contracts total_operational cumulative_bankruptcies "
-            "cumulative_market_exits cumulative_claims cumulative_unrecovered_claims"
+            "cumulative_market_exits cumulative_claims cumulative_unrecovered_claims "
             "cumulative_bought_firms cumulative_nonregulation_firms"
         ).split(" ")
         for _v in insurance_sector:
@@ -163,7 +163,7 @@ class Logger:
         self.number_riskmodels = log["number_riskmodels"]
 
         """Restore history log"""
-        self.history_logs_to_save.append(log)
+        self.history_logs.update(log)
 
     def save_log(self, background_run):
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
@@ -210,7 +210,7 @@ class Logger:
         )
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
-        for data in self.history_logs_to_save:
+        for data in self.history_logs:
             to_log.append((filename, data, "a"))
         return to_log
 

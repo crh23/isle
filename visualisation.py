@@ -1340,6 +1340,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.single:
+        from numpy import array
 
         # load in data from the history_logs dictionary with open("data/history_logs.dat","r") as rfile:
         with open("data/history_logs.dat", "r") as rfile:

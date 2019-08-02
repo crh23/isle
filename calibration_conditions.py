@@ -106,6 +106,7 @@ def condition_defaults_insurance(
     """Test for number of insurance bankruptcies (non zero, not all insurers)"""
     # series  = logobj.history_logs['total_operational']
     # if series[-1] != 0 and any(series[i]-series[i-1] < 0 for i in range(1,len(series))):
+    pass
     opseries = [
         logobj.history_logs["insurance_firms_cash"][-1][i][2]
         for i in range(len(logobj.history_logs["insurance_firms_cash"][-1]))

@@ -237,7 +237,7 @@ class ReinsuranceProfile:
         if index != 0 and self.reinsured_regions[category][index - 1][1] > lower_bound:
             raise ValueError(
                 "Attempted to add reinsurance overlapping with existing reinsurance \n"
-                f"Reinsured regions are {self.reinsured_regions[category]}"
+                f"Reinsured regions are {list(self.reinsured_regions[category])}"
             )
 
         self.riskmodel.set_reinsurance_coverage(

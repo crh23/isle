@@ -582,12 +582,6 @@ class InsuranceSimulation(GenericAgent):
 
         self._update_model_counters()
 
-        for reinsurer in self.reinsurancefirms:
-            for i in range(len(self.inaccuracy)):
-                if reinsurer.operational:
-                    if reinsurer.riskmodel.inaccuracy == self.inaccuracy[i]:
-                        self.reinsurance_models_counter[i] += 1
-
         network_division = 1  # How often network is updated.
         if (
             (isleconfig.show_network or isleconfig.save_network)
@@ -712,9 +706,9 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.verbose:
             print("**** PERIL", damage)
         damagevalues = np.random.beta(
-            a=1, b=1.0 / damage - 1, size=self.risks_counter[categ_id]
+            a=1, b=1.0 / damage - 1, size=len(affected_contracts)
         )
-        uniformvalues = np.random.uniform(0, 1, size=self.risks_counter[categ_id])
+        uniformvalues = np.random.uniform(0, 1, size=len(affected_contracts))
         for i, contract in enumerate(affected_contracts):
             contract.explode(t, uniformvalues[i], damagevalues[i])
 
