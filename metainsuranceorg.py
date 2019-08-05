@@ -162,16 +162,15 @@ class MetaInsuranceOrg(GenericAgent):
                         break
                 self.simulation.return_reinrisks(not_accepted_reinrisks)
 
-                underwritten_risks = [{"value": contract.value, "category": contract.category, \
+            underwritten_risks = [{"value": contract.value, "category": contract.category, \
                                    "risk_factor": contract.risk_factor, "deductible": contract.deductible, \
                                    "excess": contract.excess, "insurancetype": contract.insurancetype, \
                                    "runtime": contract.runtime} for contract in self.underwritten_contracts if
                                   contract.reinsurance_share != 1.0]
-
-                """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
-                # TODO: Enable reinsurance shares other than 0.0 and 1.0
-                expected_profit, acceptable_by_category, cash_left_by_categ, var_per_risk_per_categ, self.excess_capital = self.riskmodel.evaluate(underwritten_risks, self.cash)
-                # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions, reinsurers before).
+            """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
+            # TODO: Enable reinsurance shares other than 0.0 and 1.0
+            expected_profit, acceptable_by_category, cash_left_by_categ, var_per_risk_per_categ, self.excess_capital = self.riskmodel.evaluate(underwritten_risks, self.cash)
+            # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions, reinsurers before).
                 #                        This is currently so because it minimizes the number of times we need to run self.riskmodel.evaluate().
                 #                        It would also be more consistent if excess capital would be updated at the end of the iteration.
 
@@ -274,7 +273,12 @@ class MetaInsuranceOrg(GenericAgent):
            next iteration. Finally the type of dissolution is recorded and the operational state is set to false.
            Different class variables are reset during the process: self.risks_kept, self.reinrisks_kept, self.excess_capital
            and self.profits_losses."""
-        [contract.dissolve(time) for contract in self.underwritten_contracts]   # removing (dissolving) all risks immediately after bankruptcy (may not be realistic, they might instead be bought by another company)
+        # Record all unpaid claims (needs to be here to account for firms lost due to regulator/being sold)
+        sum_due = sum(item['amount'] for item in self.obligations if item['purpose'] == 'claim')
+        self.simulation.record_unrecovered_claims(sum_due - self.cash)
+
+        # Removing (dissolving) all risks immediately after bankruptcy (may not be realistic, they might instead be bought by another company)
+        [contract.dissolve(time) for contract in self.underwritten_contracts]
         self.simulation.return_risks(self.risks_kept)
         self.risks_kept = []
         self.reinrisks_kept = []
@@ -315,9 +319,6 @@ class MetaInsuranceOrg(GenericAgent):
         if sum_due > self.cash:
             self.obligations += due
             self.enter_illiquidity(time)
-            self.simulation.record_unrecovered_claims(sum_due - self.cash)
-            # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is impounded and self.cash will also not be paid out for quite some time)?
-            # TODO: effect partial payment
         else:
             for obligation in due:
                 self.pay(obligation)
@@ -331,7 +332,7 @@ class MetaInsuranceOrg(GenericAgent):
         amount = obligation["amount"]
         recipient = obligation["recipient"]
         purpose = obligation["purpose"]
-        if self.get_operational() and recipient.get_operational():
+        if recipient.get_operational():
             self.cash -= amount
             if purpose is not 'dividend':
                 self.profits_losses -= amount
@@ -780,7 +781,7 @@ class MetaInsuranceOrg(GenericAgent):
             No accepted values.
             No return values."""
         condition = self.simulation.bank.regulate(self.id, self.cash_last_periods, self.var_sum_last_periods,
-                                                  self.reinsurance_history, self.age)
+                                                  self.reinsurance_history, self.age, self.riskmodel.margin_of_safety)
         if condition == "Good":
             self.warning = False
         if condition == "Warning":

@@ -78,7 +78,7 @@ class CentralBank:
             self.twelvemonth_CPI = (current_price - self.prices_list[-13])/self.prices_list[-13]
             self.actual_inflation = self.twelvemonth_CPI
 
-    def regulate(self, firm_id, firm_cash, firm_var, reinsurance, age):
+    def regulate(self, firm_id, firm_cash, firm_var, reinsurance, age, safety_margin):
         """Method to regulate firms
             Accepts:
                 firm_id: Type Integer. Firms unique ID.
@@ -102,8 +102,8 @@ class CentralBank:
         for iter in range(len(reinsurance)):
             reinsurance_capital = 0
             for categ in range(len(reinsurance[iter])):
-                if firm_var[iter][categ] >= reinsurance[iter][categ][0]:        # Check VaR greater than deductible
-                    if firm_var[iter][categ] >= reinsurance[iter][categ][1]:    # Check VaR greater than excess
+                if firm_var[iter][categ]/safety_margin >= reinsurance[iter][categ][0]:        # Check VaR greater than deductible
+                    if firm_var[iter][categ]/safety_margin >= reinsurance[iter][categ][1]:    # Check VaR greater than excess
                         reinsurance_capital += (reinsurance[iter][categ][1] - reinsurance[iter][categ][0])
                     else:
                         reinsurance_capital += (firm_var[iter][categ] - reinsurance[iter][categ][0])
@@ -114,7 +114,7 @@ class CentralBank:
             else:
                 cash_fractions.append(1)
 
-        avg_var_coverage = np.mean(cash_fractions)
+        avg_var_coverage = safety_margin * np.mean(cash_fractions)      # VaR contains margin of safety (=2x) not actual value
 
         if avg_var_coverage >= 0.995:
             self.warnings[firm_id] = 0
