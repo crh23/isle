@@ -11,7 +11,7 @@ class MetaInsuranceContract:
         insurer: "MetaInsuranceOrg",
         risk: "RiskProperties",
         time: int,
-        premium: float,
+        per_value_premium: float,
         runtime: int,
         payment_period: int,
         expire_immediately: bool,
@@ -71,13 +71,13 @@ class MetaInsuranceContract:
         self.deductible = round(self.deductible_fraction * self.value)
 
         # set excess from argument, risk property or default value, whichever first is not None
-        default_excess_fraction = 1.0
+        default_limit_fraction = 1.0
         self.limit_fraction = (
             limit_fraction
             if limit_fraction is not None
             else risk.limit_fraction
             if risk.limit_fraction is not None
-            else default_excess_fraction
+            else default_limit_fraction
         )
 
         self.limit = round(self.limit_fraction * self.value)
@@ -90,7 +90,7 @@ class MetaInsuranceContract:
         # setup payment schedule
         # TODO: excess and deductible should not be considered linearily in premium computation; this should be
         #  shifted to the (re)insurer who supplies the premium as argument to the contract's constructor method
-        total_premium = premium * self.value
+        total_premium = per_value_premium * self.value
         self.periodized_premium = total_premium / self.runtime
 
         # N.B.: payment times and values are in reverse, so the earliest time is at the end! This is because popping

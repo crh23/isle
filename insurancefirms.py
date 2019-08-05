@@ -7,7 +7,7 @@ import isleconfig
 import genericclasses
 from typing import Optional, MutableSequence, Mapping
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     pass
@@ -232,40 +232,13 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             return 0  # will prevent any attempt to reinsure empty categories
         return weighted_premium_sum * 1.0 / total_weight
 
-    def ask_reinsurance(self, time: int):
-        """Method called specifically to call relevant reinsurance function for simulations reinsurance type. Only
-           non-proportional type is used as this is the one mainly used in reality.
-            Accepts:
-                time: Type Integer.
-            No return values."""
-        if self.simulation_reinsurance_type == "proportional":
-            self.ask_reinsurance_proportional()
-        elif self.simulation_reinsurance_type == "non-proportional":
-            self.ask_reinsurance_non_proportional(time)
-        else:
-            raise ValueError(
-                f"Undefined reinsurance type {self.simulation_reinsurance_type}"
-            )
-
-    def ask_reinsurance_non_proportional(self, time: int):
-        """ Method for requesting excess of loss reinsurance for all underwritten contracts by category.
-            The method calculates the combined value at risk. With a probability it then creates a combined
-            reinsurance risk that may then be underwritten by a reinsurance firm.
-            Arguments:
-                time: integer
-            Returns None."""
-        """Evaluate by risk category"""
-        for categ_id in range(self.simulation_no_risk_categories):
-            # TODO: find a way to decide whether to request reinsurance for category in this period, maybe a threshold?
-            self.ask_reinsurance_non_proportional_by_category(time, categ_id)
-
     def ask_reinsurance_non_proportional_by_category(
         self,
         time: int,
         categ_id: int,
         purpose: str = "newrisk",
         min_tranches: int = None,
-    ) -> Optional[genericclasses.RiskProperties]:
+    ) -> Optional[List[genericclasses.RiskProperties]]:
         """Method to create a reinsurance risk for a given category for firm that calls it. Called from increase_
         capacity_by_category, ask_reinsurance_non_proportional, and roll_over in metainsuranceorg.
             Accepts:
@@ -318,15 +291,15 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                     )
             for tranche in tranches:
                 if (tranche[1] - tranche[0]) / total_value <= min(
-                    2 / total_value,
-                    0.05
+                    10 / total_value,
+                    0.1
                     * (
                         self.np_reinsurance_limit_fraction
                         - self.np_reinsurance_deductible_fraction
                     ),
                 ):
                     # Small gaps are acceptable to avoid having trivial contracts - we don't accept tranches with
-                    # size less than two or 5% of the total reinsurable ammount
+                    # size less than ten or 10% of the total reinsurable ammount
                     tranches.remove(tranche)
 
             if not tranches:
@@ -334,9 +307,10 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 return None
 
             while (
-                len(tranches) < min_tranches
-                and not self.reinsurance_profile.all_contracts()
+                len(tranches) + self.reinsurance_profile.all_contracts() < min_tranches
             ):
+                # Make sure that the overall number of tranches after obtaining the requested reinsurance would be at
+                # least the minimal value.
                 tranches = self.reinsurance_profile.split_longest(tranches)
             risks_to_return = []
             for tranche in tranches:
@@ -362,42 +336,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 return risks_to_return
         elif number_risks == 0 and purpose == "rollover":
             return None
-
-    def ask_reinsurance_proportional(self):
-        """Method to create proportional reinsurance risk. Not used in code as not really used in reality.
-                    No accepted values.
-                    No return values."""
-        nonreinsured = [
-            contract
-            for contract in self.underwritten_contracts
-            if contract.reincontract is None
-        ]
-
-        nonreinsured.reverse()
-
-        if len(nonreinsured) >= (1 - self.reinsurance_limit) * len(
-            self.underwritten_contracts
-        ):
-            counter = 0
-            limitrein = len(nonreinsured) - (1 - self.reinsurance_limit) * len(
-                self.underwritten_contracts
-            )
-            for contract in nonreinsured:
-                if counter < limitrein:
-                    risk = genericclasses.RiskProperties(
-                        value=contract.value,
-                        category=contract.category,
-                        owner=self,
-                        reinsurance_share=1.0,
-                        expiration=contract.expiration,
-                        contract=contract,
-                        risk_factor=contract.risk_factor,
-                    )
-
-                    self.simulation.append_reinrisks(risk)
-                    counter += 1
-                else:
-                    break
 
     def add_reinsurance(self, contract: ReinsuranceContract):
         """Method called by reinsurancecontract to add the reinsurance contract to the firms counter for the given
@@ -493,6 +431,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 due_time=time,
                 purpose="bond",
             )
+
             self._pay(obligation)  # TODO: is var_this_risk the correct amount?
             """register catbond"""
             self.simulation.add_agents(catbond.CatBond, "catbond", [new_catbond])

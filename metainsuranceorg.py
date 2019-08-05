@@ -833,8 +833,6 @@ class MetaInsuranceOrg(GenericAgent):
             accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
                 underwritten_risks, self.cash, risk
             )
-            # TODO: change riskmodel.evaluate() to accept new risk to be evaluated and
-            #  to account for existing non-proportional risks correctly -> DONE.
             if accept:
                 # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
                 per_value_reinsurance_premium = (
