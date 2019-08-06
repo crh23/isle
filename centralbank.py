@@ -102,19 +102,20 @@ class CentralBank:
         for iter in range(len(reinsurance)):
             reinsurance_capital = 0
             for categ in range(len(reinsurance[iter])):
-                if firm_var[iter][categ]/safety_margin >= reinsurance[iter][categ][0]:        # Check VaR greater than deductible
-                    if firm_var[iter][categ]/safety_margin >= reinsurance[iter][categ][1]:    # Check VaR greater than excess
-                        reinsurance_capital += (reinsurance[iter][categ][1] - reinsurance[iter][categ][0])
+                for contract in reinsurance[iter][categ]:
+                    if firm_var[iter][categ] / safety_margin >= contract[0]:  # Check VaR greater than deductible
+                        if firm_var[iter][categ] / safety_margin >= contract[1]:  # Check VaR greater than excess
+                            reinsurance_capital += (contract[1] - contract[0])
+                        else:
+                            reinsurance_capital += (firm_var[iter][categ] - contract[0])
                     else:
-                        reinsurance_capital += (firm_var[iter][categ] - reinsurance[iter][categ][0])
-                else:
-                    reinsurance_capital += 0                                    # If below deductible no reinsurance
+                        reinsurance_capital += 0  # If below deductible no reinsurance
             if sum(firm_var[iter]) > 0:
-                cash_fractions.append((firm_cash[iter]+reinsurance_capital)/sum(firm_var[iter]))
+                cash_fractions.append((firm_cash[iter] + reinsurance_capital) / sum(firm_var[iter]))
             else:
                 cash_fractions.append(1)
 
-        avg_var_coverage = safety_margin * np.mean(cash_fractions)      # VaR contains margin of safety (=2x) not actual value
+        avg_var_coverage = safety_margin * np.mean(cash_fractions)  # VaR contains margin of safety (=2x) not actual value
 
         if avg_var_coverage >= 0.995:
             self.warnings[firm_id] = 0

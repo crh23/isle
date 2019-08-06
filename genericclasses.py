@@ -62,16 +62,11 @@ class GenericAgent:
             if isleconfig.verbose:
                 print(f"Payment not processed as firm {self.id} is not operational")
 
-    def get_operational(self) -> bool:
+    def get_operational(self) :
         """Method to return boolean of if agent is operational. Only used as check for payments.
             No accepted values
             Returns Boolean"""
         return self.operational
-
-    def iterate(self, time: int):
-        raise NotImplementedError(
-            "Iterate is not implemented in GenericAgent, should have be overridden"
-        )
 
     def _effect_payments(self, time: int):
         """Method for checking if any payments are due.
@@ -80,25 +75,17 @@ class GenericAgent:
             No return value
             Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
             does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
-        # TODO: don't really want to be reconstructing lists every time (unless the obligations are naturally sorted by
-        #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item.due_time <= time]
         self.obligations = [item for item in self.obligations if item.due_time > time]
-
         sum_due = sum([item.amount for item in due])
         if sum_due > self.cash:
             self.obligations += due
-            self.enter_illiquidity(time, sum_due)
+            self.enter_illiquidity(time)
         else:
             for obligation in due:
                 self._pay(obligation)
 
-    def enter_illiquidity(self, time: int, sum_due: float):
-        raise NotImplementedError()
-
-    def receive_obligation(
-        self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str
-    ):
+    def receive_obligation(self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str):
         """Method for receiving obligations that the firm will have to pay.
                     Accepts:
                         amount: Type integer, how much will be paid
@@ -107,10 +94,7 @@ class GenericAgent:
                         purpose: Type string, why they are being paid
                     No return value
                     Adds obligation (Type DataDict) to list of obligations owed by the firm."""
-
-        obligation = Obligation(
-            amount=amount, recipient=recipient, due_time=due_time, purpose=purpose
-        )
+        obligation = Obligation(amount=amount, recipient=recipient, due_time=due_time, purpose=purpose)
         self.obligations.append(obligation)
 
     def receive(self, amount: float):
@@ -201,14 +185,10 @@ class ReinsuranceProfile:
 
     # TODO: add, remove, explode, get uninsured regions
     def __init__(self, riskmodel: "RiskModel"):
-        self.reinsured_regions: MutableSequence[
-            SortedList[Tuple[int, int, "ReinsuranceContract"]]
-        ]
+        self.reinsured_regions: MutableSequence[SortedList[Tuple[int, int, "ReinsuranceContract"]]]
 
-        self.reinsured_regions = [
-            SortedList(key=lambda x: x[0])
-            for _ in range(isleconfig.simulation_parameters["no_categories"])
-        ]
+        self.reinsured_regions = [SortedList(key=lambda x: x[0])
+            for _ in range(isleconfig.simulation_parameters["no_categories"])]
 
         # Used for automatically updating the riskmodel when reinsurance is modified
         self.riskmodel = riskmodel
@@ -219,30 +199,20 @@ class ReinsuranceProfile:
         category = contract.category
 
         self.reinsured_regions[category].add((lower_bound, upper_bound, contract))
-        index = self.reinsured_regions[category].index(
-            (lower_bound, upper_bound, contract)
-        )
+        index = self.reinsured_regions[category].index((lower_bound, upper_bound, contract))
 
         # Check for overlap with region to the right...
-        if (
-            index + 1 < len(self.reinsured_regions[category])
-            and self.reinsured_regions[category][index + 1][0] < upper_bound
-        ):
-            raise ValueError(
-                "Attempted to add reinsurance overlapping with existing reinsurance \n"
-                f"Reinsured regions are {self.reinsured_regions[category]}"
-            )
+        if (index + 1 < len(self.reinsured_regions[category])
+                and self.reinsured_regions[category][index + 1][0] < upper_bound):
+            raise ValueError("Attempted to add reinsurance overlapping with existing reinsurance \n"
+                             f"Reinsured regions are {self.reinsured_regions[category]}")
 
         # ... and to the left
         if index != 0 and self.reinsured_regions[category][index - 1][1] > lower_bound:
-            raise ValueError(
-                "Attempted to add reinsurance overlapping with existing reinsurance \n"
-                f"Reinsured regions are {list(self.reinsured_regions[category])}"
-            )
+            raise ValueError("Attempted to add reinsurance overlapping with existing reinsurance \n"
+                             f"Reinsured regions are {list(self.reinsured_regions[category])}")
 
-        self.riskmodel.set_reinsurance_coverage(
-            value=value, coverage=self.reinsured_regions[category], category=category
-        )
+        self.riskmodel.set_reinsurance_coverage(value=value, coverage=self.reinsured_regions[category], category=category)
 
     def remove(self, contract: "ReinsuranceContract", value: float) -> None:
         lower_bound = contract.deductible
@@ -250,16 +220,10 @@ class ReinsuranceProfile:
         category = contract.category
 
         try:
-            self.reinsured_regions[category].remove(
-                (lower_bound, upper_bound, contract)
-            )
+            self.reinsured_regions[category].remove((lower_bound, upper_bound, contract))
         except ValueError:
-            raise ValueError(
-                "Attempting to remove a reinsurance contract that doesn't exist!"
-            )
-        self.riskmodel.set_reinsurance_coverage(
-            value=value, coverage=self.reinsured_regions[category], category=category
-        )
+            raise ValueError("Attempting to remove a reinsurance contract that doesn't exist!")
+        self.riskmodel.set_reinsurance_coverage(value=value, coverage=self.reinsured_regions[category], category=category)
 
     def uncovered(self, category: int) -> MutableSequence[Tuple[float, float]]:
         uncovered_regions = []
@@ -272,9 +236,7 @@ class ReinsuranceProfile:
         uncovered_regions.append((upper, np.inf))
         return uncovered_regions
 
-    def contracts_to_explode(
-        self, category: int, damage: float
-    ) -> MutableSequence["ReinsuranceContract"]:
+    def contracts_to_explode(self, category: int, damage: float) -> MutableSequence["ReinsuranceContract"]:
         contracts = []
         for region in self.reinsured_regions[category]:
             if region[0] < damage:
@@ -289,14 +251,10 @@ class ReinsuranceProfile:
         return list(contracts)
 
     def update_value(self, value: float, category: int) -> None:
-        self.riskmodel.set_reinsurance_coverage(
-            value=value, coverage=self.reinsured_regions[category], category=category
-        )
+        self.riskmodel.set_reinsurance_coverage(value=value, coverage=self.reinsured_regions[category], category=category)
 
     @staticmethod
-    def split_longest(
-        l: MutableSequence[Tuple[float, float]]
-    ) -> MutableSequence[Tuple[float, float]]:
+    def split_longest(l: MutableSequence[Tuple[float, float]]) -> MutableSequence[Tuple[float, float]]:
         max_width = 0
         max_width_index = None
         for i, region in enumerate(l):

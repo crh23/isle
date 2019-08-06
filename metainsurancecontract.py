@@ -6,21 +6,10 @@ if TYPE_CHECKING:
 
 
 class MetaInsuranceContract:
-    def __init__(
-        self,
-        insurer: "MetaInsuranceOrg",
-        risk: "RiskProperties",
-        time: int,
-        premium: float,
-        runtime: int,
-        payment_period: int,
-        expire_immediately: bool,
-        initial_var: float = 0.0,
-        insurancetype: str = "proportional",
-        deductible_fraction: float = None,
-        limit_fraction: float = None,
-        reinsurance: float = 0,
-    ):
+    def __init__(self, insurer: "MetaInsuranceOrg", risk: "RiskProperties", time: int, premium: float, runtime: int,
+                 payment_period: int, expire_immediately: bool, initial_var: float = 0.0,
+                 insurancetype: str = "proportional", deductible_fraction: float = None, limit_fraction: float = None,
+                 reinsurance: float = 0,):
         """Constructor method.
                Accepts arguments
                     insurer: Type InsuranceFirm.
@@ -59,6 +48,7 @@ class MetaInsuranceContract:
         self.terminating = False
         self.current_claim = 0
         self.initial_VaR = initial_var
+
         # set deductible from argument, risk property or default value, whichever first is not None
         default_deductible_fraction = 0.0
         self.deductible_fraction = (
@@ -66,8 +56,7 @@ class MetaInsuranceContract:
             if deductible_fraction is not None
             else risk.deductible_fraction
             if risk.deductible_fraction is not None
-            else default_deductible_fraction
-        )
+            else default_deductible_fraction)
         self.deductible = round(self.deductible_fraction * self.value)
 
         # set excess from argument, risk property or default value, whichever first is not None
@@ -77,8 +66,7 @@ class MetaInsuranceContract:
             if limit_fraction is not None
             else risk.limit_fraction
             if risk.limit_fraction is not None
-            else default_excess_fraction
-        )
+            else default_excess_fraction)
 
         self.limit = round(self.limit_fraction * self.value)
 
@@ -95,21 +83,13 @@ class MetaInsuranceContract:
 
         # N.B.: payment times and values are in reverse, so the earliest time is at the end! This is because popping
         # items off the end of lists is much easier than popping them off the start.
-        self.payment_times = [
-            time + i for i in range(runtime - 1, -1, -1) if i % payment_period == 0
-        ]
+        self.payment_times = [time + i for i in range(runtime - 1, -1, -1) if i % payment_period == 0]
 
-        self.payment_values = [total_premium / len(self.payment_times)] * len(
-            self.payment_times
-        )
+        self.payment_values = [total_premium / len(self.payment_times)] * len(self.payment_times)
 
         # Embed contract in reinsurance network, if applicable
         if self.contract:
-            self.contract.reinsure(
-                reinsurer=self.insurer,
-                reinsurance_share=risk.reinsurance_share,
-                reincontract=self,
-            )
+            self.contract.reinsure(reinsurer=self.insurer, reinsurance_share=risk.reinsurance_share, reincontract=self)
 
         # This flag is set to 1, when the contract is about to expire and there is an attempt to roll it over.
         self.roll_over_flag = 0
@@ -123,9 +103,7 @@ class MetaInsuranceContract:
                     and removes from schedule."""
         if len(self.payment_times) > 0 and time >= self.payment_times[-1]:
             # Create obligation for premium payment
-            self.property_holder.receive_obligation(
-                self.payment_values[-1], self.insurer, time, "premium"
-            )
+            self.property_holder.receive_obligation(self.payment_values[-1], self.insurer, time, "premium")
 
             # Remove current payment from payment schedule
             del self.payment_times[-1]
@@ -185,23 +163,3 @@ class MetaInsuranceContract:
         self.reinsurance = 0
         self.reinsurance_share = None
 
-    def explode(self, time, uniform_value=None, damage_extent=None):
-        """Explode method.
-               Accepts arguments
-                   time: Type integer. The current time.
-                   uniform_value: Not used
-                   damage_extent: Type float. The absolute damage in excess-of-loss reinsurance (not relative as in
-                                       proportional contracts.
-               No return value.
-           Method marks the contract for termination.
-            """
-        raise NotImplementedError()
-
-    def mature(self, time):
-        """Mature method.
-               Accepts arguments
-                    time: Type integer. The current time.
-               No return value.
-           Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this
-           contract."""
-        raise NotImplementedError()

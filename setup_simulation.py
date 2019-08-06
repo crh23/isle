@@ -53,11 +53,7 @@ class SetupSim:
         self.overwrite = False
         self.replications = None
 
-    def schedule(
-        self, replications: int
-    ) -> Tuple[
-        MutableSequence[MutableSequence[int]], MutableSequence[MutableSequence[float]]
-    ]:
+    def schedule(self, replications: int) -> Tuple[MutableSequence[MutableSequence[int]], MutableSequence[MutableSequence[float]]]:
         for i in range(replications):
             # In this list will be stored the lists of times when there will be catastrophes for every category of the
             # model during a single run. ([[times for C1],[times for C2],[times for C3],[times for C4]])
@@ -91,7 +87,7 @@ class SetupSim:
         # The argument (replications) is the number of replications.
         """draw random variates for random seeds"""
         for i in range(replications):
-            np_seed, random_seed = scipy.stats.randint.rvs(0, 2 ** 32 - 1, size=2)
+            np_seed, random_seed = scipy.stats.randint.rvs(0, 2 ** 31 - 1, size=2)
             self.np_seed.append(np_seed)
             self.random_seed.append(random_seed)
 
@@ -160,9 +156,7 @@ class SetupSim:
                 "num_categories"
             ]
 
-    def obtain_ensemble(
-        self, replications: int, filepath: str = None, overwrite: bool = False
-    ) -> Tuple:
+    def obtain_ensemble(self, replications: int, filepath: str = None, overwrite: bool = False) -> Tuple:
         # This method returns all the information (schedules and seeds) required to run an ensemble of simulations of
         # the model. Since it also stores the information in a file it will be possible to replicate the ensemble at a
         # later time. The argument (replications) is the number of replications.

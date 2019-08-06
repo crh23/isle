@@ -16,35 +16,12 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
         The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
 
-    def __init__(
-        self,
-        insurer: "MetaInsuranceOrg",
-        risk: "RiskProperties",
-        time: int,
-        premium: float,
-        runtime: int,
-        payment_period: int,
-        expire_immediately: bool,
-        initial_var: float = 0.0,
-        insurancetype: str = "proportional",
-        deductible_fraction: float = None,
-        limit_fraction: float = None,
-        reinsurance: float = 0,
-    ):
-        super().__init__(
-            insurer,
-            risk,
-            time,
-            premium,
-            runtime,
-            payment_period,
-            expire_immediately,
-            initial_var,
-            insurancetype,
-            deductible_fraction,
-            limit_fraction,
-            reinsurance,
-        )
+    def __init__(self, insurer: "MetaInsuranceOrg", risk: "RiskProperties", time: int, premium: float, runtime: int,
+                 payment_period: int, expire_immediately: bool, initial_var: float = 0.0,
+                 insurancetype: str = "proportional", deductible_fraction: float = None, limit_fraction: float = None,
+                 reinsurance: float = 0):
+        super().__init__(insurer, risk, time, premium, runtime, payment_period, expire_immediately, initial_var,
+                         insurancetype, deductible_fraction, limit_fraction, reinsurance)
         # the property holder in an insurance contract should always be the simulation
         assert self.property_holder is self.insurer.simulation
         self.property_holder: "InsuranceSimulation"
@@ -60,25 +37,14 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
         if uniform_value is None:
-            raise ValueError(
-                "uniform_value must be passed to InsuranceContract.explode"
-            )
+            raise ValueError("uniform_value must be passed to InsuranceContract.explode")
         if damage_extent is None:
-            raise ValueError(
-                "damage_extent must be passed to InsuranceContract.explode"
-            )
+            raise ValueError("damage_extent must be passed to InsuranceContract.explode")
         if uniform_value < self.risk_factor:
             claim = min(self.limit, damage_extent * self.value) - self.deductible
-            self.insurer.register_claim(
-                claim
-            )  # Every insurance claim made is immediately registered.
-
+            self.insurer.register_claim(claim)  # Every insurance claim made is immediately registered.
             self.current_claim += claim
-            self.insurer.receive_obligation(
-                claim, self.property_holder, time + 2, "claim"
-            )
-            # Insurer pays one time step after reinsurer to avoid bankruptcy.
-            # TODO: Is this realistic? Change this?
+            self.insurer.receive_obligation(claim, self.property_holder, time + 2, "claim")
             if self.expire_immediately:
                 self.expiration = time
                 # self.terminating = True

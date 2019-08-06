@@ -15,21 +15,10 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
         The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
 
-    def __init__(
-        self,
-        insurer: "MetaInsuranceOrg",
-        risk: "RiskProperties",
-        time: int,
-        premium: float,
-        runtime: int,
-        payment_period: int,
-        expire_immediately: bool,
-        initial_var: float = 0.0,
-        insurancetype: str = "proportional",
-        deductible_fraction: "Optional[float]" = None,
-        limit_fraction: "Optional[float]" = None,
-        reinsurance: float = 0,
-    ):
+    def __init__(self,insurer: "MetaInsuranceOrg", risk: "RiskProperties", time: int, premium: float, runtime: int,
+                 payment_period: int, expire_immediately: bool, initial_var: float = 0.0,
+                 insurancetype: str = "proportional", deductible_fraction: "Optional[float]" = None,
+                 limit_fraction: "Optional[float]" = None, reinsurance: float = 0,):
         super().__init__(
             insurer,
             risk,
@@ -53,9 +42,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         else:
             assert self.contract is not None
 
-    def explode(
-        self, time: int, uniform_value: None = None, damage_extent: float = None
-    ):
+    def explode(self, time: int, uniform_value: None = None, damage_extent: float = None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.

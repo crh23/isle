@@ -2,14 +2,14 @@ oneriskmodel = False
 replicating = False
 force_foreground = False
 verbose = False
-showprogress = False
+showprogress = True
 # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 show_network = False
 save_network = False
 # Should logs be small in ensemble runs (only aggregated level data)?
 slim_log = True
 buy_bankruptcies = False
-enforce_regulations = False
+enforce_regulations = True
 aid_relief = False
 
 simulation_parameters = {
@@ -32,7 +32,7 @@ simulation_parameters = {
     "mean_contract_runtime": 12,
     "contract_runtime_halfspread": 2,
     "default_contract_payment_period": 3,
-    "max_time": 300,
+    "max_time": 1000,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
     "expire_immediately": False,
