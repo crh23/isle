@@ -23,7 +23,6 @@ class CatBond(MetaInsuranceOrg):
         simulation: "InsuranceSimulation",
         per_period_premium: float,
         owner: GenericAgent,
-        interest_rate: float = 0,
     ):
         """Initialising methods.
             Accepts:
@@ -32,7 +31,7 @@ class CatBond(MetaInsuranceOrg):
                 owner: Type class
         This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
-        self.id: int = 0
+        self.id: int = self.simulation.get_unique_catbond_id()
         self.underwritten_contracts: MutableSequence["MetaInsuranceContract"] = []
         self.cash: float = 0
         self.profits_losses: float = 0
@@ -40,12 +39,10 @@ class CatBond(MetaInsuranceOrg):
         self.operational: bool = True
         self.owner: GenericAgent = owner
         self.per_period_dividend: float = per_period_premium
-        self.interest_rate: float = interest_rate
-        # TODO: shift obtain_yield method to insurancesimulation, thereby making it unnecessary to drag parameters like
-        #  self.interest_rate from instance to instance and from class to class
+        self.creditor = self.simulation
+        self.expiration: int = None
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
-    # TODO: change start and InsuranceSimulation so that it iterates CatBonds
     def iterate(self, time: int):
         """Method to perform CatBond duties for each time iteration.
             Accepts:
@@ -53,7 +50,9 @@ class CatBond(MetaInsuranceOrg):
             No return values
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
         _pay obligations, mature the contract if ended, make payments."""
-        self.simulation.bank.award_interest(self, self.cash)
+        assert len(self.underwritten_contracts) == 1
+        # Interest gets paid directly to the owner of the catbond (i.e. the simulation)
+        self.simulation.bank.award_interest(self.owner, self.cash)
         self._effect_payments(time)
         if isleconfig.verbose:
             print(
@@ -64,28 +63,14 @@ class CatBond(MetaInsuranceOrg):
                 self.cash,
                 self.operational,
             )
-
-            """mature contracts"""
             print("Number of underwritten contracts ", len(self.underwritten_contracts))
-        maturing = [
-            contract
-            for contract in self.underwritten_contracts
-            if contract.expiration <= time
-        ]
-        for contract in maturing:
-            self.underwritten_contracts.remove(contract)
-            contract.mature(time)
 
-        """effect payments from contracts"""
-        for contract in self.underwritten_contracts:
-            contract.check_payment_due(time)
+        """mature contracts"""
+        if self.underwritten_contracts[0].expiration <= time:
+            self.underwritten_contracts[0].mature(time)
+            self.underwritten_contracts = []
+            self.mature_bond()
 
-        if not self.underwritten_contracts:
-            # If there are no contracts left, the bond is matured
-            self.mature_bond()  # TODO: mature_bond method should check if operational
-
-        # TODO: dividend should only be payed according to pre-arranged schedule,
-        #  and only if no risk events have materialized so far
         else:
             if self.operational:
                 self.pay_dividends(time)
@@ -106,6 +91,7 @@ class CatBond(MetaInsuranceOrg):
             No return values
         Only one contract is ever added to the list of underwritten contracts as each CatBond is a contract itself."""
         self.underwritten_contracts.append(contract)
+        self.expiration = contract.expiration
 
     def mature_bond(self):
         """Method to mature CatBond.
@@ -121,7 +107,17 @@ class CatBond(MetaInsuranceOrg):
                 purpose="mature",
             )
             self._pay(obligation)
+            self.obligations = []
             self.simulation.delete_agents([self])
             self.operational = False
         else:
             print("CatBond is not operational so cannot mature")
+
+    def get_available_cash(self, time: int) -> float:
+        """Returns the amount of cash the CatBond has available to pay out in claims (i.e. not reserved for premiums).
+        Used to update limit on contract"""
+        return self.cash - self.per_period_dividend * (self.expiration - time + 1)
+
+    def enter_illiquidity(self, time: int, sum_due: float):
+
+        raise RuntimeError("CatBond has run out of money, that shouldn't happen")

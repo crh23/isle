@@ -272,7 +272,6 @@ class RiskModel:
 
             # compute liquidity requirements from existing contracts
             for risk in categ_risks:
-                # QUERY: Expected in this context means damage at var_tail_prob rather than expectation?
                 var_damage = (
                     percentage_value_at_risk
                     * risk.value
@@ -292,9 +291,10 @@ class RiskModel:
                     * offered_risk.risk_factor
                     * self.inaccuracy[categ_id]
                 )
-                var_claim_fraction = (
+                var_claim_fraction = max(
                     min(var_damage_fraction, offered_risk.limit_fraction)
-                    - offered_risk.deductible_fraction
+                    - offered_risk.deductible_fraction,
+                    0,
                 )
                 var_claim_total = var_claim_fraction * offered_risk.value
 

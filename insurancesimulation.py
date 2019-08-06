@@ -100,6 +100,7 @@ class InsuranceSimulation(GenericAgent):
         else:
             self.risk_factor_distribution = Constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
+        # TODO: Should this be a parameter
         self.risk_value_distribution = Constant(loc=1000)
 
         risk_factor_mean = self.risk_factor_distribution.mean()
@@ -116,6 +117,9 @@ class InsuranceSimulation(GenericAgent):
                 self.simulation_parameters["mean_contract_runtime"]
                 / self.cat_separation_distribution.mean()
             )
+
+        # norm_premium is the basic per-risk premium (for a contract of average length) charged to cover expected
+        # losses and underwriting costs
         self.norm_premium: float = (
             expected_damage_frequency
             * self.damage_distribution.mean()
@@ -228,6 +232,7 @@ class InsuranceSimulation(GenericAgent):
         }
         self.insurer_id_counter: int = 0
         self.reinsurer_id_counter: int = 0
+        self.catbond_id_counter: int = 0
 
         self.initialize_agent_parameters(
             "insurancefirm", simulation_parameters, risk_model_configurations
@@ -510,14 +515,12 @@ class InsuranceSimulation(GenericAgent):
                 len(self.rc_event_schedule[categ_id]) > 0
                 and self.rc_event_schedule[categ_id][0] == t
             ):
+                # Schedules of catastrophes and damages must me generated at the same time.
                 self.rc_event_schedule[categ_id] = self.rc_event_schedule[categ_id][1:]
-                damage_extent = copy.copy(
-                    self.rc_event_damage[categ_id][0]
-                )  # Schedules of catastrophes and damages must me generated at the same time.
+                damage_extent = copy.copy(self.rc_event_damage[categ_id][0])
                 self._inflict_peril(categ_id=categ_id, damage=damage_extent, t=t)
-                self.rc_event_damage[categ_id] = self.rc_event_damage[categ_id][1:]
-                # TODO: Ideally don't want to be taking from the beginning of lists, consider having soonest events at
-                #  the end of the list. Probably fine though, only happens once per iteration
+                del self.rc_event_damage[categ_id][0]
+
             else:
                 if isleconfig.verbose:
                     print("Next peril ", self.rc_event_schedule[categ_id])
@@ -526,9 +529,7 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.aid_relief:
             self.bank.adjust_aid_budget(time=t)
             if "damage_extent" in locals():
-                op_firms = [
-                    firm for firm in self.insurancefirms if firm.operational is True
-                ]
+                op_firms = [firm for firm in self.insurancefirms if firm.operational]
                 aid_dict = self.bank.provide_aid(op_firms, damage_extent, time=t)
                 for key in aid_dict.keys():
                     self.receive_obligation(
@@ -545,8 +546,10 @@ class InsuranceSimulation(GenericAgent):
         for reinagent in self.reinsurancefirms:
             if reinagent.operational:
                 reinagent.iterate(t)
+
                 if reinagent.cash < 0:
                     print(f"Reinsurer {reinagent.id} has negative cash")
+
         if isleconfig.buy_bankruptcies:
             for reinagent in self.reinsurancefirms:
                 if reinagent.operational:
@@ -562,8 +565,10 @@ class InsuranceSimulation(GenericAgent):
         for agent in self.insurancefirms:
             if agent.operational:
                 agent.iterate(t)
+
                 if agent.cash < 0:
                     print(f"Insurer {agent.id} has negative cash")
+
         if isleconfig.buy_bankruptcies:
             for agent in self.insurancefirms:
                 if agent.operational:
@@ -573,7 +578,9 @@ class InsuranceSimulation(GenericAgent):
         self.reset_selling_firms()
 
         # Iterate catbonds
-        for agent in self.catbonds:
+        for agent in self.catbonds.copy():
+            # If we don't take the copy we have a *very* bad time with some *very* frustrating debugging, as catbonds
+            # can delete themselves from self.catbonds, which causes some catbonds to not be iterated(!)
             agent.iterate(t)
 
         self.insurance_models_counter = np.zeros(
@@ -602,6 +609,22 @@ class InsuranceSimulation(GenericAgent):
             ):
                 self.RN.save_network_data()
                 print("Network data has been saved to data/network_data.dat")
+
+        # import matplotlib.pyplot as plt
+        #
+        # f1 = self.get_reinsurance_premium
+        # f2 = self.get_cat_bond_price
+        # x = np.linspace(0, 1, 50)
+        # y1 = [f1(x_n) for x_n in x]
+        # y2 = [f2(x_n) for x_n in x]
+        # plt.plot(x, y1, label="Reinsurance")
+        # plt.plot(x, y2, label="CatBond")
+        # plt.legend()
+        # plt.title(
+        #     "self.reinsurance_market_premium = "
+        #     + str(self.reinsurance_market_premium)
+        # )
+        # plt.show()
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the
@@ -815,6 +838,7 @@ class InsuranceSimulation(GenericAgent):
            linearly with the capital available in the insurance market and viceversa. The premium reduces until it
            reaches a minimum below which no insurer is willing to reduce further the price. This method is only called
            in the self.iterate() method of this class."""
+        # QUERY: Why is initial_agent_cash used here?
         self.market_premium = self.norm_premium * (
             self.simulation_parameters["upper_price_limit"]
             - self.simulation_parameters["premium_sensitivity"]
@@ -872,23 +896,24 @@ class InsuranceSimulation(GenericAgent):
         return self.reinsurance_market_premium
 
     def get_reinsurance_premium(
-        self, np_reinsurance_deductible_fraction: float
+        self, deductible_fraction: float, limit_fraction: float = 1
     ) -> float:
         """Method to determine reinsurance premium based on deductible fraction
             Accepts:
                 np_reinsurance_deductible_fraction: Type Integer
             Returns reinsurance premium (Type: Integer)"""
-        # TODO: cut this out of the insurance market premium -> OBSOLETE??
         # TODO: make max_reduction into simulation_parameter ?
         if self.reinsurance_off:
             return float("inf")
         else:
             max_reduction = 0.1
             return self.reinsurance_market_premium * (
-                1.0 - max_reduction * np_reinsurance_deductible_fraction
+                1.0 - max_reduction * (1 - limit_fraction + deductible_fraction)
             )
 
-    def get_cat_bond_price(self, np_reinsurance_deductible_fraction: float) -> float:
+    def get_cat_bond_price(
+        self, deductible_fraction: float, excess_fraction: float = 1
+    ) -> float:
         """Method to calculate and return catbond price. If catbonds are not desired will return infinity so no
             catbonds will be issued. Otherwise calculates based on reinsurance market premium, catbond premium,
             deductible fraction.
@@ -903,10 +928,11 @@ class InsuranceSimulation(GenericAgent):
         max_reduction = 0.9
         max_cat_bond_surcharge = 0.5
         # QUERY: again, what does max_reduction represent?
+        # TODO: How should this relate to deductible and excess?
         return self.reinsurance_market_premium * (
             1.0
             + max_cat_bond_surcharge
-            - max_reduction * np_reinsurance_deductible_fraction
+            - max_reduction * (deductible_fraction + 1 - excess_fraction)
         )
 
     def append_reinrisks(self, reinrisk: RiskProperties):
@@ -1121,6 +1147,11 @@ class InsuranceSimulation(GenericAgent):
                 current_id: Type integer"""
         current_id = self.reinsurer_id_counter
         self.reinsurer_id_counter += 1
+        return current_id
+
+    def get_unique_catbond_id(self) -> int:
+        current_id = self.catbond_id_counter
+        self.catbond_id_counter += 1
         return current_id
 
     def insurance_entry_index(self) -> int:

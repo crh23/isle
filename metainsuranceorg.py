@@ -387,9 +387,7 @@ class MetaInsuranceOrg(GenericAgent):
 
                 # Here the new risks are organized by category.
                 risks_per_categ = self.risks_reinrisks_organizer(new_risks)
-                if risks_per_categ != [
-                    [] for _ in range(self.simulation_no_risk_categories)
-                ]:
+                if risks_per_categ != [[]] * self.simulation_no_risk_categories:
                     for repetition in range(self.recursion_limit):
                         # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is
                         #  not accepting any more over several iterations. Done, maybe?
@@ -482,6 +480,8 @@ class MetaInsuranceOrg(GenericAgent):
            Different class variables are reset during the process: self.risks_kept, self.reinrisks_kept,
            self.excess_capital and self.profits_losses."""
         for contract in self.underwritten_contracts:
+            contract.dissolve(time)
+        for contract in self.reinsurance_profile.all_contracts():
             contract.dissolve(time)
         # removing (dissolving) all risks immediately after bankruptcy (may not be realistic,
         # they might instead be bought by another company)
@@ -834,17 +834,22 @@ class MetaInsuranceOrg(GenericAgent):
                 underwritten_risks, self.cash, risk
             )
             if accept:
-                # TODO: rename this to per_value_premium in insurancecontract.py to avoid confusion
-                per_value_reinsurance_premium = (
-                    self.np_reinsurance_premium_share
-                    * risk.periodized_total_premium
-                    * risk.runtime
-                    * (
-                        self.simulation.get_market_reinpremium()
-                        / self.simulation.get_market_premium()
-                    )
-                    / risk.value
+                # TODO: What exactly is this based on? How should reinsurance pricing work?
+                # per_value_reinsurance_premium = (
+                #     self.np_reinsurance_premium_share
+                #     * risk.periodized_total_premium
+                #     * risk.runtime
+                #     * (
+                #         self.simulation.get_market_reinpremium()
+                #         / self.simulation.get_market_premium()
+                #     )
+                #     / risk.value
+                # )
+
+                new_per_value_rein_premium = (
+                    self.get_reinsurance_price(risk) * self.np_reinsurance_premium_share
                 )
+                per_value_reinsurance_premium = new_per_value_rein_premium
 
                 # Here it is check whether the portfolio is balanced or not if the reinrisk
                 # (risk_to_insure) is underwritten. Return True if it is balanced. False otherwise.
@@ -1036,6 +1041,12 @@ class MetaInsuranceOrg(GenericAgent):
                     ):
                         # Here we determine how much is too long.
                         self.market_exit(time)
+
+    def get_reinsurance_price(self, risk: RiskProperties) -> float:
+        """Returns the total per-value premium for reinsurance"""
+        raise NotImplementedError("No.")
+
+    # TODO: Error message maybe
 
     def register_claim(self, claim: float):
         """Method to register claims.

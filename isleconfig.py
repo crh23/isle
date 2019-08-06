@@ -49,7 +49,7 @@ simulation_parameters = {
     "default_non-proportional_reinsurance_excess": 1.0,
     "default_non-proportional_reinsurance_premium_share": 0.3,
     "static_non-proportional_reinsurance_levels": False,
-    "catbonds_off": True,
+    "catbonds_off": False,
     "reinsurance_off": False,
     "capacity_target_decrement_threshold": 1.8,
     "capacity_target_increment_threshold": 1.2,

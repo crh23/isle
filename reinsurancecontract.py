@@ -2,11 +2,13 @@ import metainsurancecontract
 
 from typing import Optional
 from typing import TYPE_CHECKING
+from math import floor
 
 if TYPE_CHECKING:
     from insurancefirms import InsuranceFirm
     from metainsuranceorg import MetaInsuranceOrg
     from genericclasses import RiskProperties
+    from catbond import Catbond
 
 
 class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
@@ -67,9 +69,12 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                No return value.
            Method marks the contract for termination.
             """
+        # Just a type hint since for a generic insurance contract property_holder can be the simulation
+        self.property_holder: "InsuranceFirm"
+
         assert uniform_value is None
         if damage_extent is None:
-            raise ValueError("Damage extend should be given")
+            raise ValueError("Damage extent should be given")
         if damage_extent > self.deductible:
             # Proportional reinsurance is triggered by the individual reinsured contracts at the time of explosion.
             # Since EoL reinsurance isn't triggered until the insurer manually makes a claim, this would mean that
@@ -97,6 +102,29 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
 
                 self.expiration = time
                 # self.terminating = True
+            elif type(self.insurer).__name__ == "CatBond":
+                # Catbonds can only pay out a certain amount in their lifetime, so we update the reinsurance coverage
+                # for the issuer
+                # TODO: Allow for catbonds that can pay out multiple times?
+                self.insurer: "Catbond"
+                remaining_cb_cash = self.insurer.get_available_cash(time) - claim
+                assert remaining_cb_cash >= 0
+                if remaining_cb_cash < 2:
+                    # If the claim uses up all the catbond's remaining money, the contract ends
+                    self.expiration = time
+                elif remaining_cb_cash < self.limit - self.deductible:
+                    # If the claim uses up enough money that the catbond can't pay out the full exposure, update the
+                    # contract to reflect that
+                    self.property_holder.delete_reinsurance(contract=self)
+                    self.limit = self.deductible + remaining_cb_cash
+                    self.limit = floor(self.limit)
+                    self.limit_fraction = self.limit / self.value
+                    self.property_holder.add_reinsurance(
+                        contract=self, force_value=self.value
+                    )
+                else:
+                    # If the catbond still has enough money to pay out the full exposure, no need to change anything.
+                    pass
 
     def mature(self, time: int):
         """Mature method.
@@ -105,10 +133,12 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                No return value.
            Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this
            contract."""
-        # self.terminating = True
+        # Just a type hint since for a generic insurance contract property_holder can be the simulation
+        self.property_holder: "InsuranceFirm"
+
         self.terminate_reinsurance(time)
 
         if self.insurancetype == "excess-of-loss":
             self.property_holder.delete_reinsurance(contract=self)
-        else:  # TODO: ? Instead: if self.insurancetype == "proportional":
+        else:
             self.contract.unreinsure()
