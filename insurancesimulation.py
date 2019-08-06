@@ -992,6 +992,8 @@ class InsuranceSimulation():
             self.selling_insurance_firms.append([firm, time, reason])
         elif firm.is_reinsurer:
             self.selling_reinsurance_firms.append([firm, time, reason])
+        else:
+            print("Not accepted type of firm")
 
     def get_firms_to_sell(self, type):
         """Method to get list of firms that are up for selling based on type.

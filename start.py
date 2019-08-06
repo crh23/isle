@@ -154,7 +154,7 @@ if __name__ == "__main__":
         save_iter = 20000
     
     from setup import SetupSim
-    setup = SetupSim()       #Here the setup for the simulation is done.
+    setup = SetupSim()       # Here the setup for the simulation is done.
     [general_rc_event_schedule, general_rc_event_damage, np_seeds, random_seeds] = setup.obtain_ensemble(1)   #Only one ensemble. This part will only be run locally (laptop).
 
     log = main(simulation_parameters, general_rc_event_schedule[0], general_rc_event_damage[0], np_seeds[0], random_seeds[0], save_iter)

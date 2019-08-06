@@ -2,11 +2,10 @@ import numpy as np
 
 from metainsurancecontract import MetaInsuranceContract 
 
+
 class ReinsuranceContract(MetaInsuranceContract):
     """ReinsuranceContract class.
         Inherits from InsuranceContract.
-        Constructor is not currently required but may be used in the future to distinguish InsuranceContract
-            and ReinsuranceContract objects.
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
         The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
     def __init__(self, insurer, properties, time, premium, runtime, payment_period, expire_immediately, initial_VaR=0.,\
@@ -45,8 +44,7 @@ class ReinsuranceContract(MetaInsuranceContract):
             self.current_claim += self.contract.claim   # TODO: should proportional reinsurance claims be subject to excess_of_loss retrocession? If so, reorganize more straightforwardly
             
             self.expiration = time
-            #self.terminating = True
-            
+
     def mature(self, time):
         """Mature method. 
                Accepts arguments
@@ -54,12 +52,11 @@ class ReinsuranceContract(MetaInsuranceContract):
                No return value.
            Removes any reinsurance functions this contract has and terminates any reinsurance contracts for this 
            contract."""
-        #self.terminating = True
         self.terminate_reinsurance(time)
         
         if self.insurancetype == "excess-of-loss":
             self.property_holder.delete_reinsurance(category=self.category, excess_fraction=self.excess_fraction, \
                                                         deductible_fraction=self.deductible_fraction, contract=self)
-        else: #TODO: ? Instead: if self.insurancetype == "proportional":
+        else:
             self.contract.unreinsure()
 

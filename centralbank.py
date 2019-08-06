@@ -163,7 +163,8 @@ class CentralBank:
                 all_firms_aid += aid
                 given_aid_dict[insurer] = aid
             # Give each firm an equal fraction of claims
-            for fraction in [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0]:
+            fractions = np.arange(0, 1.05, 0.05)[::-1]
+            for fraction in fractions:
                 if self.aid_budget - (all_firms_aid * fraction) > 0:
                     self.aid_budget -= (all_firms_aid * fraction)
                     for key in given_aid_dict:
