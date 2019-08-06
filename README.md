@@ -12,6 +12,9 @@ $ pip install -r requirements.txt
 
 # Usage
 
+Isle requires that `./data` does not exist as a file, and may overwrite 
+particular file names in `./data/`.
+
 ## Simulation 
 
 Execute a single simulation run with the command:
@@ -25,15 +28,16 @@ $ python3 start.py
 The ```start.py``` script accepts a number of options. 
 
 ```
-usage: start.py [--oneriskmodel] [--riskmodels {1,2,3,4}] [--replicid REPLICID]
-                [--replicating] [--randomseed RANDOMSEED] [--foreground]
-                [--shownetwork] [-p] [-v] [--save_iterations]
+usage: start.py [-h] [-f FILE] [-r] [-o] [-p] [-v] [--resume] [--oneriskmodel]
+                [--riskmodels {1,2,3,4}] [--randomseed RANDOMSEED]
+                [--foreground] [--shownetwork]
+                [--save_iterations SAVE_ITERATIONS]
 ```
 
 See the help for more details
 
 ```
-python3 start.py --help
+$ python3 start.py --help
 ```
 
 ## Ensemble simulations
@@ -67,3 +71,11 @@ visualiation.py [--timeseries_comparison] [--firmdistribution]
 
 See help for more information.
 
+# Contributing
+
+## Code style
+
+[PEP 8](https://www.python.org/dev/peps/pep-0008/) styling should be used where possible. 
+The Python code formatter [black](https://github.com/python/black) is a good way
+to automatically fix style problems - install it with `$ pip install black` and
+then run it with, say, `black *.py`. Additionally, it is good to run flake8 over your code.

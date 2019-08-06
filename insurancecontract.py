@@ -1,25 +1,55 @@
-import numpy as np
+import metainsurancecontract
 
-from metainsurancecontract import MetaInsuranceContract
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from metainsuranceorg import MetaInsuranceOrg
+    from insurancesimulation import InsuranceSimulation
+    from genericclasses import RiskProperties
 
 
-class InsuranceContract(MetaInsuranceContract):
+class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
     """ReinsuranceContract class.
-        Inherits from InsuranceContract.
+        Inherits from MetaInsuranceContract.
         Constructor is not currently required but may be used in the future to distinguish InsuranceContract
             and ReinsuranceContract objects.
         The signature of this class' constructor is the same as that of the InsuranceContract constructor.
         The class has two methods (explode, mature) that overwrite methods in InsuranceContract."""
 
-    def __init__(self, insurer, properties, time, premium, runtime, payment_period, expire_immediately, initial_VaR=0.,\
-                 insurancetype="proportional", deductible_fraction=None, excess_fraction=None, reinsurance=0):
-        super(InsuranceContract, self).__init__(insurer, properties, time, premium, runtime, payment_period, \
-                                                  expire_immediately, initial_VaR, insurancetype, deductible_fraction,
-                                                  excess_fraction, reinsurance)
+    def __init__(
+        self,
+        insurer: "MetaInsuranceOrg",
+        risk: "RiskProperties",
+        time: int,
+        premium: float,
+        runtime: int,
+        payment_period: int,
+        expire_immediately: bool,
+        initial_var: float = 0.0,
+        insurancetype: str = "proportional",
+        deductible_fraction: float = None,
+        limit_fraction: float = None,
+        reinsurance: float = 0,
+    ):
+        super().__init__(
+            insurer,
+            risk,
+            time,
+            premium,
+            runtime,
+            payment_period,
+            expire_immediately,
+            initial_var,
+            insurancetype,
+            deductible_fraction,
+            limit_fraction,
+            reinsurance,
+        )
+        # the property holder in an insurance contract should always be the simulation
+        assert self.property_holder is self.insurer.simulation
+        self.property_holder: "InsuranceSimulation"
 
-        self.risk_data = properties
-
-    def explode(self, time, uniform_value, damage_extent):
+    def explode(self, time, uniform_value=None, damage_extent=None):
         """Explode method.
                Accepts arguments
                    time: Type integer. The current time.
@@ -29,15 +59,24 @@ class InsuranceContract(MetaInsuranceContract):
                                   damage caused in the risk insured by this contract.
                No return value.
         For registering damage and creating resulting claims (and payment obligations)."""
-        # np.mean(np.random.beta(1, 1./mu -1, size=90000))
-        # if np.random.uniform(0, 1) < self.risk_factor:
+        if uniform_value is None:
+            raise ValueError(
+                "uniform_value must be passed to InsuranceContract.explode"
+            )
+        if damage_extent is None:
+            raise ValueError(
+                "damage_extent must be passed to InsuranceContract.explode"
+            )
         if uniform_value < self.risk_factor:
-            # if True:
-            claim = min(self.excess, damage_extent * self.value) - self.deductible
-            self.insurer.register_claim(claim)       #Every insurance claim made is immediately registered.
+            claim = min(self.limit, damage_extent * self.value) - self.deductible
+            self.insurer.register_claim(
+                claim
+            )  # Every insurance claim made is immediately registered.
 
             self.current_claim += claim
-            self.insurer.receive_obligation(claim, self.property_holder, time + 2, 'claim')
+            self.insurer.receive_obligation(
+                claim, self.property_holder, time + 2, "claim"
+            )
             # Insurer pays one time step after reinsurer to avoid bankruptcy.
             # TODO: Is this realistic? Change this?
             if self.expire_immediately:
@@ -51,10 +90,9 @@ class InsuranceContract(MetaInsuranceContract):
                No return value.
            Returns risk to simulation as contract terminates. Calls terminate_reinsurance to dissolve any reinsurance
            contracts."""
-        #self.terminating = True
+        # self.terminating = True
 
         self.terminate_reinsurance(time)
 
         if not self.roll_over_flag:
-            self.property_holder.return_risks([self.risk_data])
-
+            self.property_holder.return_risks([self.risk])
