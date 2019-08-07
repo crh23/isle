@@ -18,12 +18,7 @@ LOG_DEFAULT = (
 
 
 class Logger:
-    def __init__(
-        self,
-        no_riskmodels=None,
-        rc_event_schedule_initial=None,
-        rc_event_damage_initial=None,
-    ):
+    def __init__(self, no_riskmodels=None, rc_event_schedule_initial=None, rc_event_damage_initial=None):
         """Constructor. Prepares history_logs atribute as dict for the logs. Records initial event schedule of
            simulation run.
             Arguments
@@ -103,14 +98,10 @@ class Logger:
                 self.history_logs[key].append(data_dict[key])
             if key == "individual_contracts":
                 for i in range(len(data_dict["individual_contracts"])):
-                    self.history_logs["individual_contracts"][i].append(
-                        data_dict["individual_contracts"][i]
-                    )
+                    self.history_logs["individual_contracts"][i].append(data_dict["individual_contracts"][i])
             if key == "reinsurance_contracts":
                 for i in range(len(data_dict["reinsurance_contracts"])):
-                    self.history_logs["reinsurance_contracts"][i].append(
-                        data_dict["reinsurance_contracts"][i]
-                    )
+                    self.history_logs["reinsurance_contracts"][i].append(data_dict["reinsurance_contracts"][i])
 
     def obtain_log(self, requested_logs=None):
         if requested_logs is None:
@@ -150,12 +141,7 @@ class Logger:
         self.network_data["network_node_labels"] = log["network_node_labels"]
         self.network_data["network_edge_labels"] = log["network_edge_labels"]
         self.network_data["number_of_agents"] = log["number_of_agents"]
-        del (
-            log["number_of_agents"],
-            log["network_edge_labels"],
-            log["network_node_labels"],
-            log["unweighted_network_data"],
-        )
+        del (log["number_of_agents"], log["network_edge_labels"], log["network_node_labels"], log["unweighted_network_data"])
 
         """Extract environment variables (number of risk models and risk event schedule)"""
         self.rc_event_schedule_initial = log["rc_event_schedule_initial"]
@@ -163,7 +149,7 @@ class Logger:
         self.number_riskmodels = log["number_riskmodels"]
 
         """Restore history log"""
-        self.history_logs.update(log)
+        self.history_logs_to_save.append(log)
 
     def save_log(self, background_run):
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
@@ -205,12 +191,10 @@ class Logger:
                     Element 3: operation parameter (w-write or a-append)."""
         to_log = []
         filename = "data/single_history_logs.dat"
-        backupfilename = (
-            "data/single_history_logs_old_" + time.strftime("%Y_%b_%d_%H_%M") + ".dat"
-        )
+        backupfilename = ("data/single_history_logs_old_" + time.strftime("%Y_%b_%d_%H_%M") + ".dat")
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
-        for data in self.history_logs:
+        for data in self.history_logs_to_save:
             to_log.append((filename, data, "a"))
         return to_log
 
@@ -223,9 +207,7 @@ class Logger:
             filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
             fpf = filename_prefix[self.number_riskmodels]
             network_logs = []
-            network_logs.append(
-                ("data/" + fpf + "_network_data.dat", self.network_data, "a")
-            )
+            network_logs.append(("data/" + fpf + "_network_data.dat", self.network_data, "a"))
 
             for filename, data, operation_character in network_logs:
                 with open(filename, operation_character) as wfile:
