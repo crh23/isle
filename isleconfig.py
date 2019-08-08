@@ -32,7 +32,7 @@ simulation_parameters = {
     "mean_contract_runtime": 12,
     "contract_runtime_halfspread": 2,
     "default_contract_payment_period": 3,
-    "max_time": 300,
+    "max_time": 1000,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
     "expire_immediately": False,
@@ -113,7 +113,7 @@ simulation_parameters = {
     # can be perfectly accurate, a value of 1 disables changes in inaccuracy based on size
     "scale_inaccuracy": 0.3,
     # The smallest number of tranches that an insurer will issue when asking for reinsurance. Note: even if this is 1,
-    # insurers will still end up with layered reinsurance to fill gaps
+    # insurers may still end up with layered reinsurance to fill gaps
     "min_tranches": 1,
     "aid_budget": 1000000,
 }

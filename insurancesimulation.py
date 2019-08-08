@@ -152,11 +152,11 @@ class InsuranceSimulation(GenericAgent):
         if (
             rc_event_schedule is not None and rc_event_damage is not None
         ):  # If we have schedules pass as arguments we used them.
-            self.rc_event_schedule = copy.copy(rc_event_schedule)
-            self.rc_event_schedule_initial = copy.copy(rc_event_schedule)
+            self.rc_event_schedule = copy.deepcopy(rc_event_schedule)
+            self.rc_event_schedule_initial = copy.deepcopy(rc_event_schedule)
 
-            self.rc_event_damage = copy.copy(rc_event_damage)
-            self.rc_event_damage_initial = copy.copy(rc_event_damage)
+            self.rc_event_damage = copy.deepcopy(rc_event_damage)
+            self.rc_event_damage_initial = copy.deepcopy(rc_event_damage)
         else:  # Otherwise the schedules and damages are generated.
             raise Exception("No event schedules and damages supplied")
 
@@ -946,9 +946,15 @@ class InsuranceSimulation(GenericAgent):
         if reinrisk:
             self.reinrisks.append(reinrisk)
 
-    def remove_reinrisks(self, risko: RiskProperties):
+    def remove_reinrisks(
+        self, risko: RiskProperties = None, firm: "MetaInsuranceOrg" = None
+    ):
+        """Either removes a single reinrisk or all reinrisks requested by a given firm (probably because it has gone
+        under)"""
         if risko is not None:
             self.reinrisks.remove(risko)
+        elif firm is not None:
+            self.reinrisks = [risk for risk in self.reinrisks if risk.owner is not firm]
 
     def get_reinrisks(self) -> Sequence[RiskProperties]:
         """Method for shuffling reinsurance risks
@@ -987,13 +993,15 @@ class InsuranceSimulation(GenericAgent):
                                reinsurer: Type firm metainsuranceorg instance
                            Returns:
                                reinrisks_to_be_sent: Type List"""
+
         reinrisks_to_be_sent = self.reinrisks[
             : int(self.reinsurers_weights[reinsurer.id])
         ]
         self.reinrisks = self.reinrisks[int(self.reinsurers_weights[reinsurer.id]) :]
 
         for reinrisk in reinsurer.reinrisks_kept:
-            reinrisks_to_be_sent.append(reinrisk)
+            if reinrisk.owner.operational:
+                reinrisks_to_be_sent.append(reinrisk)
 
         reinsurer.reinrisks_kept = []
 

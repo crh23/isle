@@ -260,7 +260,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         if self.operational:
             # Firms submit cash and var data for regulation every 12 iterations
-            if time % 12 == 0 and isleconfig.enforce_regulations is True:
+            if time % 12 == 0 and isleconfig.enforce_regulations:
                 self.submit_regulator_report(time)
                 if (
                     self.operational is False
@@ -460,10 +460,12 @@ class MetaInsuranceOrg(GenericAgent):
         sum_due = sum([item.amount for item in due])
         if sum_due > self.cash:
             self.enter_bankruptcy(time)
-        for obligation in due:
-            self._pay(obligation)
-        self.obligations = []
-        self.dissolve(time, "record_market_exit")
+        else:
+            for obligation in due:
+                assert self.cash > obligation.amount
+                self._pay(obligation)
+            self.obligations = []
+            self.dissolve(time, "record_market_exit")
 
     def dissolve(self, time: int, record: str):
         """Dissolve Method.
@@ -481,11 +483,12 @@ class MetaInsuranceOrg(GenericAgent):
            self.excess_capital and self.profits_losses."""
         for contract in self.underwritten_contracts:
             contract.dissolve(time)
-        for contract in self.reinsurance_profile.all_contracts():
+        for contract in self.reinsurance_profile.all_contracts().copy():
+            # Underwriter will remove next timestep
             contract.dissolve(time)
-        # removing (dissolving) all risks immediately after bankruptcy (may not be realistic,
-        # they might instead be bought by another company)
-        # TODO: implement buyouts
+        # Mature all underwritten contracts
+        self.mature_contracts(time)
+
         self.simulation.return_risks(self.risks_retained)
         self.risks_retained = []
         self.reinrisks_kept = []
@@ -501,12 +504,16 @@ class MetaInsuranceOrg(GenericAgent):
         self.excess_capital = 0
         # Profits and losses are 0 after bankruptcy or market exit.
         self.profits_losses = 0
+        # Retract any active requests for reinsurance
+        self.simulation.remove_reinrisks(firm=self)
         if self.operational:
             # TODO: This seems... odd?
             method_to_call = getattr(self.simulation, record)
             method_to_call()
-        for reincontract in self.reinsurance_profile.all_contracts():
-            reincontract.dissolve(time)
+        else:
+            pass
+        # Set to None so trying to add more obligations throws an error
+        self.obligations = None
         self.operational = False
 
     def pay_dividends(self, time: int):
@@ -815,6 +822,7 @@ class MetaInsuranceOrg(GenericAgent):
             # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
             # risk[C4], risk[C1], risk[C2], ... if possible.
             assert risk
+            assert risk.owner.operational
             # TODO: Move this out of the loop (maybe somewhere else entirely) and update it when needed
             underwritten_risks = [
                 RiskProperties(
@@ -1111,7 +1119,7 @@ class MetaInsuranceOrg(GenericAgent):
                             next(uniform_rvs)
                             < self.simulation_parameters["reinsurance_retention"]
                         ):
-                            if reinrisk is not None:
+                            if reinrisk is not None and reinrisk.owner.operational:
                                 self.reinrisks_kept.append(reinrisk)
 
     def make_reinsurance_claims(self, time: int):

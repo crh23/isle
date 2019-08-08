@@ -7,7 +7,7 @@ from scipy import stats
 
 import isleconfig
 
-from typing import Mapping, MutableSequence, Union, Tuple
+from typing import Mapping, MutableSequence, Union, Tuple, List
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -283,10 +283,10 @@ class ReinsuranceProfile:
                     break
         return contracts
 
-    def all_contracts(self) -> MutableSequence["ReinsuranceContract"]:
+    def all_contracts(self) -> List["ReinsuranceContract"]:
         regions = chain.from_iterable(self.reinsured_regions)
-        contracts = map(lambda x: x[2], regions)
-        return list(contracts)
+        contracts = list(map(lambda x: x[2], regions))
+        return contracts
 
     def update_value(self, value: float, category: int) -> None:
         self.riskmodel.set_reinsurance_coverage(

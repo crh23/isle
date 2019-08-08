@@ -28,6 +28,7 @@ class TimeSeries(object):
         fig=None,
         percentiles=None,
         alpha=0.7,
+        length=None,
     ):
         """Intialisation method for creating timeseries.
             Accepts:
@@ -54,6 +55,7 @@ class TimeSeries(object):
         ]  # assume all data series are the same size
         self.events_schedule = event_schedule
         self.damage_schedule = damage_schedule
+        self.length = length
         if axlst is not None and fig is not None:
             self.axlst = axlst
             self.fig = fig
@@ -69,13 +71,14 @@ class TimeSeries(object):
         This method is called to plot a timeseries for five subplots of data for insurers/reinsurers. If called for a
         single run event times are plotted as vertical lines, if an ensemble run then no events but the average data is
         plotted with percentiles as deviations to the average."""
-        single_categ_colours = ["b", "b", "b", "b"]
+        single_categ_colours = ["y", "r", "g", "b"]
         for i, (series, series_label, fill_lower, fill_upper) in enumerate(
             self.series_list
         ):
             self.axlst[i].plot(self.timesteps, series, color=self.colour)
             self.axlst[i].set_ylabel(series_label)
-
+            if self.length is not None:
+                self.axlst[i].set_xlim([0, self.length])
             if fill_lower is not None and fill_upper is not None:
                 self.axlst[i].fill_between(
                     self.timesteps,
@@ -85,15 +88,13 @@ class TimeSeries(object):
                     alpha=self.alpha,
                 )
 
-            if (
-                self.events_schedule is not None
-            ):  # Plots vertical lines for events if set.
+            if self.events_schedule is not None:
+                # Plots vertical lines for events if set.
                 for categ in range(len(self.events_schedule)):
                     for event_time in self.events_schedule[categ]:
                         index = self.events_schedule[categ].index(event_time)
-                        if (
-                            self.damage_schedule[categ][index] > 0.5
-                        ):  # Only plots line if event is significant
+                        if self.damage_schedule[categ][index] > 0.5:
+                            # Only plots line if event is significant
                             self.axlst[i].axvline(
                                 event_time,
                                 color=single_categ_colours[categ],
@@ -316,6 +317,8 @@ class visualisation(object):
         cash = np.median(cash_agg, axis=0)
         premium = np.median(premium_agg, axis=0)
 
+        ts_length = len(contracts)
+
         self.ins_time_series = TimeSeries(
             [
                 (
@@ -356,6 +359,7 @@ class visualisation(object):
             axlst=axlst,
             fig=fig,
             colour=colour,
+            length=ts_length,
         )
         fig, axlst = self.ins_time_series.plot()
         return fig, axlst
@@ -1343,7 +1347,7 @@ if __name__ == "__main__":
         from numpy import array
 
         # load in data from the history_logs dictionary with open("data/history_logs.dat","r") as rfile:
-        with open("data/history_logs.dat", "r") as rfile:
+        with open("data/single_history_logs.dat", "r") as rfile:
             history_logs_list = [eval(k) for k in rfile]  # one dict on each line
 
         # first create visualisation object, then create graph/animation objects as necessary

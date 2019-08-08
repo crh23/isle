@@ -98,15 +98,16 @@ class Logger:
             Arguments
                 data_dict: Type dict. Data with the same keys as are used in self.history_log().
             Returns None."""
+        a = 1
         for key in data_dict.keys():
-            if key != "individual_contracts" and key != "reinsurance_contracts":
+            if key not in ["individual_contracts", "reinsurance_contracts"]:
                 self.history_logs[key].append(data_dict[key])
-            if key == "individual_contracts":
+            elif key == "individual_contracts":
                 for i in range(len(data_dict["individual_contracts"])):
                     self.history_logs["individual_contracts"][i].append(
                         data_dict["individual_contracts"][i]
                     )
-            if key == "reinsurance_contracts":
+            elif key == "reinsurance_contracts":
                 for i in range(len(data_dict["reinsurance_contracts"])):
                     self.history_logs["reinsurance_contracts"][i].append(
                         data_dict["reinsurance_contracts"][i]
@@ -126,8 +127,6 @@ class Logger:
         self.history_logs["rc_event_schedule_initial"] = self.rc_event_schedule_initial
 
         """Parse logs to be returned"""
-        if requested_logs is None:
-            requested_logs = LOG_DEFAULT
         log = {name: self.history_logs[name] for name in requested_logs}
 
         """Convert to list and return"""
@@ -163,7 +162,8 @@ class Logger:
         self.number_riskmodels = log["number_riskmodels"]
 
         """Restore history log"""
-        self.history_logs.update(log)
+        self.history_logs_to_save.append(log)
+        self.history_logs = log
 
     def save_log(self, background_run):
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
@@ -210,8 +210,8 @@ class Logger:
         )
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
-        for data in self.history_logs:
-            to_log.append((filename, data, "a"))
+        for history_log in self.history_logs_to_save:
+            to_log.append((filename, history_log, "w"))
         return to_log
 
     def save_network_data(self, ensemble):
