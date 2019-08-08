@@ -5,7 +5,7 @@ import catbond
 from reinsurancecontract import ReinsuranceContract
 import isleconfig
 import genericclasses
-from typing import Optional, MutableSequence, Mapping
+from typing import Optional, Collection, Mapping
 
 from typing import TYPE_CHECKING, List
 
@@ -51,8 +51,9 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 reinsurance_VaR_estimate: Type Decimal.
         This method takes the max VaR and mulitiplies it by a factor that estimates the VaR if another reinsurance
         contract was to be taken. Called by the adjust_target_capacity and get_capacity methods."""
+        # TODO: Should be total_value, or maybe the total amount of exposure (rather than number_risks)
         values = [
-            self.underwritten_risk_characterisation[categ][2]
+            self.underwritten_risk_characterisation[categ].number_risks
             for categ in range(self.simulation_parameters["no_categories"])
         ]
         reinsurance_factor_estimate = self.get_reinsurable_fraction(values)
@@ -183,13 +184,20 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 categ_id: Type Integer.
             Returns:
                 premium payments left/total value of contracts: Type Decimal"""
-        weighted_premium_sum = 0
-        total_weight = 0
-        for contract in self.underwritten_contracts:
-            if contract.category == categ_id:
-                total_weight += contract.value
-                contract_premium = contract.periodized_premium * contract.runtime
-                weighted_premium_sum += contract_premium
+        # weighted_premium_sum = 0
+        # total_weight = 0
+        # for contract in self.underwritten_contracts:
+        #     if contract.category == categ_id:
+        #         total_weight += contract.value
+        #         contract_premium = contract.periodized_premium * contract.runtime
+        #         weighted_premium_sum += contract_premium
+
+        total_weight = self.underwritten_risk_characterisation[
+            categ_id
+        ].total_value  # TODO: Should use exposure
+        weighted_premium_sum = self.underwritten_risk_characterisation[
+            categ_id
+        ].weighted_premium
         if total_weight == 0:
             return 0  # will prevent any attempt to reinsure empty categories
         return weighted_premium_sum * 1.0 / total_weight
@@ -218,12 +226,10 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         # TODO: how do we decide how many tranches?
         if min_tranches is None:
             min_tranches = isleconfig.simulation_parameters["min_tranches"]
-        [
-            total_value,
-            avg_risk_factor,
-            number_risks,
-            periodized_total_premium,
-        ] = self.underwritten_risk_characterisation[categ_id]
+
+        total_value = self.underwritten_risk_characterisation[categ_id].total_value
+        number_risks = self.underwritten_risk_characterisation[categ_id].number_risks
+
         if number_risks > 0:
             tranches = self.reinsurance_profile.uncovered(categ_id)
 
@@ -308,6 +314,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             avg_risk_factor,
             number_risks,
             periodized_total_premium,
+            _,
         ] = self.underwritten_risk_characterisation[category]
         risk = genericclasses.RiskProperties(
             value=total_value,
@@ -447,7 +454,9 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         if force_value is not None:
             value = force_value
         else:
-            value = self.underwritten_risk_characterisation[contract.category][0]
+            value = self.underwritten_risk_characterisation[
+                contract.category
+            ].total_value
         self.reinsurance_profile.add(contract, value)
 
     def delete_reinsurance(self, contract: ReinsuranceContract):
@@ -457,7 +466,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 category: Type Integer.
                 contract: Type Class. Reinsurance contract issued to firm.
             No return values."""
-        value = self.underwritten_risk_characterisation[contract.category][0]
+        value = self.underwritten_risk_characterisation[contract.category].total_value
         self.reinsurance_profile.remove(contract, value)
 
     def make_reinsurance_claims(self, time: int):
@@ -486,7 +495,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 for contract in to_explode:
                     contract.explode(time, damage_extent=claims_this_turn[categ_id])
 
-    def get_excess_of_loss_reinsurance(self) -> MutableSequence[Mapping]:
+    def get_excess_of_loss_reinsurance(self) -> Collection[Mapping]:
         """Method to return list containing the reinsurance for each category interms of the reinsurer, value of
         contract and category. Only used for network visualisation.
             No accepted values.
@@ -515,6 +524,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             avg_risk_factor,
             number_risks,
             periodized_total_premium,
+            _,
         ] = self.underwritten_risk_characterisation[old_contract.category]
         if number_risks == 0:
             # If the insurerer currently has no risks in that category it probably doesn't want reinsurance

@@ -14,7 +14,15 @@ import isleconfig
 from genericclasses import GenericAgent, RiskProperties, AgentProperties, Constant
 import catbond
 
-from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
+from typing import (
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    Sequence,
+    Any,
+    Optional,
+    Collection,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -176,7 +184,7 @@ class InsuranceSimulation(GenericAgent):
             size=self.simulation_parameters["no_risks"],
         )
 
-        self.risks: MutableSequence[RiskProperties] = [
+        self.risks: Collection[RiskProperties] = [
             RiskProperties(
                 risk_factor=rrisk_factors[i],
                 value=rvalues[i],
@@ -242,17 +250,17 @@ class InsuranceSimulation(GenericAgent):
         )
 
         "Agent lists"
-        self.reinsurancefirms: MutableSequence = []
-        self.insurancefirms: MutableSequence = []
-        self.catbonds: MutableSequence = []
+        self.reinsurancefirms: Collection = []
+        self.insurancefirms: Collection = []
+        self.catbonds: Collection = []
 
         "Lists of agent weights"
         self.insurers_weights: MutableMapping[int, float] = {}
         self.reinsurers_weights: MutableMapping[int, float] = {}
 
         "List of reinsurance risks offered for underwriting"
-        self.reinrisks: MutableSequence[RiskProperties] = []
-        self.not_accepted_reinrisks: MutableSequence[RiskProperties] = []
+        self.reinrisks: Collection[RiskProperties] = []
+        self.not_accepted_reinrisks: Collection[RiskProperties] = []
 
         "Cumulative variables for history and logging"
         self.cumulative_bankruptcies: int = 0
@@ -553,7 +561,7 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.buy_bankruptcies:
             for reinagent in self.reinsurancefirms:
                 if reinagent.operational:
-                    reinagent.consider_buyout(type="reinsurer")
+                    reinagent.consider_buyout(firm_type="reinsurer")
 
         # remove all non-accepted reinsurance risks
         self.reinrisks = []
@@ -572,7 +580,7 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.buy_bankruptcies:
             for agent in self.insurancefirms:
                 if agent.operational:
-                    agent.consider_buyout(type="insurer")
+                    agent.consider_buyout(firm_type="insurer")
 
         # Reset list of bankrupt insurance firms
         self.reset_selling_firms()
