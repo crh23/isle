@@ -159,7 +159,7 @@ class CentralBank:
         given_aid_dict = {}
         if damage_fraction > 0.50:
             for insurer in insurance_firms:
-                claims = sum([ob.amount for ob in insurer.obligations if ob.purpose == "claim" and ob.due_time == time + 2])
+                claims = sum([ob.amount for ob in insurer.obligations if ob.purpose == "claim" and ob.due_time == time + 1])
                 aid = claims * damage_fraction
                 all_firms_aid += aid
                 given_aid_dict[insurer] = aid
