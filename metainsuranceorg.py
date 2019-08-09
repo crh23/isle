@@ -522,6 +522,7 @@ class MetaInsuranceOrg(GenericAgent):
         else:
             pass
         # Set to None so trying to add more obligations throws an error
+        # TODO: this is okay, right?
         self.obligations = None
         self.operational = False
 
@@ -939,23 +940,8 @@ class MetaInsuranceOrg(GenericAgent):
             # risk[C4], risk[C1], risk[C2], ... if possible.
             assert risk
             assert risk.owner.operational
-            # TODO: Move this out of the loop (maybe somewhere else entirely) and update it when needed
-            underwritten_risks = [
-                RiskProperties(
-                    owner=self,
-                    value=contract.value,
-                    category=contract.category,
-                    risk_factor=contract.risk_factor,
-                    deductible=contract.deductible,
-                    limit=contract.limit,
-                    insurancetype=contract.insurancetype,
-                    runtime_left=(contract.expiration - time),
-                )
-                for contract in self.underwritten_contracts
-                if contract.insurancetype == "excess-of-loss"
-            ]
             accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
-                underwritten_risks, self.cash, risk
+                self.underwritten_risks, self.cash, risk
             )
             if accept:
                 # TODO: What exactly is this based on? How should reinsurance pricing work?

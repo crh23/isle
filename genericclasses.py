@@ -7,7 +7,16 @@ from scipy import stats
 
 import isleconfig
 
-from typing import Mapping, MutableSequence, Union, Tuple, List, Collection, TypeVar
+from typing import (
+    Mapping,
+    MutableSequence,
+    Union,
+    Tuple,
+    List,
+    Collection,
+    TypeVar,
+    Set,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -25,7 +34,7 @@ if TYPE_CHECKING:
 class GenericAgent:
     def __init__(self):
         self.cash: float = 0
-        self.obligations: Collection["Obligation"] = []
+        self.obligations: MutableSequence["Obligation"] = []
         self.operational: bool = True
         self.profits_losses: float = 0
         self.creditor = None
@@ -162,7 +171,7 @@ class AgentProperties:
     interest_rate: float
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Obligation:
     """Class for holding the properties of an obligation"""
 

@@ -309,13 +309,12 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         time: int,
         purpose: str,
     ):
-        [
-            total_value,
-            avg_risk_factor,
-            number_risks,
-            periodized_total_premium,
-            _,
-        ] = self.underwritten_risk_characterisation[category]
+        (total_value, avg_risk_factor, number_risks, periodized_total_premium) = (
+            self.underwritten_risk_characterisation[category].total_value,
+            self.underwritten_risk_characterisation[category].avg_risk_factor,
+            self.underwritten_risk_characterisation[category].number_risks,
+            self.underwritten_risk_characterisation[category].periodized_total_premium,
+        )
         risk = genericclasses.RiskProperties(
             value=total_value,
             category=category,
@@ -429,7 +428,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
 
     def get_catbond_price(self, risk: genericclasses.RiskProperties) -> float:
         """Returns the total per-risk premium for a catbond """
-        # TODO: take limit into account as well as deductible
         assert risk.deductible_fraction is not None
         return self.simulation.get_cat_bond_price(
             risk.deductible_fraction, risk.limit_fraction
@@ -437,7 +435,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
 
     def get_reinsurance_price(self, risk: genericclasses.RiskProperties) -> float:
         """Returns the total per-risk premium for reinsurance"""
-        # TODO: take limit into account as well as deductible
         assert risk.deductible_fraction is not None
         return self.simulation.get_reinsurance_premium(
             risk.deductible_fraction, risk.limit_fraction
@@ -519,13 +516,16 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         # TODO: Can be merged
         """Takes an expiring contract and returns a renewed risk to automatically offer to the existing reinsurer.
         The new risk has the same deductible and excess as the old one, but with an updated time"""
-        [
-            total_value,
-            avg_risk_factor,
-            number_risks,
-            periodized_total_premium,
-            _,
-        ] = self.underwritten_risk_characterisation[old_contract.category]
+        (total_value, avg_risk_factor, number_risks, periodized_total_premium) = (
+            self.underwritten_risk_characterisation[old_contract.category].total_value,
+            self.underwritten_risk_characterisation[
+                old_contract.category
+            ].avg_risk_factor,
+            self.underwritten_risk_characterisation[old_contract.category].number_risks,
+            self.underwritten_risk_characterisation[
+                old_contract.category
+            ].periodized_total_premium,
+        )
         if number_risks == 0:
             # If the insurerer currently has no risks in that category it probably doesn't want reinsurance
             return None

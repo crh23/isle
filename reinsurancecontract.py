@@ -107,6 +107,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 # for the issuer
                 # TODO: Allow for catbonds that can pay out multiple times?
                 self.insurer: "Catbond"
+                self.insurer.triggered += 1
                 remaining_cb_cash = self.insurer.get_available_cash(time) - claim
                 assert remaining_cb_cash >= 0
                 if remaining_cb_cash < 2:
