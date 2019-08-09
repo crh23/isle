@@ -403,7 +403,7 @@ class MetaInsuranceOrg(GenericAgent):
         # Record all unpaid claims (needs to be here to account for firms lost due to regulator/being sold)
         if record != "record_market_exit":      # Market exits already pay all obligations
             sum_due = sum(item.amount for item in self.obligations)  # Also records dividends/premiums
-            self.simulation.record_unrecovered_claims(sum_due - self.cash)
+            self.simulation.record_unrecovered_claims(max(0, sum_due - self.cash))
 
         # Removing (dissolving) all risks immediately after bankruptcy (may not be realistic, they might instead be bought by another company)
         [contract.dissolve(time) for contract in self.underwritten_contracts]
@@ -936,13 +936,16 @@ class MetaInsuranceOrg(GenericAgent):
         firms_further_considered = []
 
         for firm, time, reason in firms_to_consider:
+            cagr = (firm.cash_last_periods[11]/firm.cash_last_periods[0])**(1/12) - 1   # Aggregate growth over last 12
+            cagr = max(0, cagr)                                                         # Negative growth set to 0
+            ddm_stock = firm.per_period_dividend/(0.12-cagr)        # Use DDM model to evaluate price of all stock based on total dividend
             all_firms_cash = self.simulation.get_total_firm_cash(type)
-            all_obligations = sum([obligation["amount"] for obligation in firm.obligations])
+            all_obligations = sum([obligation.amount for obligation in firm.obligations])
             total_premium = sum([np.mean(contract.payment_values) for contract in firm.underwritten_contracts if len(contract.payment_values) > 0])
-            if self.excess_capital > self.riskmodel.margin_of_safety * firm.var_sum + all_obligations - total_premium:
-                firm_likelihood = 0.25 + (1.5 * firm.cash + np.mean(firm.cash_last_periods[1:12]) + self.cash)/all_firms_cash
+            firm_price = total_premium + ddm_stock + (np.mean(firm.cash_last_periods[0:12])**2)/all_firms_cash     # Price based on ddm stock value, cash flow from premiums, and market capitalization
+            if self.excess_capital > firm.var_sum + all_obligations - total_premium:
+                firm_likelihood = 0.25 + (1.5 * firm.cash + np.mean(firm.cash_last_periods[0:11]) + self.cash)/all_firms_cash   # Likelihood depends on size of other firm and itself
                 firm_likelihood = min(1, 2*firm_likelihood)
-                firm_price = (firm.var_sum/10) + total_premium + firm.per_period_dividend
                 firm_sell_reason = reason
                 firms_further_considered.append([firm, firm_likelihood, firm_price, firm_sell_reason])
 
@@ -976,10 +979,13 @@ class MetaInsuranceOrg(GenericAgent):
             print("Reinsurer %i has bought %i  for %d with total cash %d" % (self.id, firm.id, firm_cost, self.cash))
 
         for contract in firm.underwritten_contracts:
-            contract.insurer = self
+            if contract.insurancetype == "proportional":
+                contract.insurer = self
+            else:
+                contract.property_holder = self                 # In case of reinsurance however not observed.
             self.underwritten_contracts.append(contract)
         for obli in firm.obligations:
-            self.receive_obligation(obli['amount'], obli["recipient"], obli["due_time"], obli["purpose"])
+            self.receive_obligation(obli.amount, obli.recipient, obli.due_time, obli.purpose)
 
         firm.obligations = []
         firm.underwritten_contracts = []
@@ -1003,6 +1009,6 @@ class MetaInsuranceOrg(GenericAgent):
             else:
                 self.dissolve(time, "record_nonregulation_firm")
                 for contract in self.underwritten_contracts:
-                    contract.mature(time)
+                    contract.mature(time)          # Mature contracts so they are returned to simulation as firm non-op
                 self.underwritten_contracts = []
 

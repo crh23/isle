@@ -53,14 +53,10 @@ class GenericAgent:
                     f"Redirecting payment with purpose {purpose} due to non-operational firm {recipient.id}"
                 )
             recipient = recipient.creditor
-        if self.get_operational():
-            self.cash -= amount
-            if purpose != "dividend":
-                self.profits_losses -= amount
-            recipient.receive(amount)
-        else:
-            if isleconfig.verbose:
-                print(f"Payment not processed as firm {self.id} is not operational")
+        self.cash -= amount
+        if purpose != "dividend":
+            self.profits_losses -= amount
+        recipient.receive(amount)
 
     def get_operational(self) :
         """Method to return boolean of if agent is operational. Only used as check for payments.

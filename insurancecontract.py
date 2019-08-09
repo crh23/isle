@@ -44,7 +44,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             claim = min(self.limit, damage_extent * self.value) - self.deductible
             self.insurer.register_claim(claim)  # Every insurance claim made is immediately registered.
             self.current_claim += claim
-            self.insurer.receive_obligation(claim, self.property_holder, time + 2, "claim")
+            self.insurer.receive_obligation(claim, self.property_holder, time + 1, "claim")
             if self.expire_immediately:
                 self.expiration = time
                 # self.terminating = True

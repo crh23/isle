@@ -1185,6 +1185,7 @@ if __name__ == "__main__":
         # CD = ConfigCompare("data/single_history_logs_old_2019_Aug_02_12_53.dat",
         #                  "data/single_history_logs.dat",
         #                  "data/single_history_logs_old_2019_Aug_02_13_13.dat")
+        # Get files of data that resulted from different conditions to compare. Can handle any number of replications.
         CD = ConfigCompare(args.file1, args.file2, args.file3)
         CD.plot(events=False, upper=1000, lower=200)
         CD.stat_tests(upper=1000, lower=200)
