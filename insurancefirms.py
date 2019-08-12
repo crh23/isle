@@ -330,6 +330,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             deductible=deductible_fraction * total_value,
             limit=limit_fraction * total_value,
         )  # TODO: make runtime into a parameter
+        assert risk.deductible_fraction < risk.limit_fraction <= 1
+
         reinsurance_type = self.decide_reinsurance_type(risk)
         if reinsurance_type == "reinsurance":
             if purpose == "newrisk":
@@ -341,6 +343,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         elif reinsurance_type == "catbond":
             # The whole premium is transfered to the bond at creation, not periodically
             # TODO: Should the premium be periodic as for any other reinsurance? Would help, probably
+            # TODO: Allow for catbonds to be paid out multiple times
             risk.periodized_total_premium = 0
             total_premium = (
                 self.get_catbond_price(risk)
@@ -535,13 +538,16 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             owner=self,
             insurancetype="excess-of-loss",
             number_risks=number_risks,
-            deductible_fraction=old_contract.deductible / total_value,
-            limit_fraction=old_contract.limit / total_value,
+            deductible_fraction=min(old_contract.deductible / total_value, 1),
+            limit_fraction=min(old_contract.limit / total_value, 1),
             periodized_total_premium=periodized_total_premium,
             runtime=12,
             expiration=time + 12,
             risk_factor=avg_risk_factor,
         )
+        if risk.deductible_fraction == risk.limit_fraction == 1:
+            return None
+        assert risk.deductible_fraction < risk.limit_fraction <= 1
         return risk
 
 

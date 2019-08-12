@@ -77,9 +77,7 @@ def get_mean_std(x: Tuple[float, ...]) -> Tuple[float, float]:
 
 
 class MetaInsuranceOrg(GenericAgent):
-    def __init__(
-        self, simulation_parameters: Mapping, agent_parameters: AgentProperties
-    ):
+    def __init__(self, simulation_parameters: dict, agent_parameters: AgentProperties):
         """Constructor method.
                     Accepts:
                         Simulation_parameters: Type DataDict
@@ -88,7 +86,7 @@ class MetaInsuranceOrg(GenericAgent):
                      and insurance firm classes. Initialises all necessary values provided by config file."""
         super().__init__()
         self.simulation: "InsuranceSimulation" = simulation_parameters["simulation"]
-        self.simulation_parameters: Mapping = simulation_parameters
+        self.simulation_parameters: dict = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
             simulation_parameters["mean_contract_runtime"]
             - simulation_parameters["contract_runtime_halfspread"],
@@ -400,8 +398,8 @@ class MetaInsuranceOrg(GenericAgent):
                 risks_per_categ = self.risks_reinrisks_organizer(new_risks)
                 if risks_per_categ != [[]] * self.simulation_no_risk_categories:
                     for repetition in range(self.recursion_limit):
-                        # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if it is
-                        #  not accepting any more over several iterations. Done, maybe?
+                        # TODO: find an efficient way to stop the recursion if there are no more risks to accept or if
+                        #  it is not accepting any more over several iterations. Done, maybe?
                         # Here we process all the new risks in order to keep the portfolio as balanced as possible.
                         has_accepted_risks, not_accepted_risks = self.process_newrisks_insurer(
                             risks_per_categ,
@@ -522,7 +520,6 @@ class MetaInsuranceOrg(GenericAgent):
         else:
             pass
         # Set to None so trying to add more obligations throws an error
-        # TODO: this is okay, right?
         self.obligations = None
         self.operational = False
 
@@ -713,7 +710,7 @@ class MetaInsuranceOrg(GenericAgent):
     def number_underwritten_contracts(self) -> int:
         return len(self.underwritten_contracts)
 
-    def get_underwritten_contracts(self) -> Sequence["MetaInsuranceContract"]:
+    def get_underwritten_contracts(self) -> Collection["MetaInsuranceContract"]:
         return self.underwritten_contracts
 
     def get_profitslosses(self) -> float:

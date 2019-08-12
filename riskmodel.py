@@ -1,5 +1,5 @@
 import math
-from copy import deepcopy
+import copy
 
 import numpy as np
 
@@ -43,8 +43,7 @@ class RiskModel:
         self.damage_distribution: MutableSequence["Distribution"] = [
             damage_distribution for _ in range(self.category_number)
         ]
-        self.underlying_distribution = deepcopy(self.damage_distribution)
-        # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
+        self.underlying_distribution = copy.deepcopy(self.damage_distribution)
         self.inaccuracy: Sequence[float] = inaccuracy
 
     def get_ppf(self, categ_id: int, tail_size: float) -> float:
@@ -253,7 +252,6 @@ class RiskModel:
         offered risk (if applicable) is then calculated (should only be one)."""
         cash_left_by_categ = np.copy(cash)
         assert len(cash_left_by_categ) == self.category_number
-
         # prepare variables
         additional_required = np.zeros(self.category_number)
         additional_var_per_categ = np.zeros(self.category_number)
@@ -263,9 +261,6 @@ class RiskModel:
         for categ_id in range(self.category_number):
             categ_risks = risks_by_categ[categ_id]
 
-            # TODO: allow for different risk distributions for different categories
-            # TODO: factor in risk_factors
-            # QUERY: both done?
             percentage_value_at_risk = self.get_ppf(
                 categ_id=categ_id, tail_size=self.var_tail_prob
             )
@@ -348,7 +343,6 @@ class RiskModel:
         # TODO: split this into two functions
         # ensure that any risk to be considered supplied directly as argument is non-proportional/excess-of-loss
         assert (offered_risk is None) or offered_risk.insurancetype == "excess-of-loss"
-
         # construct cash_left_by_categ as a sequence, defining remaining liquidity by category
         if not isinstance(cash, (np.ndarray, list)):
             cash_left_by_categ = np.ones(self.category_number) * cash

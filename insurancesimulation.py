@@ -69,7 +69,6 @@ class InsuranceSimulation(GenericAgent):
         "Override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)"
         if override_no_riskmodels:
             simulation_parameters["no_riskmodels"] = override_no_riskmodels
-        # QUERY: why do we keep duplicates of so many simulation parameters (and then not use many of them)?
         self.number_riskmodels: int = simulation_parameters["no_riskmodels"]
 
         "Save parameters, sets parameters of sim according to isleconfig.py"
@@ -81,13 +80,12 @@ class InsuranceSimulation(GenericAgent):
         self.simulation_parameters: MutableMapping = simulation_parameters
         self.simulation_parameters["simulation"] = self
 
-        # QUERY: The distribution given is bounded by [0.25, 1.0]. Should this always be the case?
         "Unpacks parameters and sets distributions"
         self.damage_distribution: "Distribution" = damage_distribution
 
         self.catbonds_off: bool = simulation_parameters["catbonds_off"]
         self.reinsurance_off: bool = simulation_parameters["reinsurance_off"]
-        # TODO: research whether this is accurate, is it different for different types of catastrophy?
+        # TODO: It's actually geometric (in effect) - change?
         self.cat_separation_distribution = scipy.stats.expon(
             0, simulation_parameters["event_time_mean_separation"]
         )
@@ -108,8 +106,9 @@ class InsuranceSimulation(GenericAgent):
         else:
             self.risk_factor_distribution = Constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
-        # TODO: Should this be a parameter
-        self.risk_value_distribution = Constant(loc=1000)
+        self.risk_value_distribution = Constant(
+            loc=simulation_parameters["value_per_risk"]
+        )
 
         risk_factor_mean = self.risk_factor_distribution.mean()
 
@@ -146,7 +145,6 @@ class InsuranceSimulation(GenericAgent):
         self.bank = CentralBank(self.cash)
 
         "set up risk categories"
-        # QUERY What do risk categories represent? Different types of catastrophes?
         self.riskcategories: Sequence[int] = list(
             range(self.simulation_parameters["no_categories"])
         )
@@ -168,10 +166,9 @@ class InsuranceSimulation(GenericAgent):
         else:  # Otherwise the schedules and damages are generated.
             raise Exception("No event schedules and damages supplied")
 
-        "Set up risks"
+        """Set up risks"""
         risk_value_mean = self.risk_value_distribution.mean()
 
-        # QUERY: What are risk factors? Are "risk_factor" values other than one meaningful at present?
         rrisk_factors = self.risk_factor_distribution.rvs(
             size=self.simulation_parameters["no_risks"]
         )
@@ -252,7 +249,7 @@ class InsuranceSimulation(GenericAgent):
         "Agent lists"
         self.reinsurancefirms: Collection = []
         self.insurancefirms: Collection = []
-        self.catbonds: Collection = []
+        self.catbonds: list = []
 
         "Lists of agent weights"
         self.insurers_weights: MutableMapping[int, float] = {}
@@ -310,7 +307,7 @@ class InsuranceSimulation(GenericAgent):
     ):
         """General function for initialising the agent parameters
             Takes the firm type as argument, also needing sim params and risk configs
-              Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
+            Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
                 Returns None"""
         if firmtype == "insurancefirm":
             no_firms = simulation_parameters["no_insurancefirms"]
@@ -486,6 +483,7 @@ class InsuranceSimulation(GenericAgent):
                 t: Integer, current time step
            Returns None"""
 
+        damage_extent = None
         self._time = t
         if isleconfig.verbose:
             print()
@@ -536,7 +534,7 @@ class InsuranceSimulation(GenericAgent):
         # Provide government aid if damage severe enough
         if isleconfig.aid_relief:
             self.bank.adjust_aid_budget(time=t)
-            if "damage_extent" in locals():
+            if damage_extent is not None:
                 op_firms = [firm for firm in self.insurancefirms if firm.operational]
                 aid_dict = self.bank.provide_aid(op_firms, damage_extent, time=t)
                 for key in aid_dict.keys():
@@ -612,11 +610,13 @@ class InsuranceSimulation(GenericAgent):
 
             if isleconfig.show_network:
                 self.RN.visualize()
-            if isleconfig.save_network and t == (
-                self.simulation_parameters["max_time"] - 800
-            ):
-                self.RN.save_network_data()
-                print("Network data has been saved to data/network_data.dat")
+
+            # TODO: Investigate and fix?
+            # if isleconfig.save_network and t == (
+            #     self.simulation_parameters["max_time"] - 800
+            # ):
+            #     self.RN.save_network_data()
+            #     print("Network data has been saved to data/network_data.dat")
 
         # import matplotlib.pyplot as plt
         #
@@ -674,44 +674,36 @@ class InsuranceSimulation(GenericAgent):
         ]
 
         """ prepare dict """
-        current_log = {}  # TODO: rewrite this as a single dictionary literal?
-        current_log["total_cash"] = total_cash_no
-        current_log["total_excess_capital"] = total_excess_capital
-        current_log["total_profitslosses"] = total_profitslosses
-        current_log["total_contracts"] = total_contracts_no
-        current_log["total_operational"] = operational_no
-        current_log["total_reincash"] = total_reincash_no
-        current_log["total_reinexcess_capital"] = total_reinexcess_capital
-        current_log["total_reinprofitslosses"] = total_reinprofitslosses
-        current_log["total_reincontracts"] = total_reincontracts_no
-        current_log["total_reinoperational"] = reinoperational_no
-        current_log["total_catbondsoperational"] = catbondsoperational_no
-        current_log["market_premium"] = self.market_premium
-        current_log["market_reinpremium"] = self.reinsurance_market_premium
-        current_log["cumulative_bankruptcies"] = self.cumulative_bankruptcies
-        current_log["cumulative_market_exits"] = self.cumulative_market_exits
-        current_log[
-            "cumulative_unrecovered_claims"
-        ] = self.cumulative_unrecovered_claims
-        current_log["cumulative_claims"] = self.cumulative_claims
-        current_log["cumulative_bought_firms"] = self.cumulative_bought_firms
-        current_log[
-            "cumulative_nonregulation_firms"
-        ] = self.cumulative_nonregulation_firms
-
-        """ add agent-level data to dict"""
-        current_log["insurance_firms_cash"] = insurance_firms
-        current_log["reinsurance_firms_cash"] = reinsurance_firms
-        current_log["market_diffvar"] = self.compute_market_diffvar()
-
-        current_log["individual_contracts"] = [
-            len(firm.underwritten_contracts) for firm in self.insurancefirms
-        ]
-
-        current_log["reinsurance_contracts"] = [
-            len(firm.underwritten_contracts) for firm in self.reinsurancefirms
-        ]
-
+        current_log = {
+            "total_cash": total_cash_no,
+            "total_excess_capital": total_excess_capital,
+            "total_profitslosses": total_profitslosses,
+            "total_contracts": total_contracts_no,
+            "total_operational": operational_no,
+            "total_reincash": total_reincash_no,
+            "total_reinexcess_capital": total_reinexcess_capital,
+            "total_reinprofitslosses": total_reinprofitslosses,
+            "total_reincontracts": total_reincontracts_no,
+            "total_reinoperational": reinoperational_no,
+            "total_catbondsoperational": catbondsoperational_no,
+            "market_premium": self.market_premium,
+            "market_reinpremium": self.reinsurance_market_premium,
+            "cumulative_bankruptcies": self.cumulative_bankruptcies,
+            "cumulative_market_exits": self.cumulative_market_exits,
+            "cumulative_unrecovered_claims": self.cumulative_unrecovered_claims,
+            "cumulative_claims": self.cumulative_claims,
+            "cumulative_bought_firms": self.cumulative_bought_firms,
+            "cumulative_nonregulation_firms": self.cumulative_nonregulation_firms,
+            "insurance_firms_cash": insurance_firms,
+            "reinsurance_firms_cash": reinsurance_firms,
+            "market_diffvar": self.compute_market_diffvar(),
+            "individual_contracts": [
+                len(firm.underwritten_contracts) for firm in self.insurancefirms
+            ],
+            "reinsurance_contracts": [
+                len(firm.underwritten_contracts) for firm in self.reinsurancefirms
+            ],
+        }
         """ call to Logger object """
         self.logger.record_data(current_log)
 
@@ -736,6 +728,7 @@ class InsuranceSimulation(GenericAgent):
         ]
         if isleconfig.verbose:
             print("**** PERIL", damage)
+        # TODO: Why beta in particular?
         damagevalues = np.random.beta(
             a=1, b=1.0 / damage - 1, size=len(affected_contracts)
         )
@@ -803,7 +796,7 @@ class InsuranceSimulation(GenericAgent):
 
         if operational_no > 0:
 
-            if risks_no > operational_no:  # TODO: as above
+            if risks_no > operational_no:
                 weights = risks_no / operational_no
                 for insurer in self.insurancefirms:
                     self.insurers_weights[insurer.id] = math.floor(weights)
@@ -813,7 +806,6 @@ class InsuranceSimulation(GenericAgent):
                     self.insurers_weights[operational_firms[s].id] += 1
 
     def _update_model_counters(self):
-        # TODO: this and the next look like they could be cleaner
         for insurer in self.insurancefirms:
             if insurer.operational:
                 for i in range(len(self.inaccuracy)):
@@ -929,7 +921,6 @@ class InsuranceSimulation(GenericAgent):
                 np_reinsurance_deductible_fraction: Type Integer
            Returns:
                 Calculated catbond price."""
-        # TODO: implement function dependent on total capital in cat bonds and on deductible ()
         # TODO: make max_reduction and max_cat_bond_surcharge into simulation_parameters ?
         if self.catbonds_off:
             return float("inf")
@@ -964,7 +955,7 @@ class InsuranceSimulation(GenericAgent):
         elif firm is not None:
             self.reinrisks = [risk for risk in self.reinrisks if risk.owner is not firm]
 
-    def get_reinrisks(self) -> Sequence[RiskProperties]:
+    def get_reinrisks(self) -> Collection[RiskProperties]:
         """Method for shuffling reinsurance risks
             Returns: reinsurance risks"""
         np.random.shuffle(self.reinrisks)
@@ -983,8 +974,6 @@ class InsuranceSimulation(GenericAgent):
         for risk in insurer.risks_retained:
             risks_to_be_sent.append(risk)
 
-        # QUERY: what actually is InsuranceFirm.risks_kept? Are we resending all their existing risks?
-        #  Or is it just a list of risk that have rolled over and so need to be re-evaluated
         insurer.risks_retained = []
 
         np.random.shuffle(risks_to_be_sent)
@@ -1060,7 +1049,6 @@ class InsuranceSimulation(GenericAgent):
                             Returns:
                                  True if firm can enter market
                                  False if firm cannot enter market"""
-        # TODO: Do firms really enter the market randomly, with at most one in each timestep?
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters[
@@ -1260,19 +1248,19 @@ class InsuranceSimulation(GenericAgent):
         else:
             return firm.number_underwritten_contracts() / total
 
-    def get_total_firm_cash(self, type):
+    def get_total_firm_cash(self, firm_type):
         """Method to get sum of all cash of firms of a given type. Called from consider_buyout() but could be used for
         setting market premium.
             Accepts:
                 type: Type String.
             Returns:
                 sum_capital: Type Integer."""
-        if type == "insurer":
+        if firm_type == "insurer":
             sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
-        elif type == "reinsurer":
+        elif firm_type == "reinsurer":
             sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
         else:
-            print("No accepted type for cash")
+            raise ValueError("No accepted type for cash")
         return sum_capital
 
     def add_firm_to_be_sold(self, firm, time, reason):
@@ -1287,24 +1275,24 @@ class InsuranceSimulation(GenericAgent):
         elif firm.is_reinsurer:
             self.selling_reinsurance_firms.append([firm, time, reason])
 
-    def get_firms_to_sell(self, type):
+    def get_firms_to_sell(self, firm_type):
         """Method to get list of firms that are up for selling based on type.
             Accepts:
                type: Type String.
             Returns:
                firms_info_sent: Type List of Lists. Contains firm, type and reason."""
-        if type == "insurer":
+        if firm_type == "insurer":
             firms_info_sent = [
                 (firm, time, reason)
                 for firm, time, reason in self.selling_insurance_firms
             ]
-        elif type == "reinsurer":
+        elif firm_type == "reinsurer":
             firms_info_sent = [
                 (firm, time, reason)
                 for firm, time, reason in self.selling_reinsurance_firms
             ]
         else:
-            print("No accepted type for selling")
+            raise ValueError("No accepted type for selling")
         return firms_info_sent
 
     def remove_sold_firm(self, firm, time, reason):

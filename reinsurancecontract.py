@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from insurancefirms import InsuranceFirm
     from metainsuranceorg import MetaInsuranceOrg
     from genericclasses import RiskProperties
-    from catbond import Catbond
+    from catbond import CatBond
 
 
 class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
@@ -48,6 +48,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             limit_fraction,
             reinsurance,
         )
+        self.times_triggered = 0
         # self.is_reinsurancecontract = True
         self.property_holder: "InsuranceFirm"
         if self.insurancetype not in ["excess-of-loss", "proportional"]:
@@ -56,6 +57,25 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             self.property_holder.add_reinsurance(contract=self)
         else:
             assert self.contract is not None
+
+        # import distributionaggregate
+        # if type(self.insurer).__name__ == "CatBond":
+        #     max_claims = 1
+        #     expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+        #         risk, params=self.insurer.simulation_parameters, max_claims=max_claims,
+        #     )
+        #     total_premium = self.insurer.per_period_dividend * self.runtime
+        #     # Initial purchase cost is exposure + 1
+        #     expected_return = ((exposure + 1) - expected_total_claim + total_premium) / (exposure + 1) - 1
+        #     print(f"Catbond created with total return of {expected_return:.1%}")
+        # else:
+        #     max_claims = 0
+        #     expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+        #         risk, params=self.insurer.simulation_parameters, max_claims=max_claims,
+        #     )
+        #     total_premium = self.periodized_premium * self.runtime
+        #     expected_return = total_premium - expected_total_claim
+        #     print(f"Reinsurance contract created with expected return of MU{expected_return:.0f}")
 
     def explode(
         self, time: int, uniform_value: None = None, damage_extent: float = None
@@ -80,6 +100,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             # Since EoL reinsurance isn't triggered until the insurer manually makes a claim, this would mean that
             # proportional reinsurance pays out a turn earlier than EoL. As such, proportional insurance claims are
             # delayed for 1 turn.
+            self.times_triggered += 1
             if self.insurancetype == "excess-of-loss":
                 claim = min(self.limit, damage_extent) - self.deductible
                 self.insurer.receive_obligation(
@@ -103,11 +124,9 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 self.expiration = time
                 # self.terminating = True
             elif type(self.insurer).__name__ == "CatBond":
-                # Catbonds can only pay out a certain amount in their lifetime, so we update the reinsurance coverage
+                # Catbonds can only pay out a certain value in their lifetime, so we update the reinsurance coverage
                 # for the issuer
-                # TODO: Allow for catbonds that can pay out multiple times?
-                self.insurer: "Catbond"
-                self.insurer.triggered += 1
+                self.insurer: "CatBond"
                 remaining_cb_cash = self.insurer.get_available_cash(time) - claim
                 assert remaining_cb_cash >= 0
                 if remaining_cb_cash < 2:
@@ -126,6 +145,12 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 else:
                     # If the catbond still has enough money to pay out the full exposure, no need to change anything.
                     pass
+            # TODO: These should be parameters
+            elif self.times_triggered % 2 == 0:
+                # For a standard reinsurance contract, every two triggers the premium goes up by 10%
+                self.periodized_premium *= 1.1
+                for i in range(len(self.payment_values)):
+                    self.payment_values[i] *= 1.1
 
     def mature(self, time: int):
         """Mature method.

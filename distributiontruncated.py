@@ -13,7 +13,7 @@ class TruncatedDistWrapper:
         self.upper_bound = upper_bound
         assert self.upper_bound > self.lower_bound
 
-    @functools.lru_cache(maxsize=1024)
+    # @functools.lru_cache(maxsize=1024)
     def pdf(self, x):
         # TODO: begone, arrays
         x = np.array(x, ndmin=1)
@@ -28,7 +28,7 @@ class TruncatedDistWrapper:
             r = float(r)
         return r
 
-    @functools.lru_cache(maxsize=1024)
+    # @functools.lru_cache(maxsize=1024)
     def cdf(self, x):
         # TODO: rm arrays
         x = np.array(x, ndmin=1)
@@ -46,7 +46,7 @@ class TruncatedDistWrapper:
             r = float(r)
         return r
 
-    @functools.lru_cache(maxsize=1024)
+    # @functools.lru_cache(maxsize=1024)
     def ppf(self, x):
         # TODO: probably no need for arrays
         x = np.array(x, ndmin=1)
@@ -56,6 +56,7 @@ class TruncatedDistWrapper:
         )
 
     def rvs(self, size=1):
+        # We could also use inverse transform sampling
         # Sample RVs from the original distribution and then throw out the ones that are outside the bounds.
         init_sample_size = int(ceil(size / self.normalizing_factor * 1.1))
         sample = self.dist.rvs(size=init_sample_size)
