@@ -48,6 +48,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             limit_fraction,
             reinsurance,
         )
+        self.times_triggered = 0
         # self.is_reinsurancecontract = True
         self.property_holder: "InsuranceFirm"
         if self.insurancetype not in ["excess-of-loss", "proportional"]:
@@ -80,6 +81,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             # Since EoL reinsurance isn't triggered until the insurer manually makes a claim, this would mean that
             # proportional reinsurance pays out a turn earlier than EoL. As such, proportional insurance claims are
             # delayed for 1 turn.
+            self.times_triggered += 1
             if self.insurancetype == "excess-of-loss":
                 claim = min(self.limit, damage_extent) - self.deductible
                 self.insurer.receive_obligation(
@@ -104,7 +106,7 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 # self.terminating = True
             elif type(self.insurer).__name__ == "CatBond":
                 # Don't want to have to import CatBond, so do it this way
-                # Catbonds can only pay out a certain amount in their lifetime, so we update the reinsurance coverage
+                # Catbonds can only pay out a certain value in their lifetime, so we update the reinsurance coverage
                 # for the issuer
                 # TODO: Allow for catbonds that can pay out multiple times?
                 self.insurer: "CatBond"

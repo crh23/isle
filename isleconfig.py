@@ -2,14 +2,14 @@ oneriskmodel = False
 replicating = False
 force_foreground = False
 verbose = False
-showprogress = True
+showprogress = False
 # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 show_network = False
 save_network = False
 # Should logs be small in ensemble runs (only aggregated level data)?
 slim_log = True
 buy_bankruptcies = False
-enforce_regulations = True
+enforce_regulations = False
 aid_relief = False
 
 simulation_parameters = {
@@ -106,6 +106,7 @@ simulation_parameters = {
     "upper_price_limit": 1.2,
     "lower_price_limit": 0.85,
     "no_risks": 20000,
+    "value_per_risk": 1000,
     # Determines the maximum upscaling of premiums based on insurer size - set to 1 to disable scaled premiums.
     # High values will give bigger insurers more money
     # Values between 0 and 1 will make premiums decrease for bigger insurers.

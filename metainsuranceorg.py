@@ -77,9 +77,7 @@ def get_mean_std(x: Tuple[float, ...]) -> Tuple[float, float]:
 
 
 class MetaInsuranceOrg(GenericAgent):
-    def __init__(
-        self, simulation_parameters: Mapping, agent_parameters: AgentProperties
-    ):
+    def __init__(self, simulation_parameters: dict, agent_parameters: AgentProperties):
         """Constructor method.
                     Accepts:
                         Simulation_parameters: Type DataDict
@@ -88,7 +86,7 @@ class MetaInsuranceOrg(GenericAgent):
                      and insurance firm classes. Initialises all necessary values provided by config file."""
         super().__init__()
         self.simulation: "InsuranceSimulation" = simulation_parameters["simulation"]
-        self.simulation_parameters: Mapping = simulation_parameters
+        self.simulation_parameters: dict = simulation_parameters
         self.contract_runtime_dist = scipy.stats.randint(
             simulation_parameters["mean_contract_runtime"]
             - simulation_parameters["contract_runtime_halfspread"],
@@ -215,8 +213,7 @@ class MetaInsuranceOrg(GenericAgent):
             self.simulation_parameters["no_categories"]
         )
         self.market_permanency_counter = 0
-        # TODO: make this into a dict
-        self.underwritten_risk_characterisation: Sequence[RiskChar] = [
+        self.underwritten_risk_characterisation: MutableSequence[RiskChar] = [
             RiskChar(0, 0, 0, 0, 0, 0)
             for _ in range(self.simulation_parameters["no_categories"])
         ]

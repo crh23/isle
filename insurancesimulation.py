@@ -69,7 +69,6 @@ class InsuranceSimulation(GenericAgent):
         "Override one-riskmodel case (this is to ensure all other parameters are truly identical for comparison runs)"
         if override_no_riskmodels:
             simulation_parameters["no_riskmodels"] = override_no_riskmodels
-        # QUERY: why do we keep duplicates of so many simulation parameters (and then not use many of them)?
         self.number_riskmodels: int = simulation_parameters["no_riskmodels"]
 
         "Save parameters, sets parameters of sim according to isleconfig.py"
@@ -81,13 +80,12 @@ class InsuranceSimulation(GenericAgent):
         self.simulation_parameters: MutableMapping = simulation_parameters
         self.simulation_parameters["simulation"] = self
 
-        # QUERY: The distribution given is bounded by [0.25, 1.0]. Should this always be the case?
         "Unpacks parameters and sets distributions"
         self.damage_distribution: "Distribution" = damage_distribution
 
         self.catbonds_off: bool = simulation_parameters["catbonds_off"]
         self.reinsurance_off: bool = simulation_parameters["reinsurance_off"]
-        # TODO: research whether this is accurate, is it different for different types of catastrophy?
+        # TODO: It's actually geometric (in effect) - change?
         self.cat_separation_distribution = scipy.stats.expon(
             0, simulation_parameters["event_time_mean_separation"]
         )
@@ -108,8 +106,9 @@ class InsuranceSimulation(GenericAgent):
         else:
             self.risk_factor_distribution = Constant(loc=1.0)
         # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
-        # TODO: Should this be a parameter
-        self.risk_value_distribution = Constant(loc=1000)
+        self.risk_value_distribution = Constant(
+            loc=simulation_parameters["value_per_risk"]
+        )
 
         risk_factor_mean = self.risk_factor_distribution.mean()
 
@@ -146,7 +145,6 @@ class InsuranceSimulation(GenericAgent):
         self.bank = CentralBank(self.cash)
 
         "set up risk categories"
-        # QUERY What do risk categories represent? Different types of catastrophes?
         self.riskcategories: Sequence[int] = list(
             range(self.simulation_parameters["no_categories"])
         )
@@ -168,10 +166,9 @@ class InsuranceSimulation(GenericAgent):
         else:  # Otherwise the schedules and damages are generated.
             raise Exception("No event schedules and damages supplied")
 
-        "Set up risks"
+        """Set up risks"""
         risk_value_mean = self.risk_value_distribution.mean()
 
-        # QUERY: What are risk factors? Are "risk_factor" values other than one meaningful at present?
         rrisk_factors = self.risk_factor_distribution.rvs(
             size=self.simulation_parameters["no_risks"]
         )
@@ -252,7 +249,7 @@ class InsuranceSimulation(GenericAgent):
         "Agent lists"
         self.reinsurancefirms: Collection = []
         self.insurancefirms: Collection = []
-        self.catbonds: Collection = []
+        self.catbonds: list = []
 
         "Lists of agent weights"
         self.insurers_weights: MutableMapping[int, float] = {}

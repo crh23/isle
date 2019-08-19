@@ -44,7 +44,6 @@ class RiskModel:
             damage_distribution for _ in range(self.category_number)
         ]
         self.underlying_distribution = deepcopy(self.damage_distribution)
-        # self.inaccuracy = np.random.uniform(9/10., 10/9., size=self.category_number)
         self.inaccuracy: Sequence[float] = inaccuracy
 
     def get_ppf(self, categ_id: int, tail_size: float) -> float:
@@ -263,9 +262,6 @@ class RiskModel:
         for categ_id in range(self.category_number):
             categ_risks = risks_by_categ[categ_id]
 
-            # TODO: allow for different risk distributions for different categories
-            # TODO: factor in risk_factors
-            # QUERY: both done?
             percentage_value_at_risk = self.get_ppf(
                 categ_id=categ_id, tail_size=self.var_tail_prob
             )

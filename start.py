@@ -131,10 +131,9 @@ if __name__ == "__main__":
         "-f",
         "--file",
         action="store",
-        help="the file to store the initial randomness in. Will be stored in ./data and appended with "
-        ".islestore (if it is not already). The default filepath is "
-        "./data/risk_event_schedules.islestore, which will be overwritten event if --overwrite is "
-        "not passed!",
+        help="the file to store the initial randomness in. Will be stored in ./data and appended with .islestore "
+        "(if it is not already). The default filepath is ./data/risk_event_schedules.islestore, which will be "
+        "overwritten event if --overwrite is not passed!",
     )
     parser.add_argument(
         "-r",
@@ -158,21 +157,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Resume the simulation from a previous save in "
-        "./data/simulation_save.pkl. All other arguments will be ignored",
+        help="Resume the simulation from a previous save in ./data/simulation_save.pkl. "
+        "All other arguments will be ignored",
     )
     parser.add_argument(
         "--oneriskmodel",
         action="store_true",
-        help="allow overriding the number of riskmodels from the "
-        "standard config (with 1)",
+        help="allow overriding the number of riskmodels from the standard config (with 1)",
     )
     parser.add_argument(
         "--riskmodels",
         type=int,
         choices=[1, 2, 3, 4],
-        help="allow overriding the number of riskmodels "
-        "from standard config (with 1 or other numbers). Overrides --oneriskmodel",
+        help="allow overriding the number of riskmodels from standard config (with 1 or other numbers)."
+        " Overrides --oneriskmodel",
     )
     parser.add_argument(
         "--randomseed", type=float, help="allow setting of numpy random seed"
@@ -180,7 +178,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--foreground",
         action="store_true",
-        help="force foreground runs even if replication ID is given, which defaults to background runs",
+        help="force foreground runs even if replication ID is given (which defaults to background runs)",
     )
     parser.add_argument(
         "--shownetwork",

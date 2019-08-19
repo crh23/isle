@@ -106,7 +106,7 @@ class Logger:
                     self.history_logs["individual_contracts"][i].append(
                         data_dict["individual_contracts"][i]
                     )
-            if key == "reinsurance_contracts":
+            elif key == "reinsurance_contracts":
                 for i in range(len(data_dict["reinsurance_contracts"])):
                     self.history_logs["reinsurance_contracts"][i].append(
                         data_dict["reinsurance_contracts"][i]
