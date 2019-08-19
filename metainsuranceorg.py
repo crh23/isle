@@ -131,7 +131,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         # If the firm goes bankrupt then by default any further payments should be made to the simulation
         self.creditor = self.simulation
-        self.owner = self.simulation  # TODO: Make this into agent_parameter value?
+        self.owner = self.simulation
         self.per_period_dividend = 0
         self.cash_last_periods = list(np.zeros(12, dtype=int) * self.cash)
 
@@ -205,7 +205,7 @@ class MetaInsuranceOrg(GenericAgent):
             self.simulation_no_risk_categories
         )  # var_sum disaggregated by category
         self.risks_retained = []
-        self.reinrisks_kept = []
+        self.reinrisks_retained = []
         self.balance_ratio = simulation_parameters["insurers_balance_ratio"]
         self.recursion_limit = simulation_parameters["insurers_recursion_limit"]
         # QUERY: Should this have to sum to self.cash
@@ -214,7 +214,7 @@ class MetaInsuranceOrg(GenericAgent):
         )
         self.market_permanency_counter = 0
         self.underwritten_risk_characterisation: MutableSequence[RiskChar] = [
-            RiskChar(0, 0, 0, 0, 0, 0)
+            RiskChar(0, 0, 0, 0, 0, 0, 0)
             for _ in range(self.simulation_parameters["no_categories"])
         ]
         self.total_risk_factor = [
@@ -312,8 +312,6 @@ class MetaInsuranceOrg(GenericAgent):
                 assert self.recursion_limit > 0
                 not_accepted_reinrisks = None
                 for repetition in range(self.recursion_limit):
-                    # TODO: find an efficient way to stop the loop if there are no more risks to accept or if it is
-                    #  not accepting any more over several iterations.
                     # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
                     has_accepted_risks, not_accepted_reinrisks = self.process_newrisks_reinsurer(
                         reinrisks_per_categ, time
@@ -322,7 +320,6 @@ class MetaInsuranceOrg(GenericAgent):
                     #  The loop only runs once in my tests, what needs tweaking to have firms not accept risks?
                     reinrisks_per_categ = not_accepted_reinrisks
                     if not has_accepted_risks:
-                        # Stop condition implemented. Might solve the previous TODO.
                         break
                 self.simulation.return_reinrisks(
                     list(chain.from_iterable(not_accepted_reinrisks))
@@ -472,7 +469,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         self.simulation.return_risks(self.risks_retained)
         self.risks_retained = []
-        self.reinrisks_kept = []
+        self.reinrisks_retained = []
         obligation = Obligation(
             amount=self.cash,
             recipient=self.simulation,
@@ -557,6 +554,10 @@ class MetaInsuranceOrg(GenericAgent):
                 contract.category
             ].total_var
             + contract.initial_VaR,
+            total_exposure=self.underwritten_risk_characterisation[
+                contract.category
+            ].total_exposure
+            + (contract.limit - contract.deductible),
         )
         # if new_characterisation[1] != 1.0:
         #     print(new_characterisation[1])
@@ -633,22 +634,17 @@ class MetaInsuranceOrg(GenericAgent):
                     contract.category
                 ].total_var
                 - contract.initial_VaR,
+                total_exposure=self.underwritten_risk_characterisation[
+                    contract.category
+                ].total_exposure
+                - (contract.limit - contract.deductible),
             )
         else:
-            new_characterisation = RiskChar(0, 0, 0, 0, 0, 0)
+            new_characterisation = RiskChar(0, 0, 0, 0, 0, 0, 0)
 
         self.underwritten_risk_characterisation[
             contract.category
         ] = new_characterisation
-
-    # TODO: Check usage and delete
-    # def obtain_yield(self, time: int):
-    #     """Method to obtain intereset on cash reserves
-    #     Accepts:
-    #         time: Type integer
-    #         No return value"""
-    #     amount = self.cash * self.interest_rate
-    #     self.simulation.receive_obligation(amount, self, time, "yields")
 
     def mature_contracts(self, time: int) -> int:
         """Method to mature underwritten contracts that have expired
@@ -1184,7 +1180,7 @@ class MetaInsuranceOrg(GenericAgent):
                             < self.simulation_parameters["reinsurance_retention"]
                         ):
                             if reinrisk is not None and reinrisk.owner.operational:
-                                self.reinrisks_kept.append(reinrisk)
+                                self.reinrisks_retained.append(reinrisk)
 
     def make_reinsurance_claims(self, time: int):
         raise NotImplementedError(
@@ -1294,17 +1290,15 @@ class MetaInsuranceOrg(GenericAgent):
     This method causes buyer to receive obligation to buy firm. Sets all the bought firms contracts as its own. Then
     clears bought firms contracts and dissolves it. Only called from consider_buyout()."""
         self.receive_obligation(firm_cost, self.simulation, time, "buyout")
-
-        if self.is_insurer and firm.is_insurer:
-            print(
-                "Insurer %i has bought %i for %d with total cash %d"
-                % (self.id, firm.id, firm_cost, self.cash)
-            )
-        elif self.is_reinsurer and firm.is_reinsurer:
-            print(
-                "Reinsurer %i has bought %i  for %d with total cash %d"
-                % (self.id, firm.id, firm_cost, self.cash)
-            )
+        if isleconfig.verbose or True:  # DEBUG
+            if self.is_insurer and firm.is_insurer:
+                print(
+                    f"Insurer {self.id:d} has bought {firm.id:d} for {firm.cost:d} with total cash {self.cash:d}"
+                )
+            elif self.is_reinsurer and firm.is_reinsurer:
+                print(
+                    f"Reinsurer {self.id:d} has bought {firm.id:d} for {firm_cost:d} with total cash {self.cash:d}"
+                )
 
         for contract in firm.underwritten_contracts:
             if contract.insurancetype == "proportional":
@@ -1318,6 +1312,7 @@ class MetaInsuranceOrg(GenericAgent):
                 obli.amount, obli.recipient, obli.due_time, obli.purpose
             )
 
+        firm.creditor = self
         firm.obligations = []
         firm.underwritten_contracts = []
         firm.dissolve(time, "record_bought_firm")

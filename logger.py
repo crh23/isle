@@ -46,7 +46,7 @@ class Logger:
 
         """Variables pertaining to insurance sector"""
         # TODO: should we not have `cumulative_bankruptcies` and
-        # `cumulative_market_exits` for both insurance firms and reinsurance firms?
+        #  `cumulative_market_exits` for both insurance firms and reinsurance firms?
         # `cumulative_claims`: Here are stored the total cumulative claims received
         # by the whole insurance sector until a certain time.
         insurance_sector = (

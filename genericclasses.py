@@ -1,6 +1,7 @@
 from itertools import chain
 
 import dataclasses
+from functools import lru_cache
 from sortedcontainers import SortedList
 import numpy as np
 from scipy import stats
@@ -55,7 +56,6 @@ class GenericAgent:
             raise ValueError(
                 "Attempting to pay an obligation for a negative ammount - something is wrong"
             )
-        # TODO: Think about what happens when paying non-operational firms
         while not recipient.get_operational():
             if isleconfig.verbose:
                 print(
@@ -89,8 +89,8 @@ class GenericAgent:
             No return value
             Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
             does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
-        # TODO: don't really want to be reconstructing lists every time (unless the obligations are naturally sorted by
-        #  time, in which case this could be done slightly better). Low priority, but something to consider
+
+        # This isn't run too frequently, but we could consider using a SortedList or similar
         due = [item for item in self.obligations if item.due_time <= time]
         self.obligations = [item for item in self.obligations if item.due_time > time]
         sum_due = sum([item.amount for item in due])
@@ -189,6 +189,7 @@ class RiskChar:
     periodized_total_premium: float
     weighted_premium: float
     total_var: float
+    total_exposure: float
 
     def __iter__(self):
         return iter(dataclasses.astuple(self)[:-1])
@@ -221,7 +222,6 @@ class ReinsuranceProfile:
     regions are tuples, (priority, priority+limit, contract), so the contract covers losses in the region (priority,
     priority + limit)"""
 
-    # TODO: add, remove, explode, get uninsured regions
     def __init__(self, riskmodel: "RiskModel"):
         self.reinsured_regions: MutableSequence[
             SortedList[Tuple[int, int, "ReinsuranceContract"]]
@@ -305,8 +305,11 @@ class ReinsuranceProfile:
                     break
         return contracts
 
-    def all_contracts(self) -> List["ReinsuranceContract"]:
-        regions = chain.from_iterable(self.reinsured_regions)
+    def all_contracts(self, category: int = None) -> List["ReinsuranceContract"]:
+        if category is None:
+            regions = chain.from_iterable(self.reinsured_regions)
+        else:
+            regions = self.reinsured_regions[category]
         contracts = list(map(lambda x: x[2], regions))
         return contracts
 
@@ -374,3 +377,28 @@ class IdSet(Collection[T]):
             del self._dict[id(item)]
         else:
             raise ValueError("Item not found in container")
+
+
+def weak_lru_cache(maxsize=128, typed=False):
+    """
+    A wrapper around functools.lru_cache that ignores the cache upon encountering unhashable arguments.
+    Also exposes the lru_cache cache_info and cache_clear functions
+    Args:
+        Args are as in lru_cache
+
+    """
+
+    def lru_wrapped(user_function):
+        cached_func = lru_cache(maxsize, typed)(user_function)
+
+        def func_wrapper(*func_args, **func_kwargs):
+            try:
+                return cached_func(*func_args, **func_kwargs)
+            except TypeError:
+                return user_function(*func_args, **func_kwargs)
+
+        func_wrapper.cache_info = cached_func.cache_info
+        func_wrapper.cache_clear = cached_func.cache_clear
+        return func_wrapper
+
+    return lru_wrapped

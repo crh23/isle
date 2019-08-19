@@ -32,7 +32,6 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         insurancetype: str = "proportional",
         deductible_fraction: "Optional[float]" = None,
         limit_fraction: "Optional[float]" = None,
-        reinsurance: float = 0,
     ):
         super().__init__(
             insurer,
@@ -46,7 +45,6 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
             insurancetype,
             deductible_fraction,
             limit_fraction,
-            reinsurance,
         )
         self.times_triggered = 0
         # self.is_reinsurancecontract = True

@@ -30,7 +30,6 @@ class RiskModel:
     ) -> None:
         self.cat_separation_distribution = cat_separation_distribution
         self.norm_premium = norm_premium
-        # QUERY: Whis was this passed as an argument and then ignored?
         self.var_tail_prob = var_tail_prob
         self.expire_immediately = expire_immediately
         self.category_number = category_number
@@ -180,7 +179,6 @@ class RiskModel:
                 * average_exposure
                 * self.margin_of_safety
             )
-            # QUERY: Is the margin of safety appiled twice? (above and below)
 
             # record liquidity requirement and apply margin of safety for liquidity requirement
             necessary_liquidity += var_per_risk * len(categ_risks)

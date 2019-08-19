@@ -19,7 +19,6 @@ class MetaInsuranceContract:
         insurancetype: str = "proportional",
         deductible_fraction: float = None,
         limit_fraction: float = None,
-        reinsurance: float = 0,
     ):
         """Constructor method.
                Accepts arguments
@@ -40,7 +39,6 @@ class MetaInsuranceContract:
                Returns InsuranceContract.
            Creates InsuranceContract, saves parameters. Creates obligation for premium payment. Includes contract
            in reinsurance network if applicable (e.g. if this is a ReinsuranceContract)."""
-        # TODO: argument reinsurance seems senseless; remove?
 
         # Save parameters
         self.insurer: "MetaInsuranceOrg" = insurer
@@ -87,7 +85,6 @@ class MetaInsuranceContract:
 
         self.limit = round(self.limit_fraction * self.value)
 
-        self.reinsurance = reinsurance
         self.reinsurer = None
         self.reincontract = None
         self.reinsurance_share = None
@@ -175,7 +172,6 @@ class MetaInsuranceContract:
                No return value.
            Adds parameters for reinsurance of the current contract."""
         self.reinsurer = reinsurer
-        self.reinsurance = self.value * reinsurance_share
         self.reinsurance_share = reinsurance_share
         self.reincontract = reincontract
         assert self.reinsurance_share in [None, 0.0, 1.0]
@@ -187,7 +183,6 @@ class MetaInsuranceContract:
            Removes parameters for reinsurance of the current contract. To be called when reinsurance has terminated."""
         self.reinsurer = None
         self.reincontract = None
-        self.reinsurance = 0
         self.reinsurance_share = None
 
     def explode(self, time, uniform_value=None, damage_extent=None):

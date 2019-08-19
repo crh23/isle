@@ -10,14 +10,10 @@ if TYPE_CHECKING:
     from metainsurancecontract import MetaInsuranceContract
 
 
-# TODO: This and MetaInsuranceOrg should probably both subclass something simple - a MetaAgent, say. MetaInsuranceOrg
-#  can do more than a CatBond should be able to!
-
-
 # noinspection PyAbstractClass
 class CatBond(MetaInsuranceOrg):
     # noinspection PyMissingConstructor
-    # TODO inheret GenericAgent instead of MetaInsuranceOrg?
+    # TODO inheret GenericAgent instead of MetaInsuranceOrg? Or maybe some common root
     def __init__(
         self,
         simulation: "InsuranceSimulation",

@@ -67,7 +67,7 @@ def rake(hostname):
         "market_premium": "_premium.dat",
         "market_reinpremium": "_reinpremium.dat",
         "cumulative_bankruptcies": "_cumulative_bankruptcies.dat",
-        "cumulative_market_exits": "_cumulative_market_exits",  # TODO: correct filename
+        "cumulative_market_exits": "_cumulative_market_exits.dat",
         "cumulative_unrecovered_claims": "_cumulative_unrecovered_claims.dat",
         "cumulative_claims": "_cumulative_claims.dat",
         "cumulative_bought_firms": "_cumulative_bought_firms.dat",
@@ -205,32 +205,35 @@ def rake(hostname):
                         + requested_logs[name]
                     )
 
-            # TODO: write to the files one at a time with a 'with ... as ... :'
-            for name in logfile_dict:
-                wfiles_dict[name] = open(logfile_dict[name], "w")
-
-            """Recreate logger object locally and save logs"""
-
-            """Create local object"""
-            log = logger.Logger()
-
-            for i in range(len(job)):
-                """Populate logger object with logs obtained from remote simulation run"""
-                log.restore_logger_object(list(result[i]))
-
-                """Save logs as dict (to <num>_history_logs.dat)"""
-                log.save_log(True)
-                if isleconfig.save_network:
-                    log.save_network_data(ensemble=True)
-
-                """Save logs as individual files"""
+            # with ... as would be awkward here, so use try ... finally
+            try:
                 for name in logfile_dict:
-                    wfiles_dict[name].write(str(delistified_result[i][name]) + "\n")
+                    wfiles_dict[name] = open(logfile_dict[name], "w")
 
-            """Once the data is stored in disk the files are closed"""
-            for name in logfile_dict:
-                wfiles_dict[name].close()
-                del wfiles_dict[name]
+                """Recreate logger object locally and save logs"""
+
+                """Create local object"""
+                log = logger.Logger()
+
+                for i in range(len(job)):
+                    """Populate logger object with logs obtained from remote simulation run"""
+                    log.restore_logger_object(list(result[i]))
+
+                    """Save logs as dict (to <num>_history_logs.dat)"""
+                    log.save_log(True)
+                    if isleconfig.save_network:
+                        log.save_network_data(ensemble=True)
+
+                    """Save logs as individual files"""
+                    for name in logfile_dict:
+                        wfiles_dict[name].write(str(delistified_result[i][name]) + "\n")
+
+            finally:
+                """Once the data is stored in disk the files are closed"""
+                for name in logfile_dict:
+                    if name in wfiles_dict:
+                        wfiles_dict[name].close()
+                        del wfiles_dict[name]
 
 
 if __name__ == "__main__":

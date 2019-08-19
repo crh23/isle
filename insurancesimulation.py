@@ -91,7 +91,7 @@ class InsuranceSimulation(GenericAgent):
         )
 
         # Risk factors represent, for example, the earthquake risk for a particular house (compare to the value)
-        # TODO: Implement! Think about insureres rejecting risks under certain situations (high risk factor)
+        # TODO: Implement! Think about insurers rejecting risks under certain situations (high risk factor)
         self.risk_factor_lower_bound: float = simulation_parameters[
             "risk_factor_lower_bound"
         ]
@@ -970,8 +970,6 @@ class InsuranceSimulation(GenericAgent):
         for risk in insurer.risks_retained:
             risks_to_be_sent.append(risk)
 
-        # QUERY: what actually is InsuranceFirm.risks_kept? Are we resending all their existing risks?
-        #  Or is it just a list of risk that have rolled over and so need to be re-evaluated
         insurer.risks_retained = []
 
         np.random.shuffle(risks_to_be_sent)
@@ -994,11 +992,11 @@ class InsuranceSimulation(GenericAgent):
         ]
         self.reinrisks = self.reinrisks[int(self.reinsurers_weights[reinsurer.id]) :]
 
-        for reinrisk in reinsurer.reinrisks_kept:
+        for reinrisk in reinsurer.reinrisks_retained:
             if reinrisk.owner.operational:
                 reinrisks_to_be_sent.append(reinrisk)
 
-        reinsurer.reinrisks_kept = []
+        reinsurer.reinrisks_retained = []
 
         np.random.shuffle(reinrisks_to_be_sent)
 

@@ -33,10 +33,9 @@ class SetupSim:
         self.max_time = self.simulation_parameters["max_time"]
         self.no_categories = self.simulation_parameters["no_categories"]
 
-        """set distribution"""  # TODO: this should be a parameter
-        non_truncated = scipy.stats.pareto(
-            b=2, loc=0, scale=0.25
-        )  # It is assumed that the damages of the catastrophes are drawn from a truncated Pareto distribution.
+        """set distribution"""
+        # It is assumed that the damages of the catastrophes are drawn from a truncated Pareto distribution.
+        non_truncated = scipy.stats.pareto(b=2, loc=0, scale=0.25)
         self.damage_distribution = TruncatedDistWrapper(
             lower_bound=0.25, upper_bound=1.0, dist=non_truncated
         )
@@ -77,8 +76,7 @@ class SetupSim:
                     total += int(math.ceil(separation_time))
                     if total < self.max_time:
                         event_schedule.append(total)
-                        # TODO: Why [0]?
-                        event_damage.append(self.damage_distribution.rvs()[0])
+                        event_damage.append(self.damage_distribution.rvs())
                 rc_event_schedule.append(event_schedule)
                 rc_event_damage.append(event_damage)
 

@@ -29,7 +29,6 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
         insurancetype: str = "proportional",
         deductible_fraction: float = None,
         limit_fraction: float = None,
-        reinsurance: float = 0,
     ):
         super().__init__(
             insurer,
@@ -43,7 +42,6 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             insurancetype,
             deductible_fraction,
             limit_fraction,
-            reinsurance,
         )
         # the property holder in an insurance contract should always be the simulation
         assert self.property_holder is self.insurer.simulation

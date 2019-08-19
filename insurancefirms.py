@@ -51,9 +51,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 reinsurance_VaR_estimate: Type Decimal.
         This method takes the max VaR and mulitiplies it by a factor that estimates the VaR if another reinsurance
         contract was to be taken. Called by the adjust_target_capacity and get_capacity methods."""
-        # TODO: Should be total_value, or maybe the total amount of exposure (rather than number_risks)
         values = [
-            self.underwritten_risk_characterisation[categ].number_risks
+            self.underwritten_risk_characterisation[categ].total_value
             for categ in range(self.simulation_parameters["no_categories"])
         ]
         reinsurance_factor_estimate = self.get_reinsurable_fraction(values)
@@ -85,7 +84,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 capacity target to max VaR is above/below a predetermined limit."""
         reinsurance_var_estimate = self.get_reinsurance_var_estimate(max_var)
         if max_var + reinsurance_var_estimate == 0:
-            # TODO: why is this being called with max_var = 0 anyway?
             capacity_target_var_ratio_estimate = np.inf
         else:
             capacity_target_var_ratio_estimate = (
@@ -179,22 +177,12 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         return True
 
     def get_average_premium(self, categ_id: int) -> float:
-        """Method to calculate and return the firms average premium for all currently underwritten contracts.
+        """Method to calculate and return the firms average premium per exposure for all underwritten contracts.
             Accepts:
                 categ_id: Type Integer.
             Returns:
                 premium payments left/total value of contracts: Type Decimal"""
-        # weighted_premium_sum = 0
-        # total_weight = 0
-        # for contract in self.underwritten_contracts:
-        #     if contract.category == categ_id:
-        #         total_weight += contract.value
-        #         contract_premium = contract.periodized_premium * contract.runtime
-        #         weighted_premium_sum += contract_premium
-
-        total_weight = self.underwritten_risk_characterisation[
-            categ_id
-        ].total_value  # TODO: Should use exposure
+        total_weight = self.underwritten_risk_characterisation[categ_id].total_exposure
         weighted_premium_sum = self.underwritten_risk_characterisation[
             categ_id
         ].weighted_premium
@@ -259,9 +247,10 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                     )
             for tranche in tranches[:]:
                 # Use the slice so we aren't modifying while iterating
+                min_proportion = 1 / (min_tranches * 3)
                 if (tranche[1] - tranche[0]) <= max(
                     100,
-                    0.1
+                    min_proportion
                     * (
                         self.np_reinsurance_limit_fraction
                         - self.np_reinsurance_deductible_fraction
@@ -269,17 +258,15 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                     * total_value,
                 ):
                     # Small gaps are acceptable to avoid having trivial contracts - we don't accept tranches with
-                    # size less than 100 or 10% of the total reinsurable ammount
-                    # TODO: the 10% limit should be removed if we have very many layers of reinsurance
+                    # size less than 100 or one third of the typical tranche size
                     tranches.remove(tranche)
 
             if not tranches:
                 # If we've ended up with no tranches, give up and return
                 return None
 
-            # TODO: Should only look at contracts in the current category
             while (
-                len(tranches) + len(self.reinsurance_profile.all_contracts())
+                len(tranches) + len(self.reinsurance_profile.all_contracts(categ_id))
                 < min_tranches
             ):
                 # Make sure that the overall number of tranches after obtaining the requested reinsurance would be at
@@ -316,6 +303,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             self.underwritten_risk_characterisation[category].number_risks,
             self.underwritten_risk_characterisation[category].periodized_total_premium,
         )
+        runtime = isleconfig.simulation_parameters["reinsurance_contract_runtime"]
         risk = genericclasses.RiskProperties(
             value=total_value,
             category=category,
@@ -325,12 +313,12 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             deductible_fraction=deductible_fraction,
             limit_fraction=limit_fraction,
             periodized_total_premium=periodized_total_premium,
-            runtime=12,
-            expiration=time + 12,
+            runtime=runtime,
+            expiration=time + runtime,
             risk_factor=avg_risk_factor,
             deductible=deductible_fraction * total_value,
             limit=limit_fraction * total_value,
-        )  # TODO: make runtime into a parameter
+        )
         assert risk.deductible_fraction < risk.limit_fraction <= 1
 
         reinsurance_type = self.decide_reinsurance_type(risk)
@@ -478,8 +466,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         This method calculates the total amount of claims this iteration per category, and explodes (see reinsurance
         contracts) any reinsurance contracts present for one of the contracts (currently always zero). Then, for a
         category with reinsurance and claims, the applicable reinsurance contract is exploded."""
-        # TODO: reorganize this with risk category ledgers
-        # TODO: Put facultative insurance claims here
         claims_this_turn = np.zeros(self.simulation_no_risk_categories)
         for contract in self.underwritten_contracts:
             categ_id, claims, is_proportional = contract.get_and_reset_current_claim()
@@ -532,6 +518,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         if number_risks == 0:
             # If the insurerer currently has no risks in that category it probably doesn't want reinsurance
             return None
+        runtime = isleconfig.simulation_parameters["reinsurance_contract_runtime"]
         risk = genericclasses.RiskProperties(
             value=total_value,
             category=old_contract.category,
@@ -541,8 +528,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             deductible_fraction=min(old_contract.deductible / total_value, 1),
             limit_fraction=min(old_contract.limit / total_value, 1),
             periodized_total_premium=periodized_total_premium,
-            runtime=12,
-            expiration=time + 12,
+            runtime=runtime,
+            expiration=time + runtime,
             risk_factor=avg_risk_factor,
         )
         if risk.deductible_fraction == risk.limit_fraction == 1:

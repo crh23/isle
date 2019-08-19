@@ -31,6 +31,7 @@ simulation_parameters = {
     "dividend_share_of_profits": 0.4,
     "mean_contract_runtime": 12,
     "contract_runtime_halfspread": 2,
+    "reinsurance_contract_runtime": 12,
     "default_contract_payment_period": 3,
     "max_time": 1000,
     "money_supply": 2000000000,
