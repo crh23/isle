@@ -212,16 +212,16 @@ def rake(hostname):
             """Recreate logger object locally and save logs"""
 
             """Create local object"""
-            L = logger.Logger()
+            log = logger.Logger()
 
             for i in range(len(job)):
                 """Populate logger object with logs obtained from remote simulation run"""
-                L.restore_logger_object(list(result[i]))
+                log.restore_logger_object(list(result[i]))
 
                 """Save logs as dict (to <num>_history_logs.dat)"""
-                L.save_log(True)
+                log.save_log(True)
                 if isleconfig.save_network:
-                    L.save_network_data(ensemble=True)
+                    log.save_network_data(ensemble=True)
 
                 """Save logs as individual files"""
                 for name in logfile_dict:

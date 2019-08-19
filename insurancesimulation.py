@@ -14,7 +14,15 @@ import isleconfig
 from genericclasses import GenericAgent, RiskProperties, AgentProperties, Constant
 import catbond
 
-from typing import Mapping, MutableMapping, MutableSequence, Sequence, Any, Optional
+from typing import (
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    Sequence,
+    Any,
+    Optional,
+    Collection,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -176,7 +184,7 @@ class InsuranceSimulation(GenericAgent):
             size=self.simulation_parameters["no_risks"],
         )
 
-        self.risks: MutableSequence[RiskProperties] = [
+        self.risks: Collection[RiskProperties] = [
             RiskProperties(
                 risk_factor=rrisk_factors[i],
                 value=rvalues[i],
@@ -242,17 +250,17 @@ class InsuranceSimulation(GenericAgent):
         )
 
         "Agent lists"
-        self.reinsurancefirms: MutableSequence = []
-        self.insurancefirms: MutableSequence = []
-        self.catbonds: MutableSequence = []
+        self.reinsurancefirms: Collection = []
+        self.insurancefirms: Collection = []
+        self.catbonds: Collection = []
 
         "Lists of agent weights"
         self.insurers_weights: MutableMapping[int, float] = {}
         self.reinsurers_weights: MutableMapping[int, float] = {}
 
         "List of reinsurance risks offered for underwriting"
-        self.reinrisks: MutableSequence[RiskProperties] = []
-        self.not_accepted_reinrisks: MutableSequence[RiskProperties] = []
+        self.reinrisks: Collection[RiskProperties] = []
+        self.not_accepted_reinrisks: Collection[RiskProperties] = []
 
         "Cumulative variables for history and logging"
         self.cumulative_bankruptcies: int = 0
@@ -503,6 +511,7 @@ class InsuranceSimulation(GenericAgent):
         self._effect_payments(t)
 
         # identify perils and effect claims
+        damage_extent = None
         for categ_id in range(len(self.rc_event_schedule)):
             if (
                 self.rc_event_schedule[categ_id]
@@ -528,7 +537,7 @@ class InsuranceSimulation(GenericAgent):
         # Provide government aid if damage severe enough
         if isleconfig.aid_relief:
             self.bank.adjust_aid_budget(time=t)
-            if "damage_extent" in locals():
+            if damage_extent is not None:
                 op_firms = [firm for firm in self.insurancefirms if firm.operational]
                 aid_dict = self.bank.provide_aid(op_firms, damage_extent, time=t)
                 for key in aid_dict.keys():
@@ -553,7 +562,7 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.buy_bankruptcies:
             for reinagent in self.reinsurancefirms:
                 if reinagent.operational:
-                    reinagent.consider_buyout(type="reinsurer")
+                    reinagent.consider_buyout(firm_type="reinsurer")
 
         # remove all non-accepted reinsurance risks
         self.reinrisks = []
@@ -572,7 +581,7 @@ class InsuranceSimulation(GenericAgent):
         if isleconfig.buy_bankruptcies:
             for agent in self.insurancefirms:
                 if agent.operational:
-                    agent.consider_buyout(type="insurer")
+                    agent.consider_buyout(firm_type="insurer")
 
         # Reset list of bankrupt insurance firms
         self.reset_selling_firms()
@@ -945,7 +954,7 @@ class InsuranceSimulation(GenericAgent):
         elif firm is not None:
             self.reinrisks = [risk for risk in self.reinrisks if risk.owner is not firm]
 
-    def get_reinrisks(self) -> Sequence[RiskProperties]:
+    def get_reinrisks(self) -> Collection[RiskProperties]:
         """Method for shuffling reinsurance risks
             Returns: reinsurance risks"""
         np.random.shuffle(self.reinrisks)
@@ -1253,19 +1262,19 @@ class InsuranceSimulation(GenericAgent):
         else:
             return firm.number_underwritten_contracts() / total
 
-    def get_total_firm_cash(self, type):
+    def get_total_firm_cash(self, firm_type: str):
         """Method to get sum of all cash of firms of a given type. Called from consider_buyout() but could be used for
         setting market premium.
             Accepts:
                 type: Type String.
             Returns:
                 sum_capital: Type Integer."""
-        if type == "insurer":
+        if firm_type == "insurer":
             sum_capital = sum([agent.get_cash() for agent in self.insurancefirms])
-        elif type == "reinsurer":
+        elif firm_type == "reinsurer":
             sum_capital = sum([agent.get_cash() for agent in self.reinsurancefirms])
         else:
-            print("No accepted type for cash")
+            raise ValueError(f"Recieved invalid firm type {firm_type}")
         return sum_capital
 
     def add_firm_to_be_sold(self, firm, time, reason):
@@ -1282,24 +1291,24 @@ class InsuranceSimulation(GenericAgent):
         else:
             print("Not accepted type of firm")
 
-    def get_firms_to_sell(self, type):
+    def get_firms_to_sell(self, firm_type):
         """Method to get list of firms that are up for selling based on type.
             Accepts:
                type: Type String.
             Returns:
                firms_info_sent: Type List of Lists. Contains firm, type and reason."""
-        if type == "insurer":
+        if firm_type == "insurer":
             firms_info_sent = [
                 (firm, time, reason)
                 for firm, time, reason in self.selling_insurance_firms
             ]
-        elif type == "reinsurer":
+        elif firm_type == "reinsurer":
             firms_info_sent = [
                 (firm, time, reason)
                 for firm, time, reason in self.selling_reinsurance_firms
             ]
         else:
-            print("No accepted type for selling")
+            raise ValueError(f"Unrecognised firm type {firm_type}")
         return firms_info_sent
 
     def remove_sold_firm(self, firm, time, reason):

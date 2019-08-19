@@ -9,15 +9,15 @@ import calibration_conditions  # Test functions
 
 
 class CalibrationScore:
-    def __init__(self, L):
+    def __init__(self, l):
         """Constructor method.
             Arguments:
-                L: Type: Logger object. The log of a single simulation run.
+                l: Type: Logger object. The log of a single simulation run.
             Returns instance."""
 
         """Assert sanity of log and save log."""
-        assert isinstance(L, logger.Logger)
-        self.logger = L
+        assert isinstance(l, logger.Logger)
+        self.logger = l
 
         """Prepare list of calibration tests from calibration_conditions.py"""
         self.conditions = [
@@ -51,7 +51,8 @@ class CalibrationScore:
         """Return"""
         return self.calibration_score
 
-    def combine_scores(self, slist):
+    @staticmethod
+    def combine_scores(slist):
         """Method to combine calibration score components. Combination is additive (mean). Change the function
            for other combination methods (multiplicative or minimum).
             Arguments:

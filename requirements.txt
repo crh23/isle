@@ -5,3 +5,5 @@ networkx>=2.0
 argparse>=1.1
 sortedcontainers>=2.1.0
 dataclasses>=0.6
+bokeh
+tornado

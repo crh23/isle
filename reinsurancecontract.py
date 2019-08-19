@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from insurancefirms import InsuranceFirm
     from metainsuranceorg import MetaInsuranceOrg
     from genericclasses import RiskProperties
-    from catbond import Catbond
+    from catbond import CatBond
 
 
 class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
@@ -103,10 +103,12 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 self.expiration = time
                 # self.terminating = True
             elif type(self.insurer).__name__ == "CatBond":
+                # Don't want to have to import CatBond, so do it this way
                 # Catbonds can only pay out a certain amount in their lifetime, so we update the reinsurance coverage
                 # for the issuer
                 # TODO: Allow for catbonds that can pay out multiple times?
-                self.insurer: "Catbond"
+                self.insurer: "CatBond"
+                self.insurer.triggered += 1
                 remaining_cb_cash = self.insurer.get_available_cash(time) - claim
                 assert remaining_cb_cash >= 0
                 if remaining_cb_cash < 2:

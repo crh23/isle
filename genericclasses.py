@@ -7,7 +7,16 @@ from scipy import stats
 
 import isleconfig
 
-from typing import Mapping, MutableSequence, Union, Tuple, List
+from typing import (
+    Mapping,
+    MutableSequence,
+    Union,
+    Tuple,
+    List,
+    Collection,
+    TypeVar,
+    Set,
+)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -76,10 +85,13 @@ class GenericAgent:
         sum_due = sum([item.amount for item in due])
         if sum_due > self.cash:
             self.obligations += due
-            self.enter_illiquidity(time)
+            self.enter_illiquidity(time, sum_due)
         else:
             for obligation in due:
                 self._pay(obligation)
+
+    def enter_illiquidity(self, time, sum_due):
+        raise NotImplementedError("Should've been overridden")
 
     def receive_obligation(
         self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str
@@ -146,7 +158,7 @@ class AgentProperties:
     interest_rate: float
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Obligation:
     """Class for holding the properties of an obligation"""
 
@@ -154,6 +166,21 @@ class Obligation:
     recipient: "GenericAgent"
     due_time: int
     purpose: str
+
+
+@dataclasses.dataclass
+class RiskChar:
+    """Class for holding characterisation of held risks"""
+
+    total_value: float
+    avg_risk_factor: float
+    number_risks: int
+    periodized_total_premium: float
+    weighted_premium: float
+    total_var: float
+
+    def __iter__(self):
+        return iter(dataclasses.astuple(self)[:-1])
 
 
 class ConstantGen(stats.rv_continuous):
@@ -202,7 +229,7 @@ class ReinsuranceProfile:
         upper_bound: int = contract.limit
         category = contract.category
 
-        self.reinsured_regions[category].add((lower_bound, upper_bound, contract))
+        self.reinsured_regions[category].add(value=(lower_bound, upper_bound, contract))
         index = self.reinsured_regions[category].index(
             (lower_bound, upper_bound, contract)
         )
@@ -258,7 +285,7 @@ class ReinsuranceProfile:
 
     def contracts_to_explode(
         self, category: int, damage: float
-    ) -> MutableSequence["ReinsuranceContract"]:
+    ) -> Collection["ReinsuranceContract"]:
         contracts = []
         for region in self.reinsured_regions[category]:
             if region[0] < damage:
@@ -295,3 +322,44 @@ class ReinsuranceProfile:
         l.insert(max_width_index, (mid, upper))
         l.insert(max_width_index, (lower, mid))
         return l
+
+
+T = TypeVar("T")
+
+
+class IdSet(Collection[T]):
+    """
+    A generic collection of objects that distinguishes objects by (i.e. a is b) rather than equality (a == b).
+    Thanks to that distinction, does not require contents to be hashable - basically a set for non-hashable objects
+    that ignores equality.
+    """
+
+    def __init__(self, seq: Collection[T] = None):
+        self._dict = {}
+        if seq is not None:
+            for item in seq:
+                self.add(item)
+
+    def __hash__(self):
+        return None
+
+    def __len__(self) -> int:
+        return len(self._dict)
+
+    def __iter__(self) -> T:
+        yield from self._dict.values()
+
+    def __contains__(self, item: T) -> bool:
+        return id(item) in self._dict
+
+    def add(self, item: T) -> None:
+        if item not in self:
+            self._dict[id(item)] = item
+        else:
+            raise ValueError("Adding item that is already in container")
+
+    def remove(self, item: T) -> None:
+        if item in self:
+            del self._dict[id(item)]
+        else:
+            raise ValueError("Item not found in container")

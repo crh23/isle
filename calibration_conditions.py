@@ -159,15 +159,19 @@ def condition_reinsurance_coverage(logobj, minimum=0.6):
 def condition_insurance_firm_dist(logobj):
     """Empirical calibration test for insurance firm size (total assets; cash)"""
     """filter operational firms"""
-    # dist = [logobj.history_logs["insurance_firms_cash"][-1][i][0] for i in range(len(logobj.history_logs["insurance_firms_cash"])) if \
-    #           logobj.history_logs["insurance_firms_cash"][-1][i][0] > isleconfig.simulation_parameters["cash_permanency_limit"]]
+    # dist = [
+    #     logobj.history_logs["insurance_firms_cash"][-1][i][0]
+    #     for i in range(len(logobj.history_logs["insurance_firms_cash"]))
+    #     if logobj.history_logs["insurance_firms_cash"][-1][i][0]
+    #     > isleconfig.simulation_parameters["cash_permanency_limit"]
+    # ]
     dist = [
         logobj.history_logs["insurance_firms_cash"][-1][i][0]
         for i in range(len(logobj.history_logs["insurance_firms_cash"][-1]))
         if logobj.history_logs["insurance_firms_cash"][-1][i][2]
     ]
     """run two-sided KS test"""
-    KS_statistic, p_value = stats.ks_2samp(
+    ks_statistic, p_value = stats.ks_2samp(
         condition_aux.scaler(condition_aux.insurance_firm_sizes_empirical_2017),
         condition_aux.scaler(dist),
     )
@@ -177,15 +181,19 @@ def condition_insurance_firm_dist(logobj):
 def condition_reinsurance_firm_dist(logobj):
     """Empirical calibration test for reinsurance firm size (total assets; cash)"""
     """filter operational firms"""
-    # dist = [logobj.history_logs["reinsurance_firms_cash"][-1][i][0] for i in range(len(logobj.history_logs["reinsurance_firms_cash"])) if \
-    #           logobj.history_logs["reinsurance_firms_cash"][-1][i][0] > isleconfig.simulation_parameters["cash_permanency_limit"]]
+    # dist = [
+    #     logobj.history_logs["reinsurance_firms_cash"][-1][i][0]
+    #     for i in range(len(logobj.history_logs["reinsurance_firms_cash"]))
+    #     if logobj.history_logs["reinsurance_firms_cash"][-1][i][0]
+    #     > isleconfig.simulation_parameters["cash_permanency_limit"]
+    # ]
     dist = [
         logobj.history_logs["reinsurance_firms_cash"][-1][i][0]
         for i in range(len(logobj.history_logs["reinsurance_firms_cash"][-1]))
         if logobj.history_logs["reinsurance_firms_cash"][-1][i][2]
     ]
     """run two-sided KS test"""
-    KS_statistic, p_value = stats.ks_2samp(
+    ks_statistic, p_value = stats.ks_2samp(
         condition_aux.scaler(condition_aux.reinsurance_firm_sizes_empirical_2017),
         condition_aux.scaler(dist),
     )

@@ -15,6 +15,8 @@ from genericclasses import (
     AgentProperties,
     Obligation,
     ReinsuranceProfile,
+    IdSet,
+    RiskChar,
 )
 
 from typing import (
@@ -26,6 +28,7 @@ from typing import (
     Iterable,
     Callable,
     Any,
+    Collection,
 )
 from typing import TYPE_CHECKING
 
@@ -184,7 +187,8 @@ class MetaInsuranceOrg(GenericAgent):
             self.np_reinsurance_premium_share = simulation_parameters[
                 "default_non-proportional_reinsurance_premium_share"
             ]
-        self.underwritten_contracts: MutableSequence["MetaInsuranceContract"] = []
+        self.underwritten_contracts: IdSet["MetaInsuranceContract"] = IdSet()
+        self.underwritten_risks: IdSet["RiskProperties"] = IdSet()
         self.is_insurer = True
         self.is_reinsurer = False
         self.warning = False
@@ -212,11 +216,12 @@ class MetaInsuranceOrg(GenericAgent):
         )
         self.market_permanency_counter = 0
         # TODO: make this into a dict
-        self.underwritten_risk_characterisation: MutableSequence[
-            Tuple[float, float, int, float]
-        ] = [
-            (None, None, None, None)
+        self.underwritten_risk_characterisation: Sequence[RiskChar] = [
+            RiskChar(0, 0, 0, 0, 0, 0)
             for _ in range(self.simulation_parameters["no_categories"])
+        ]
+        self.total_risk_factor = [
+            [] for _ in range(self.simulation_parameters["no_categories"])
         ]
         # The share of all risks that this firm holds. Gets updated every timestep
         self.risk_share = 0
@@ -283,14 +288,14 @@ class MetaInsuranceOrg(GenericAgent):
         self, time: int, contracts_dissolved: int
     ) -> None:
         if self.operational:
-            self.update_risk_characterisations()
             for categ in range(len(self.counter_category)):
-                value = self.underwritten_risk_characterisation[categ][0]
+                value = self.underwritten_risk_characterisation[categ].total_value
                 self.reinsurance_profile.update_value(value, categ)
 
             # Only get risks if firm not issued warning (breaks otherwise)
             if not self.warning:
-                """request risks to be considered for underwriting in the next period and collect those for this period"""
+                """request risks to be considered for underwriting in the next period and collect those for this
+                period"""
                 new_nonproportional_risks, new_risks = self.get_newrisks_by_type()
                 contracts_offered = len(new_risks)
                 if isleconfig.verbose and contracts_offered < 2 * contracts_dissolved:
@@ -308,6 +313,7 @@ class MetaInsuranceOrg(GenericAgent):
                 )
 
                 assert self.recursion_limit > 0
+                not_accepted_reinrisks = None
                 for repetition in range(self.recursion_limit):
                     # TODO: find an efficient way to stop the loop if there are no more risks to accept or if it is
                     #  not accepting any more over several iterations.
@@ -325,22 +331,6 @@ class MetaInsuranceOrg(GenericAgent):
                     list(chain.from_iterable(not_accepted_reinrisks))
                 )
 
-            # TODO: This takes up a lot of processing time. Can we update the list instead of rebuilding it?
-            underwritten_risks = [
-                RiskProperties(
-                    owner=self,
-                    value=contract.value,
-                    category=contract.category,
-                    risk_factor=contract.risk_factor,
-                    deductible=contract.deductible,
-                    limit=contract.limit,
-                    insurancetype=contract.insurancetype,
-                    runtime=contract.runtime,
-                )
-                for contract in self.underwritten_contracts
-                if contract.reinsurance_share != 1.0
-            ]
-
             """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
             # TODO: Enable reinsurance shares other than 0.0 and 1.0
             [
@@ -349,7 +339,7 @@ class MetaInsuranceOrg(GenericAgent):
                 cash_left_by_categ,
                 var_per_risk_per_categ,
                 self.excess_capital,
-            ] = self.riskmodel.evaluate(underwritten_risks, self.cash)
+            ] = self.riskmodel.evaluate(self.underwritten_risks, self.cash)
             # TODO: resolve insurance reinsurance inconsistency (insurer underwrite after capacity decisions,
             #  reinsurers before).
 
@@ -358,8 +348,6 @@ class MetaInsuranceOrg(GenericAgent):
             """handle adjusting capacity target and capacity"""
             max_var_by_categ = self.cash - self.excess_capital
             self.adjust_capacity_target(max_var_by_categ)
-
-            self.update_risk_characterisations()
 
             actual_capacity = self.increase_capacity(time, max_var_by_categ)
             # TODO: make independent of insurer/reinsurer, but change this to different deductible values
@@ -405,7 +393,6 @@ class MetaInsuranceOrg(GenericAgent):
                     self.simulation.return_risks(
                         list(chain.from_iterable(not_accepted_risks))
                     )
-            self.update_risk_characterisations()
 
     def enter_illiquidity(self, time: int, sum_due: float):
         """Enter_illiquidity Method.
@@ -416,7 +403,6 @@ class MetaInsuranceOrg(GenericAgent):
            This method is called when a firm does not have enough cash to pay all its obligations. It is only called
            from the method self._effect_payments() which is called at the beginning of the self.iterate() method of
            this class. This method formalizes the bankruptcy through the method self.enter_bankruptcy()."""
-        # TODO Check if this is duplicated after merge
         self.simulation.record_unrecovered_claims(sum_due - self.cash)
         # TODO: is this record of uncovered claims correct or should it be sum_due (since the company is
         #  impounded and self.cash will also not be paid out for quite some time)?
@@ -505,7 +491,6 @@ class MetaInsuranceOrg(GenericAgent):
         # Retract any active requests for reinsurance
         self.simulation.remove_reinrisks(firm=self)
         if self.operational:
-            # TODO: This seems... odd?
             method_to_call = getattr(self.simulation, record)
             method_to_call()
         else:
@@ -522,9 +507,151 @@ class MetaInsuranceOrg(GenericAgent):
                     If firm has positive profits will pay percentage of them as dividends.
                     Currently pays to simulation.
                     """
-        self.receive_obligation(
-            self.per_period_dividend, self.simulation, due_time=time, purpose="dividend"
+
+        self.receive_obligation(self.per_period_dividend, self.owner, time, "dividend")
+
+    def underwrite(self, contract: "MetaInsuranceContract"):
+        self.underwritten_contracts.add(contract)
+        if contract.reinsurance_share != 1:
+            risk = RiskProperties(
+                owner=self,
+                value=contract.value,
+                category=contract.category,
+                risk_factor=contract.risk_factor,
+                deductible=contract.deductible,
+                limit=contract.limit,
+                insurancetype=contract.insurancetype,
+                runtime=contract.runtime,
+            )
+            self.underwritten_risks.add(risk)
+            contract.underwritten_risk = risk
+
+        new_characterisation = RiskChar(
+            total_value=self.underwritten_risk_characterisation[
+                contract.category
+            ].total_value
+            + contract.value,
+            avg_risk_factor=(
+                self.underwritten_risk_characterisation[
+                    contract.category
+                ].avg_risk_factor
+                * self.underwritten_risk_characterisation[
+                    contract.category
+                ].number_risks
+                + contract.risk_factor
+            )
+            / (
+                self.underwritten_risk_characterisation[contract.category].number_risks
+                + 1
+            ),
+            number_risks=self.underwritten_risk_characterisation[
+                contract.category
+            ].number_risks
+            + 1,
+            periodized_total_premium=self.underwritten_risk_characterisation[
+                contract.category
+            ].periodized_total_premium
+            + contract.periodized_premium,
+            weighted_premium=self.underwritten_risk_characterisation[
+                contract.category
+            ].weighted_premium
+            + contract.periodized_premium * contract.runtime,
+            total_var=self.underwritten_risk_characterisation[
+                contract.category
+            ].total_var
+            + contract.initial_VaR,
         )
+        # if new_characterisation[1] != 1.0:
+        #     print(new_characterisation[1])
+        # assert new_characterisation[:3] == self.risk_char_slow(contract.category)[:3]
+        # assert np.isclose(new_characterisation[3], self.risk_char_slow(contract.category)[3])
+        self.underwritten_risk_characterisation[
+            contract.category
+        ] = new_characterisation
+        # (total_value, avg_risk_factor, number_risks, periodized_total_premium, weighted_premium)
+
+        # Old functions:
+        """
+        for categ in range(self.simulation_no_risk_categories):
+            self.underwritten_risk_characterisation[
+                categ
+            ] = self.characterise_underwritten_risks_by_category(categ)
+
+        def risk_char_slow(self, categ_id):
+            total_value = 0
+            avg_risk_factor = 0
+            number_risks = 0
+            periodized_total_premium = 0
+            for contract in self.underwritten_contracts:
+                if contract.category == categ_id:
+                    total_value += contract.value
+                    avg_risk_factor += contract.risk_factor
+                    number_risks += 1
+                    periodized_total_premium += contract.periodized_premium
+            if number_risks > 0:
+                avg_risk_factor /= number_risks
+            return total_value, avg_risk_factor, number_risks, periodized_total_premium, weighted_premium
+        """
+
+    def de_underwrite(self, contract: "MetaInsuranceContract"):
+        self.underwritten_contracts.remove(contract)
+        if contract.reinsurance_share != 1:
+            risk = contract.underwritten_risk
+            self.underwritten_risks.remove(risk)
+
+        if self.underwritten_risk_characterisation[contract.category].number_risks != 1:
+            new_characterisation = RiskChar(
+                total_value=self.underwritten_risk_characterisation[
+                    contract.category
+                ].total_value
+                - contract.value,
+                avg_risk_factor=(
+                    self.underwritten_risk_characterisation[
+                        contract.category
+                    ].avg_risk_factor
+                    * self.underwritten_risk_characterisation[
+                        contract.category
+                    ].number_risks
+                    - contract.risk_factor
+                )
+                / (
+                    self.underwritten_risk_characterisation[
+                        contract.category
+                    ].number_risks
+                    - 1
+                ),
+                number_risks=self.underwritten_risk_characterisation[
+                    contract.category
+                ].number_risks
+                - 1,
+                periodized_total_premium=self.underwritten_risk_characterisation[
+                    contract.category
+                ].periodized_total_premium
+                - contract.periodized_premium,
+                weighted_premium=self.underwritten_risk_characterisation[
+                    contract.category
+                ].weighted_premium
+                - contract.periodized_premium * contract.runtime,
+                total_var=self.underwritten_risk_characterisation[
+                    contract.category
+                ].total_var
+                - contract.initial_VaR,
+            )
+        else:
+            new_characterisation = RiskChar(0, 0, 0, 0, 0, 0)
+
+        self.underwritten_risk_characterisation[
+            contract.category
+        ] = new_characterisation
+
+    # TODO: Check usage and delete
+    # def obtain_yield(self, time: int):
+    #     """Method to obtain intereset on cash reserves
+    #     Accepts:
+    #         time: Type integer
+    #         No return value"""
+    #     amount = self.cash * self.interest_rate
+    #     self.simulation.receive_obligation(amount, self, time, "yields")
 
     def mature_contracts(self, time: int) -> int:
         """Method to mature underwritten contracts that have expired
@@ -540,7 +667,7 @@ class MetaInsuranceOrg(GenericAgent):
             if contract.expiration <= time
         ]
         for contract in maturing:
-            self.underwritten_contracts.remove(contract)
+            self.de_underwrite(contract)
             contract.mature(time)
         return len(maturing)
 
@@ -560,7 +687,7 @@ class MetaInsuranceOrg(GenericAgent):
     def number_underwritten_contracts(self) -> int:
         return len(self.underwritten_contracts)
 
-    def get_underwritten_contracts(self) -> Sequence["MetaInsuranceContract"]:
+    def get_underwritten_contracts(self) -> Collection["MetaInsuranceContract"]:
         return self.underwritten_contracts
 
     def get_profitslosses(self) -> float:
@@ -584,17 +711,25 @@ class MetaInsuranceOrg(GenericAgent):
         self.var_sum = 0
         current_reinsurance_info = []
 
-        # Extract initial VaR per category
-        for contract in self.underwritten_contracts:
-            self.counter_category[contract.category] += 1
-            self.var_category[contract.category] += contract.initial_VaR
+        if self.operational:
+            # Extract initial VaR per category
+            # for contract in self.underwritten_contracts:
+            #     self.counter_category[contract.category] += 1
+            #     self.var_category[contract.category] += contract.initial_VaR
+            # Caclulate risks per category and sum of all VaR
+            for category in range(len(self.counter_category)):
+                self.counter_category[
+                    category
+                ] = self.underwritten_risk_characterisation[category].number_risks
+                self.var_category[category] = self.underwritten_risk_characterisation[
+                    category
+                ].total_var
 
-        # Calculate risks per category and sum of all VaR
-        for category in range(len(self.counter_category)):
-            self.var_counter += (
-                self.counter_category[category] * self.riskmodel.inaccuracy[category]
-            )
-            self.var_sum += self.var_category[category]
+                self.var_counter += (
+                    self.counter_category[category]
+                    * self.riskmodel.inaccuracy[category]
+                )
+                self.var_sum += self.var_category[category]
 
         # Record reinsurance info
         for region_list in self.reinsurance_profile.reinsured_regions:
@@ -659,39 +794,6 @@ class MetaInsuranceOrg(GenericAgent):
         raise NotImplementedError(
             "Method not implemented. adjust_capacity_target method should be implemented in inheriting classes"
         )
-
-    def update_risk_characterisations(self):
-        for categ in range(self.simulation_no_risk_categories):
-            self.underwritten_risk_characterisation[
-                categ
-            ] = self.characterise_underwritten_risks_by_category(categ)
-
-    def characterise_underwritten_risks_by_category(
-        self, categ_id: int
-    ) -> Tuple[float, float, int, float]:
-        """Method to characterise associated risks in a given category in terms of value, number, avg risk factor, and
-        total premium per iteration.
-            Accepts:
-                categ_id: Type Integer. The given category for characterising risks.
-            Returns:
-                total_value: Type Decimal. Total value of all contracts in the category.
-                avg_risk_facotr: Type Decimal. Avg risk factor of all contracted risks in category.
-                number_risks: Type Integer. Total number of contracted risks in category.
-                periodised_total_premium: Total value per month of all contracts premium payments."""
-        # TODO: Update this instead of recalculating so much
-        total_value = 0
-        avg_risk_factor = 0
-        number_risks = 0
-        periodized_total_premium = 0
-        for contract in self.underwritten_contracts:
-            if contract.category == categ_id:
-                total_value += contract.value
-                avg_risk_factor += contract.risk_factor
-                number_risks += 1
-                periodized_total_premium += contract.periodized_premium
-        if number_risks > 0:
-            avg_risk_factor /= number_risks
-        return total_value, avg_risk_factor, number_risks, periodized_total_premium
 
     def risks_reinrisks_organizer(
         self, new_risks: Sequence[RiskProperties]
@@ -808,23 +910,8 @@ class MetaInsuranceOrg(GenericAgent):
             # risk[C4], risk[C1], risk[C2], ... if possible.
             assert risk
             assert risk.owner.operational
-            # TODO: Move this out of the loop (maybe somewhere else entirely) and update it when needed
-            underwritten_risks = [
-                RiskProperties(
-                    owner=self,
-                    value=contract.value,
-                    category=contract.category,
-                    risk_factor=contract.risk_factor,
-                    deductible=contract.deductible,
-                    limit=contract.limit,
-                    insurancetype=contract.insurancetype,
-                    runtime_left=(contract.expiration - time),
-                )
-                for contract in self.underwritten_contracts
-                if contract.insurancetype == "excess-of-loss"
-            ]
             accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
-                underwritten_risks, self.cash, risk
+                self.underwritten_risks, self.cash, risk
             )
             if accept:
                 # TODO: What exactly is this based on? How should reinsurance pricing work?
@@ -864,7 +951,7 @@ class MetaInsuranceOrg(GenericAgent):
                         initial_var=var_this_risk,
                         insurancetype=risk.insurancetype,
                     )  # TODO: implement excess of loss for reinsurance contracts
-                    self.underwritten_contracts.append(contract)
+                    self.underwrite(contract)
                     has_accepted_risks = True
                     self.cash_left_by_categ = cash_left_by_categ
                 else:
@@ -904,7 +991,7 @@ class MetaInsuranceOrg(GenericAgent):
             if acceptable_by_category[risk.category] > 0:
                 if risk.contract and risk.contract.expiration > time:
                     # In this case the risk being inspected already has a contract, so we are deciding whether to
-                    # give reinsurance for it # QUERY: is this correct?
+                    # give (proportional) reinsurance for it # QUERY: is this correct?
                     [condition, cash_left_by_categ] = self.balanced_portfolio(
                         risk, cash_left_by_categ, None
                     )
@@ -922,7 +1009,7 @@ class MetaInsuranceOrg(GenericAgent):
                                 "expire_immediately"
                             ],
                         )
-                        self.underwritten_contracts.append(contract)
+                        self.underwrite(contract)
                         has_accepted_risks = True
                         self.cash_left_by_categ = cash_left_by_categ
                         acceptable_by_category[risk.category] -= 1
@@ -950,7 +1037,7 @@ class MetaInsuranceOrg(GenericAgent):
                             ],
                             initial_var=var_per_risk_per_categ[risk.category],
                         )
-                        self.underwritten_contracts.append(contract)
+                        self.underwrite(contract)
                         has_accepted_risks = True
                         self.cash_left_by_categ = cash_left_by_categ
                         acceptable_by_category[risk.category] -= 1
@@ -1036,9 +1123,7 @@ class MetaInsuranceOrg(GenericAgent):
 
     def get_reinsurance_price(self, risk: RiskProperties) -> float:
         """Returns the total per-value premium for reinsurance"""
-        raise NotImplementedError("No.")
-
-    # TODO: Error message maybe
+        raise NotImplementedError("Should have been overridden")
 
     def register_claim(self, claim: float):
         """Method to register claims.
@@ -1138,7 +1223,7 @@ class MetaInsuranceOrg(GenericAgent):
                 + self.min_inaccuracy * self.risk_share
             )
 
-    def consider_buyout(self, type="insurer"):
+    def consider_buyout(self, firm_type="insurer"):
         """Method to allow firm to decide if to buy one of the firms going bankrupt.
             Accepts:
                 type: Type string. Used to decide if insurance or reinsurance firm.
@@ -1146,7 +1231,7 @@ class MetaInsuranceOrg(GenericAgent):
         This method is called for both types of firms to consider buying one firm going bankrupt for only this iteration
         It has a chance (based on market share) to buyout other firm if its excess capital is large enough to cover
         the other firms value at risk multiplied by its margin of safety. Will call buyout() if necessary."""
-        firms_to_consider = self.simulation.get_firms_to_sell(type)
+        firms_to_consider = self.simulation.get_firms_to_sell(firm_type)
         firms_further_considered = []
 
         for firm, time, reason in firms_to_consider:
@@ -1157,7 +1242,7 @@ class MetaInsuranceOrg(GenericAgent):
             ddm_stock = firm.per_period_dividend / (
                 0.12 - cagr
             )  # Use DDM model to evaluate price of all stock based on total dividend
-            all_firms_cash = self.simulation.get_total_firm_cash(type)
+            all_firms_cash = self.simulation.get_total_firm_cash(firm_type)
             all_obligations = sum(
                 [obligation.amount for obligation in firm.obligations]
             )
@@ -1228,10 +1313,9 @@ class MetaInsuranceOrg(GenericAgent):
             if contract.insurancetype == "proportional":
                 contract.insurer = self
             else:
-                contract.property_holder = (
-                    self
-                )  # In case of reinsurance however not observed.
-            self.underwritten_contracts.append(contract)
+                # In case of reinsurance however not observed.
+                contract.property_holder = self
+            self.underwrite(contract)
         for obli in firm.obligations:
             self.receive_obligation(
                 obli.amount, obli.recipient, obli.due_time, obli.purpose
@@ -1266,7 +1350,3 @@ class MetaInsuranceOrg(GenericAgent):
                 self.operational = False
             else:
                 self.dissolve(time, "record_nonregulation_firm")
-                for contract in self.underwritten_contracts:
-                    # Mature contracts so they are returned to simulation as firm non-op
-                    contract.mature(time)
-                self.underwritten_contracts = []

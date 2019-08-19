@@ -84,15 +84,16 @@ simulation_parameters = {
     "insurance_permanency_contracts_limit": 4,
     # If insurers stay for too long under this limit of contracts they deccide to leave the market.
     "insurance_permanency_ratio_limit": 0.6,
-    # If insurers stay for too long under this limit they deccide to leave the market because they have too much capital.
+    # If insurers stay for too long under this limit they leave the market because they have too much capital.
     "insurance_permanency_time_constraint": 24,
     # The period that the insurers wait before leaving the market if they have few capital or few contract .
     "reinsurance_permanency_contracts_limit": 2,
     # If reinsurers stay for too long under this limit of contracts they deccide to leave the market.
     "reinsurance_permanency_ratio_limit": 0.8,
-    # If reinsurers stay for too long under this limit they decide to leave the market because they have too much capital.
+    # If reinsurers stay for too long under this limit they leave the market because they have too much capital.
     "reinsurance_permanency_time_constraint": 48,
-    # This parameter defines the period that the reinsurers wait if they have few capital or few contract before leaving the market.
+    # This parameter defines the period that the reinsurers wait if they have too little capital or too few contracts
+    # before leaving the market.
     # Insurance and Reinsurance deductibles
     "insurance_reinsurance_levels_lower_bound": 0.25,
     "insurance_reinsurance_levels_upper_bound": 0.30,

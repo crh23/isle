@@ -2,7 +2,7 @@ import isleconfig
 from metainsuranceorg import MetaInsuranceOrg
 from genericclasses import Obligation, GenericAgent
 
-from typing import MutableSequence
+from typing import Collection
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -32,15 +32,16 @@ class CatBond(MetaInsuranceOrg):
         This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
         self.id: int = self.simulation.get_unique_catbond_id()
-        self.underwritten_contracts: MutableSequence["MetaInsuranceContract"] = []
+        self.underwritten_contracts: Collection["MetaInsuranceContract"] = []
         self.cash: float = 0
         self.profits_losses: float = 0
-        self.obligations: MutableSequence[Obligation] = []
+        self.obligations: Collection[Obligation] = []
         self.operational: bool = True
         self.owner: GenericAgent = owner
         self.per_period_dividend: float = per_period_premium
         self.creditor = self.simulation
         self.expiration: int = None
+        self.triggered = 0
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
     def iterate(self, time: int):
@@ -99,6 +100,7 @@ class CatBond(MetaInsuranceOrg):
             No return values
         When the catbond contract matures this is called which pays the value of the catbond to the simulation, and is
         then deleted from the list of agents."""
+
         if self.operational:
             obligation = Obligation(
                 amount=self.cash,

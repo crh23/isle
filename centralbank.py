@@ -103,24 +103,24 @@ class CentralBank:
 
         # Calculates reinsurance that covers VaR for each category in each iteration and adds to cash.
         cash_fractions = []
-        for iter in range(len(reinsurance)):
+        for i in range(len(reinsurance)):
             reinsurance_capital = 0
-            for categ in range(len(reinsurance[iter])):
-                for contract in reinsurance[iter][categ]:
+            for categ in range(len(reinsurance[i])):
+                for contract in reinsurance[i][categ]:
                     if (
-                        firm_var[iter][categ] / safety_margin >= contract[0]
+                        firm_var[i][categ] / safety_margin >= contract[0]
                     ):  # Check VaR greater than deductible
                         if (
-                            firm_var[iter][categ] / safety_margin >= contract[1]
+                            firm_var[i][categ] / safety_margin >= contract[1]
                         ):  # Check VaR greater than excess
                             reinsurance_capital += contract[1] - contract[0]
                         else:
-                            reinsurance_capital += firm_var[iter][categ] - contract[0]
+                            reinsurance_capital += firm_var[i][categ] - contract[0]
                     else:
                         reinsurance_capital += 0  # If below deductible no reinsurance
-            if sum(firm_var[iter]) > 0:
+            if sum(firm_var[i]) > 0:
                 cash_fractions.append(
-                    (firm_cash[iter] + reinsurance_capital) / sum(firm_var[iter])
+                    (firm_cash[i] + reinsurance_capital) / sum(firm_var[i])
                 )
             else:
                 cash_fractions.append(1)

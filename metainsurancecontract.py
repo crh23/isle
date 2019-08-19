@@ -50,6 +50,10 @@ class MetaInsuranceContract:
         self.value = risk.value
         self.contract = risk.contract  # May be None
         self.risk = risk
+
+        # The risk object that will be stored in the underwritten_risks container of the insurer
+        self.underwritten_risk: "RiskProperties" = None
+
         self.insurancetype = insurancetype or risk.insurancetype
 
         self.runtime = runtime

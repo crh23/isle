@@ -90,6 +90,7 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
            Returns risk to simulation as contract terminates. Calls terminate_reinsurance to dissolve any reinsurance
            contracts."""
         # self.terminating = True
+        self.property_holder: "InsuranceSimulation"
 
         self.terminate_reinsurance(time)
 

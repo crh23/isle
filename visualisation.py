@@ -108,7 +108,13 @@ class TimeSeries(object):
 
 class InsuranceFirmAnimation(object):
     def __init__(
-        self, cash_data, insure_contracts, event_schedule, type, save=True, perils=True
+        self,
+        cash_data,
+        insure_contracts,
+        event_schedule,
+        firm_type,
+        save=True,
+        perils=True,
     ):
         """Initialising method for the animation of insurance firm data.
                 Accepts:
@@ -135,7 +141,7 @@ class InsuranceFirmAnimation(object):
 
         # If animation is saved or not
         self.save_condition = save
-        self.type = type
+        self.type = firm_type
 
     def animate(self):
         """Method to call animation of pie charts.
@@ -166,11 +172,11 @@ class InsuranceFirmAnimation(object):
             firm_cash_list = []
             firm_id_list = []
             firm_contract_list = []
-            for (cash, id, operational) in timestep:
+            for (cash, firm_id, operational) in timestep:
                 if operational:
-                    firm_id_list.append(id)
+                    firm_id_list.append(firm_id)
                     firm_cash_list.append(cash)
-                    firm_contract_list.append(self.insurance_contracts[id][t])
+                    firm_contract_list.append(self.insurance_contracts[firm_id][t])
             yield firm_cash_list, firm_id_list, firm_contract_list
             t += 1
 
@@ -217,7 +223,7 @@ class InsuranceFirmAnimation(object):
             print("Incorrect Type for Saving")
 
 
-class visualisation(object):
+class Visualisation(object):
     def __init__(self, history_logs_list):
         """Initialises visualisation class for all data.
             Accepts:
@@ -270,7 +276,7 @@ class visualisation(object):
         fig=None,
         title="Insurer",
         colour="black",
-        percentiles=[25, 75],
+        percentiles=(25, 75),
     ):
         """Method to create a timeseries for insurance firms' data.
             Accepts:
@@ -371,7 +377,7 @@ class visualisation(object):
         fig=None,
         title="Reinsurer",
         colour="black",
-        percentiles=[25, 75],
+        percentiles=(25, 75),
     ):
         """Method to create a timeseries for reinsurance firms' data.
             Accepts:
@@ -576,7 +582,7 @@ class visualisation(object):
         return
 
 
-class compare_riskmodels(object):
+class CompareRiskmodels(object):
     def __init__(self, vis_list, colour_list):
         """Initialises compare_riskmodels class.
             Accepts:
@@ -588,7 +594,7 @@ class compare_riskmodels(object):
         self.insurer_fig = self.insurer_axlst = None
         self.reinsurer_fig = self.reinsurer_axlst = None
 
-    def create_insurer_timeseries(self, fig=None, axlst=None, percentiles=[25, 75]):
+    def create_insurer_timeseries(self, fig=None, axlst=None, percentiles=(25, 75)):
         """Method to create separate insurer time series for all numbers of risk models using visualisations'
         insurer_time_series method. Loops through each separately and they are then saved automatically. Used for
         ensemble runs.
@@ -619,7 +625,7 @@ class compare_riskmodels(object):
                 + " risk_model(s)_insurer_ensemble_timeseries"
             )
 
-    def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=[25, 75]):
+    def create_reinsurer_timeseries(self, fig=None, axlst=None, percentiles=(25, 75)):
         """Method to create separate reinsurer time series for all numbers of risk models using visualisations'
         reinsurer_time_series method. Loops through each separately and they are then saved automatically. Used for
         ensemble runs.
@@ -654,7 +660,7 @@ class compare_riskmodels(object):
         plt.show()
 
 
-class CDF_distribution_plot:
+class CDFDistributionPlot:
     """Class for CDF/cCDF distribution plots using class CDFDistribution. This class arranges as many such plots stacked
     in one diagram as there are series in the history logs they are created from, i.e. len(vis_list)."""
 
@@ -774,6 +780,9 @@ class Histogram_plot:
             Arguments:
                 xlabel: str or None     - the x axis label
                 filename: str or None   - the filename without ending
+                logscale: bool
+                minmax: bool
+                VaE005guess: float
             Returns None."""
 
         """Set x axis label and filename to default if not provided"""
@@ -973,7 +982,7 @@ class CDFDistribution:
             Returns: None."""
 
         """If data set is empty, return without plotting"""
-        if self.samples_x == []:
+        if not self.samples_x:
             return
 
         """Create figure if none was provided"""
@@ -1498,7 +1507,8 @@ class ConfigCompare:
                 )
         return percentage_diff_sum / len(original_values)
 
-    def mean_diff(self, original_mean, new_mean):
+    @staticmethod
+    def mean_diff(original_mean, new_mean):
         """Method to calculate percentage difference between two means. Used  by/for plotting.
             Accepts:
                 original_mean: Type Float.
@@ -1616,13 +1626,13 @@ if __name__ == "__main__":
             history_logs_list = [eval(k) for k in rfile]  # one dict on each line
 
         # first create visualisation object, then create graph/animation objects as necessary
-        vis = visualisation(history_logs_list)
+        vis = Visualisation(history_logs_list)
         if args.pie:
             vis.insurer_pie_animation()
             vis.reinsurer_pie_animation()
         if args.timeseries:
-            insurerfig, axs = vis.insurer_time_series()
-            reinsurerfig, axs = vis.reinsurer_time_series()
+            insurerfig, axs1 = vis.insurer_time_series()
+            reinsurerfig, axs2 = vis.reinsurer_time_series()
             insurerfig.savefig("figures/insurer_singlerun_timeseries.png")
             reinsurerfig.savefig("figures/reinsurer_singlerun_timeseries.png")
         vis.show()
@@ -1639,11 +1649,11 @@ if __name__ == "__main__":
         for filename in filenames:
             with open(filename, "r") as rfile:
                 history_logs_list = [eval(k) for k in rfile]  # one dict on each line
-                vis_list.append(visualisation(history_logs_list))
+                vis_list.append(Visualisation(history_logs_list))
 
     if args.timeseries_comparison:
         # Creates time series for all risk models in ensemble data.
-        cmp_rsk = compare_riskmodels(vis_list, colour_list)
+        cmp_rsk = CompareRiskmodels(vis_list, colour_list)
         cmp_rsk.create_insurer_timeseries(percentiles=[10, 90])
         cmp_rsk.create_reinsurer_timeseries(percentiles=[10, 90])
         cmp_rsk.show()
@@ -1683,10 +1693,10 @@ if __name__ == "__main__":
         for filename in filenames:
             with open(filename, "r") as rfile:
                 history_logs_list = [eval(k) for k in rfile]  # one dict on each line
-                vis_list.append(visualisation(history_logs_list))
+                vis_list.append(Visualisation(history_logs_list))
 
         # Creates CDF for firm size using cash as measure of size.
-        CP = CDF_distribution_plot(
+        CP = CDFDistributionPlot(
             vis_list,
             colour_list,
             variable="insurance_firms_cash",
@@ -1695,7 +1705,7 @@ if __name__ == "__main__":
         )
         CP.generate_plot(xlabel="Firm size (capital)")
         if not isleconfig.simulation_parameters["reinsurance_off"]:
-            CP = CDF_distribution_plot(
+            CP = CDFDistributionPlot(
                 vis_list,
                 colour_list,
                 variable="reinsurance_firms_cash",
@@ -1724,11 +1734,11 @@ if __name__ == "__main__":
         ]
 
         # Loops through data types and loads, plots, and saves each one.
-        for type in range(len(data_types)):
+        for _type in range(len(data_types)):
             compare = RiskModelSpecificCompare(
-                infiletype=data_types[type], refiletype=rein_data_types[type]
+                infiletype=data_types[_type], refiletype=rein_data_types[_type]
             )
-            compare.plot(outputfile=data_types[type][1:-4])
+            compare.plot(outputfile=data_types[_type][1:-4])
 
     if args.file1 is not None and args.file2 is not None:
         # CD = ConfigCompare("data/single_history_logs_old_2019_Aug_02_12_53.dat",

@@ -5,7 +5,7 @@ import numpy as np
 
 import isleconfig
 from distributionreinsurance import ReinsuranceDistWrapper
-from typing import Sequence, Tuple, Union, Optional, MutableSequence
+from typing import Sequence, Tuple, Union, Optional, MutableSequence, Collection
 
 from typing import TYPE_CHECKING
 
@@ -311,7 +311,7 @@ class RiskModel:
     # noinspection PyUnboundLocalVariable
     def evaluate(
         self,
-        risks: Sequence["RiskProperties"],
+        risks: Collection["RiskProperties"],
         cash: Union[float, Sequence[float]],
         offered_risk: Optional["RiskProperties"] = None,
     ) -> Union[

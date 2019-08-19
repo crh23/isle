@@ -191,8 +191,7 @@ class Logger:
                     Element 3: operation parameter (w-write or a-append)."""
         filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
         fpf = filename_prefix[self.number_riskmodels]
-        to_log = []
-        to_log.append(("data/" + fpf + "_history_logs.dat", self.history_logs, "a"))
+        to_log = [("data/" + fpf + "_history_logs.dat", self.history_logs, "a")]
         return to_log
 
     def single_log_prepare(self):
@@ -221,10 +220,9 @@ class Logger:
         if ensemble is True:
             filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
             fpf = filename_prefix[self.number_riskmodels]
-            network_logs = []
-            network_logs.append(
+            network_logs = [
                 ("data/" + fpf + "_network_data.dat", self.network_data, "a")
-            )
+            ]
 
             for filename, data, operation_character in network_logs:
                 with open(filename, operation_character) as wfile:
