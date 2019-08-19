@@ -77,7 +77,7 @@ class SetupSim:
                     total += int(math.ceil(separation_time))
                     if total < self.max_time:
                         event_schedule.append(total)
-                        event_damage.append(self.damage_distribution.rvs())
+                        event_damage.append(self.damage_distribution.rvs()[0])
                 rc_event_schedule.append(event_schedule)
                 rc_event_damage.append(event_damage)
 
@@ -91,7 +91,7 @@ class SetupSim:
         # The argument (replications) is the number of replications.
         """draw random variates for random seeds"""
         for i in range(replications):
-            np_seed, random_seed = scipy.stats.randint.rvs(0, 2 ** 32 - 1, size=2)
+            np_seed, random_seed = scipy.stats.randint.rvs(0, 2 ** 31 - 1, size=2)
             self.np_seed.append(np_seed)
             self.random_seed.append(random_seed)
 

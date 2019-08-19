@@ -69,15 +69,14 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             )
         if uniform_value < self.risk_factor:
             claim = min(self.limit, damage_extent * self.value) - self.deductible
-            self.insurer.register_claim(
-                claim
-            )  # Every insurance claim made is immediately registered.
-
+            # Every insurance claim made is immediately registered.
+            self.insurer.register_claim(claim)
             self.current_claim += claim
+            # Insurer pays one time step after reinsurer to avoid bankruptcy.
             self.insurer.receive_obligation(
                 claim, self.property_holder, time + 2, "claim"
             )
-            # Insurer pays one time step after reinsurer to avoid bankruptcy.
+
             # TODO: Is this realistic? Change this?
             if self.expire_immediately:
                 self.expiration = time

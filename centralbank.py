@@ -82,7 +82,7 @@ class CentralBank:
             ) / self.prices_list[-13]
             self.actual_inflation = self.twelvemonth_CPI
 
-    def regulate(self, firm_id, firm_cash, firm_var, reinsurance, age):
+    def regulate(self, firm_id, firm_cash, firm_var, reinsurance, age, safety_margin):
         """Method to regulate firms
             Accepts:
                 firm_id: Type Integer. Firms unique ID.
@@ -106,21 +106,18 @@ class CentralBank:
         for iter in range(len(reinsurance)):
             reinsurance_capital = 0
             for categ in range(len(reinsurance[iter])):
-                if (
-                    firm_var[iter][categ] >= reinsurance[iter][categ][0]
-                ):  # Check VaR greater than deductible
+                for contract in reinsurance[iter][categ]:
                     if (
-                        firm_var[iter][categ] >= reinsurance[iter][categ][1]
-                    ):  # Check VaR greater than excess
-                        reinsurance_capital += (
-                            reinsurance[iter][categ][1] - reinsurance[iter][categ][0]
-                        )
+                        firm_var[iter][categ] / safety_margin >= contract[0]
+                    ):  # Check VaR greater than deductible
+                        if (
+                            firm_var[iter][categ] / safety_margin >= contract[1]
+                        ):  # Check VaR greater than excess
+                            reinsurance_capital += contract[1] - contract[0]
+                        else:
+                            reinsurance_capital += firm_var[iter][categ] - contract[0]
                     else:
-                        reinsurance_capital += (
-                            firm_var[iter][categ] - reinsurance[iter][categ][0]
-                        )
-                else:
-                    reinsurance_capital += 0  # If below deductible no reinsurance
+                        reinsurance_capital += 0  # If below deductible no reinsurance
             if sum(firm_var[iter]) > 0:
                 cash_fractions.append(
                     (firm_cash[iter] + reinsurance_capital) / sum(firm_var[iter])
@@ -128,7 +125,9 @@ class CentralBank:
             else:
                 cash_fractions.append(1)
 
-        avg_var_coverage = np.mean(cash_fractions)
+        avg_var_coverage = safety_margin * np.mean(
+            cash_fractions
+        )  # VaR contains margin of safety (=2x) not actual value
 
         if avg_var_coverage >= 0.995:
             self.warnings[firm_id] = 0
@@ -174,16 +173,17 @@ class CentralBank:
             for insurer in insurance_firms:
                 claims = sum(
                     [
-                        ob["amount"]
+                        ob.amount
                         for ob in insurer.obligations
-                        if ob["purpose"] == "claim" and ob["due_time"] == time + 2
+                        if ob.purpose == "claim" and ob.due_time == time + 1
                     ]
                 )
                 aid = claims * damage_fraction
                 all_firms_aid += aid
                 given_aid_dict[insurer] = aid
             # Give each firm an equal fraction of claims
-            for fraction in [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0]:
+            fractions = np.arange(0, 1.05, 0.05)[::-1]
+            for fraction in fractions:
                 if self.aid_budget - (all_firms_aid * fraction) > 0:
                     self.aid_budget -= all_firms_aid * fraction
                     for key in given_aid_dict:

@@ -589,6 +589,7 @@ class InsuranceSimulation(GenericAgent):
 
         self._update_model_counters()
 
+        """
         network_division = 1  # How often network is updated.
         if (
             (isleconfig.show_network or isleconfig.save_network)
@@ -609,22 +610,7 @@ class InsuranceSimulation(GenericAgent):
             ):
                 self.RN.save_network_data()
                 print("Network data has been saved to data/network_data.dat")
-
-        # import matplotlib.pyplot as plt
-        #
-        # f1 = self.get_reinsurance_premium
-        # f2 = self.get_cat_bond_price
-        # x = np.linspace(0, 1, 50)
-        # y1 = [f1(x_n) for x_n in x]
-        # y2 = [f2(x_n) for x_n in x]
-        # plt.plot(x, y1, label="Reinsurance")
-        # plt.plot(x, y2, label="CatBond")
-        # plt.legend()
-        # plt.title(
-        #     "self.reinsurance_market_premium = "
-        #     + str(self.reinsurance_market_premium)
-        # )
-        # plt.show()
+            """
 
     def save_data(self):
         """Method to collect statistics about the current state of the simulation. Will pass these to the
@@ -699,10 +685,18 @@ class InsuranceSimulation(GenericAgent):
         current_log["individual_contracts"] = [
             len(firm.underwritten_contracts) for firm in self.insurancefirms
         ]
-
         current_log["reinsurance_contracts"] = [
             len(firm.underwritten_contracts) for firm in self.reinsurancefirms
         ]
+
+        if isleconfig.save_network:
+            adj_list, node_labels, edge_labels, num_entities = (
+                self.update_network_data()
+            )
+            current_log["unweighted_network_data"] = adj_list
+            current_log["network_node_labels"] = node_labels
+            current_log["network_edge_labels"] = edge_labels
+            current_log["number_of_agents"] = num_entities
 
         """ call to Logger object """
         self.logger.record_data(current_log)
@@ -938,11 +932,6 @@ class InsuranceSimulation(GenericAgent):
     def append_reinrisks(self, reinrisk: RiskProperties):
         """Method for appending reinrisks to simulation instance. Called from insurancefirm
                     Accepts: item (Type: List)"""
-
-        # For debugging:
-        # for old_reinrisk in self.reinrisks:
-        #     if reinrisk.owner is old_reinrisk.owner and reinrisk.category == old_reinrisk.category:
-        #         pass
         if reinrisk:
             self.reinrisks.append(reinrisk)
 
@@ -1085,9 +1074,26 @@ class InsuranceSimulation(GenericAgent):
            firm."""
         self.cumulative_market_exits += 1
 
+    def record_nonregulation_firm(self):
+        """Method to record non-regulation firm exits..
+            Accepts no arguments.
+            No return value.
+        This method is used to record the firms that leave the market due to the regulator. It is
+        only called from the method dissolve() from the class metainsuranceorg.py after the dissolution of the
+        firm, and only if the regulator is working."""
+        self.cumulative_nonregulation_firms += 1
+
+    def record_bought_firm(self):
+        """Method to record a firm bought.
+            Accepts no arguments.
+            No return value.
+        This method is used to record the number of firms that have been bought. Only called from buyout() in
+        metainsuranceorg.py after all obligations and contracts have been transferred to buyer."""
+        self.cumulative_bought_firms += 1
+
     def record_unrecovered_claims(self, loss: float):
         """Method for recording unrecovered claims. If firm runs out of money it cannot _pay more claims and so that
-            money is lost and recorded using this method.
+            money is lost and recorded using this method. Called at start of dissolve to catch all instances necessary.
             Accepts:
                 loss: Type integer, value of lost claim
             No return value"""
@@ -1118,7 +1124,6 @@ class InsuranceSimulation(GenericAgent):
                 if firm.operational
             ]
         )
-
         totalreal = len([firm for firm in self.insurancefirms if firm.operational])
         # Real VaR is 1 for each firm, we think
 
@@ -1129,15 +1134,12 @@ class InsuranceSimulation(GenericAgent):
                 if reinfirm.operational
             ]
         )
-
         totalreal += len(
             [reinfirm for reinfirm in self.reinsurancefirms if reinfirm.operational]
         )
 
         totaldiff = totalina - totalreal
-
         return totaldiff
-        # self.history_logs['market_diffvar'].append(totaldiff)
 
     def get_unique_insurer_id(self) -> int:
         """Method for getting unique id for insurer. Used in initialising agents in start.py and insurancesimulation.
@@ -1228,7 +1230,6 @@ class InsuranceSimulation(GenericAgent):
 
     def get_risk_share(self, firm: "MetaInsuranceOrg") -> float:
         """Method to determine the total percentage of risks in the market that are held by a particular firm.
-
         For insurers uses insurance risks, for reinsurers uses reinsurance risks
         Calculates the
             Accepts:
@@ -1278,6 +1279,8 @@ class InsuranceSimulation(GenericAgent):
             self.selling_insurance_firms.append([firm, time, reason])
         elif firm.is_reinsurer:
             self.selling_reinsurance_firms.append([firm, time, reason])
+        else:
+            print("Not accepted type of firm")
 
     def get_firms_to_sell(self, type):
         """Method to get list of firms that are up for selling based on type.

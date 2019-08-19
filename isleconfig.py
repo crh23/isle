@@ -2,14 +2,14 @@ oneriskmodel = False
 replicating = False
 force_foreground = False
 verbose = False
-showprogress = False
+showprogress = True
 # Should network be visualized? This should be False by default, to be overridden by commandline arguments
 show_network = False
 save_network = False
 # Should logs be small in ensemble runs (only aggregated level data)?
 slim_log = True
 buy_bankruptcies = False
-enforce_regulations = False
+enforce_regulations = True
 aid_relief = False
 
 simulation_parameters = {

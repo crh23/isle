@@ -297,10 +297,12 @@ class LoadNetwork:
             font_size=7,
         )
 
-        while self.all_events[0] == i:
-            plt.title("EVENT!")
-            self.all_events = self.all_events[1:]
-
+        if len(self.all_events) > 0:
+            while self.all_events[0] == i:
+                plt.title("EVENT!")
+                self.all_events = self.all_events[1:]
+                if len(self.all_events) == 0:
+                    break
         plt.legend(loc="upper right")
         plt.axis("off")
 
@@ -341,11 +343,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     args.save = True
-    # args.number_iterations = 199
+
     if args.number_iterations:
         num_iter = args.number_iterations
     else:
-        num_iter = 100
+        num_iter = 999
 
     # Access stored network data
     with open("data/network_data.dat", "r") as rfile:

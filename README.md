@@ -55,7 +55,8 @@ bash starter_three.sh
 
 #### Single runs
 Use the script ```visualisation.py [--single]``` from the command line to plot data from a single run. It also takes the 
-arguments ```[--pie] [--timeseries]``` for which data representation is wanted.
+arguments ```[--pie] [--timeseries]``` for which data representation is wanted. The argument ```[--config_compare_filex ]``` 
+where ```x``` can be 1,2 or 3 is used for comparing two sets of data (singular or with replications) with different conditions.
 
 If the necessary data has been saved a network animation can also be created by running ```visualization_network.py``` 
 which takes the arguments ```[--save] [--number_iterations]``` if you want the animation to be saved as an mp4, and how

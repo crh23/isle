@@ -98,7 +98,6 @@ class Logger:
             Arguments
                 data_dict: Type dict. Data with the same keys as are used in self.history_log().
             Returns None."""
-        a = 1
         for key in data_dict.keys():
             if key not in ["individual_contracts", "reinsurance_contracts"]:
                 self.history_logs[key].append(data_dict[key])
@@ -107,7 +106,7 @@ class Logger:
                     self.history_logs["individual_contracts"][i].append(
                         data_dict["individual_contracts"][i]
                     )
-            elif key == "reinsurance_contracts":
+            if key == "reinsurance_contracts":
                 for i in range(len(data_dict["reinsurance_contracts"])):
                     self.history_logs["reinsurance_contracts"][i].append(
                         data_dict["reinsurance_contracts"][i]
@@ -211,7 +210,7 @@ class Logger:
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
         for history_log in self.history_logs_to_save:
-            to_log.append((filename, history_log, "w"))
+            to_log.append((filename, history_log, "a"))
         return to_log
 
     def save_network_data(self, ensemble):

@@ -53,25 +53,16 @@ class GenericAgent:
                     f"Redirecting payment with purpose {purpose} due to non-operational firm {recipient.id}"
                 )
             recipient = recipient.creditor
-        if self.get_operational():
-            self.cash -= amount
-            if purpose != "dividend":
-                self.profits_losses -= amount
-            recipient.receive(amount)
-        else:
-            if isleconfig.verbose:
-                print(f"Payment not processed as firm {self.id} is not operational")
+        self.cash -= amount
+        if purpose != "dividend":
+            self.profits_losses -= amount
+        recipient.receive(amount)
 
-    def get_operational(self) -> bool:
+    def get_operational(self):
         """Method to return boolean of if agent is operational. Only used as check for payments.
             No accepted values
             Returns Boolean"""
         return self.operational
-
-    def iterate(self, time: int):
-        raise NotImplementedError(
-            "Iterate is not implemented in GenericAgent, should have be overridden"
-        )
 
     def _effect_payments(self, time: int):
         """Method for checking if any payments are due.
@@ -80,21 +71,15 @@ class GenericAgent:
             No return value
             Method checks firms list of obligations to see if ay are due for this time, then pays them. If the firm
             does not have enough cash then it enters illiquity, leaves the market, and matures all contracts."""
-        # TODO: don't really want to be reconstructing lists every time (unless the obligations are naturally sorted by
-        #  time, in which case this could be done slightly better). Low priority, but something to consider
         due = [item for item in self.obligations if item.due_time <= time]
         self.obligations = [item for item in self.obligations if item.due_time > time]
-
         sum_due = sum([item.amount for item in due])
         if sum_due > self.cash:
             self.obligations += due
-            self.enter_illiquidity(time, sum_due)
+            self.enter_illiquidity(time)
         else:
             for obligation in due:
                 self._pay(obligation)
-
-    def enter_illiquidity(self, time: int, sum_due: float):
-        raise NotImplementedError()
 
     def receive_obligation(
         self, amount: float, recipient: "GenericAgent", due_time: int, purpose: str
@@ -107,7 +92,6 @@ class GenericAgent:
                         purpose: Type string, why they are being paid
                     No return value
                     Adds obligation (Type DataDict) to list of obligations owed by the firm."""
-
         obligation = Obligation(
             amount=amount, recipient=recipient, due_time=due_time, purpose=purpose
         )

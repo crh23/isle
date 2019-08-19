@@ -1057,7 +1057,7 @@ class Histogram:
             ax = fig.add_subplot(111)
 
         """Plot"""
-        ax.hist(self.sample_x, bins=num_bins, color=color)
+        ax.hist(self.sample_x, bins=num_bins, color=color, histtype="step")
 
         """Set plot attributes"""
         ax.set_ylabel(ylabel)
@@ -1124,9 +1124,8 @@ class RiskModelSpecificCompare:
                 data = [eval(k) for k in rfile]
                 rfile.close()
 
-                if (
-                    uninsured_risks and j == 1
-                ):  # Need operational data for calculating uninsured reinsurance risks.
+                if uninsured_risks and j == 1:
+                    # Need operational data for calculating uninsured reinsurance risks.
                     rfile = open("data/" + self.riskmodels[i] + "_operational.dat", "r")
                     n_insurers = [eval(d) for d in rfile]
                     rfile.close()
@@ -1138,14 +1137,14 @@ class RiskModelSpecificCompare:
                 data_q25 = []
                 data_q75 = []
                 for k in range(len(data[0])):
-                    if not uninsured_risks:  # Used for most risks.
+                    if not uninsured_risks:
+                        # Used for most risks.
                         data_means.append(np.mean([item[k] for item in data]))
                         data_q25.append(np.percentile([item[k] for item in data], 25))
                         data_q75.append(np.percentile([item[k] for item in data], 75))
                         data_medians.append(np.median([item[k] for item in data]))
-                    elif (
-                        uninsured_risks and j == 0
-                    ):  # Used for uninsured insurance risks.
+                    elif uninsured_risks and j == 0:
+                        # Used for uninsured insurance risks.
                         data_means.append(
                             np.mean([num_risks - item[k] for item in data])
                         )
@@ -1158,9 +1157,8 @@ class RiskModelSpecificCompare:
                         data_medians.append(
                             np.median([num_risks - item[k] for item in data])
                         )
-                    elif (
-                        uninsured_risks and j == 1
-                    ):  # Used for uninsured reinsurance risks.
+                    elif uninsured_risks and j == 1:
+                        # Used for uninsured reinsurance risks.
                         data_means.append(
                             np.mean(
                                 [
@@ -1249,13 +1247,11 @@ class RiskModelSpecificCompare:
 
         # Create figure and two subplot axes then plot on them using loop.
         self.fig, self.axs = plt.subplots(2, 1)
-        for f in range(
-            len(self.filetypes)
-        ):  # Loop for plotting insurance then reinsurance data (length 2).
+        for f in range(len(self.filetypes)):
+            # Loop for plotting insurance then reinsurance data (length 2).
             maxlen_plots = 0
-            for i in range(
-                self.number_riskmodels
-            ):  # Loop through number of risk models.
+            for i in range(self.number_riskmodels):
+                # Loop through number of risk models.
                 # Needed for the fill_between method for plotting percentile data.
                 if i <= 1:
                     j = 0
@@ -1304,6 +1300,256 @@ class RiskModelSpecificCompare:
         print("Have saved " + outputfile + " data")
 
 
+class ConfigCompare:
+    def __init__(self, original_filename, new_filename, extra_filename=None):
+        """Initialises the CompareData class. Is provided with two or three filenames and unpacks them, also creating
+        dictionaries of the average values in case of ensemble/replication runs.
+            Accepts:
+                original_filename: Type String.
+                new_filename: Type String.
+                extra_filename: Type String. Defaults None but there in case of extra file to be compared."""
+        with open(original_filename, "r") as rfile:
+            self.original_data = [eval(k) for k in rfile]
+        with open(new_filename, "r") as rfile:
+            self.new_data = [eval(k) for k in rfile]
+        if extra_filename is not None:
+            with open(extra_filename, "r") as rfile:
+                self.extra_data = [eval(k) for k in rfile]
+            self.extra = True
+        else:
+            self.extra = False
+            self.extra_data = {}
+
+        self.event_damage = []
+        self.event_schedule = []
+        self.original_averages = {}
+        self.new_averages = {}
+        self.extra_averages = {}
+        dicts = [self.original_averages, self.new_averages, self.extra_averages]
+        datas = [self.original_data, self.new_data, self.extra_data]
+        for i in range(len(datas)):
+            if self.extra is False and i == 2:
+                pass
+            else:
+                self.init_averages(dicts[i], datas[i])
+
+    def init_averages(self, avg_dict, data_dict):
+        """Method that initliases the average value dictionaries for the files. Takes a complete data dict and adds the
+           average values to a different dict provided.
+            Accepts:
+                avg_dict: Type Dict. Initially should be empty.
+                data_dict: Type List of data dict. Each element is a data dict containing data from that replication.
+            No return values."""
+        for data in data_dict:
+            for key in data.keys():
+                if (
+                    "firms_cash" in key
+                    or key == "market_diffvar"
+                    or "riskmodels" in key
+                ):
+                    pass
+                elif key == "individual_contracts" or key == "reinsurance_contracts":
+                    avg_contract_per_firm = []
+                    for t in range(len(data[key][0])):
+                        total_contracts = 0
+                        for i in range(len(data[key])):
+                            if data[key][i][t] > 0:
+                                total_contracts += data[key][i][t]
+                        if "re" in key:
+                            firm_count = data["total_reinoperational"][t]
+                        else:
+                            firm_count = data["total_operational"][t]
+                        if firm_count > 0:
+                            avg_contract_per_firm.append(total_contracts / firm_count)
+                        else:
+                            avg_contract_per_firm.append(0)
+                    if key not in avg_dict.keys():
+                        avg_dict[key] = avg_contract_per_firm
+                    else:
+                        avg_dict[key] = [
+                            list1 + list2
+                            for list1, list2 in zip(
+                                avg_dict[key], avg_contract_per_firm
+                            )
+                        ]
+                elif key == "rc_event_schedule_initial":
+                    self.event_schedule.append(data[key])
+                elif key == "rc_event_damage_initial":
+                    self.event_damage.append(data[key])
+                else:
+                    if key not in avg_dict.keys():
+                        avg_dict[key] = data[key]
+                    else:
+                        avg_dict[key] = [
+                            list1 + list2
+                            for list1, list2 in zip(avg_dict[key], data[key])
+                        ]
+        for key in avg_dict.keys():
+            avg_dict[key] = [value / len(data_dict) for value in avg_dict[key]]
+
+    def plot(self, upper, lower, events=False):
+        """Method to plot same type of data for different files on a plot.
+        No accepted values.
+        No return values."""
+        for key in self.original_averages.keys():
+            plt.figure()
+            original_values = self.original_averages[key][lower:upper]
+            mean_original_values = np.mean(original_values)
+            new_values = self.new_averages[key][lower:upper]
+            mean_new_values = np.mean(new_values)
+            xvalues = np.arange(lower, upper)
+            percent_diff = self.stats(original_values, new_values)
+            plt.plot(xvalues, original_values, label="Original Values", color="blue")
+            plt.plot(
+                xvalues,
+                new_values,
+                label="New Values, Avg Diff = %f%%" % percent_diff,
+                color="red",
+            )
+            if self.extra:
+                extra_values = self.extra_averages[key][lower:upper]
+                mean_extra_values = np.mean(extra_values)
+                percent_diff = self.stats(original_values, extra_values)
+                plt.plot(
+                    xvalues,
+                    extra_values,
+                    label="Extra Values, Avg Diff = %f%%" % percent_diff,
+                    color="yellow",
+                )
+            if "cum" not in key:
+                mean_diff = self.mean_diff(mean_original_values, mean_new_values)
+                plt.axhline(
+                    mean_original_values,
+                    linestyle="--",
+                    label="Original Mean",
+                    color="blue",
+                )
+                plt.axhline(
+                    mean_new_values,
+                    linestyle="--",
+                    label="New Mean, Diff = %f%%" % mean_diff,
+                    color="red",
+                )
+                if self.extra:
+                    mean_diff = self.mean_diff(mean_original_values, mean_extra_values)
+                    plt.axhline(
+                        mean_extra_values,
+                        linestyle="--",
+                        label="Extra Mean, Diff = %f%%" % mean_diff,
+                        color="yellow",
+                    )
+            if events:
+                for categ_index in range(len(self.event_schedule[0])):
+                    for event_index in range(len(self.event_schedule[0][categ_index])):
+                        if self.event_damage[0][categ_index][event_index] > 0.5:
+                            plt.axvline(
+                                self.event_schedule[0][categ_index][event_index],
+                                linestyle="-",
+                                color="green",
+                            )
+            plt.legend()
+            plt.xlabel("Time")
+            plt.ylabel(key)
+        plt.show()
+
+    def ks_test(self):
+        """Method to perform ks test on two sets of file data. Returns the D statistic and p-value.
+            No accepted values.
+            No return values."""
+        for key in self.original_averages.keys():
+            original_values = self.original_averages[key]
+            new_values = self.new_averages[key]
+            D, p = scipy.stats.ks_2samp(original_values, new_values)
+            print("%s has p value: %f and D: %f" % (key, p, D))
+
+    def chi_squared(self):
+        """Method for chi squared. Prints to screen.
+            No accepted values.
+            No return values."""
+        for key in self.original_averages.keys():
+            original_values = self.original_averages[key][200:1000]
+            new_values = self.new_averages[key][200:1000]
+            fractional_diff = 0
+            for t in range(len(original_values)):
+                if original_values[t] != 0:
+                    fractional_diff += (
+                        original_values[t] - new_values[t]
+                    ) ** 2 / original_values[t]
+            print(
+                "%s has chi squared value: %f"
+                % (key, fractional_diff / len(original_values))
+            )
+
+    def stats(self, original_values, new_values):
+        """Method to calculate average difference between two data sets. Called from plot().
+            Accepts:
+                original_values: Type List.
+                new_values: Type List.
+            Returns:
+                percentage_diff_sum: Type Float. Avg percentage difference."""
+        percentage_diff_sum = 0
+        for t in range(len(original_values)):
+            if original_values[t] != 0:
+                percentage_diff_sum += (
+                    np.absolute(
+                        (original_values[t] - new_values[t]) / original_values[t]
+                    )
+                    * 100
+                )
+        return percentage_diff_sum / len(original_values)
+
+    def mean_diff(self, original_mean, new_mean):
+        """Method to calculate percentage difference between two means. Used  by/for plotting.
+            Accepts:
+                original_mean: Type Float.
+                new_mean. Type Float.
+            Returns:
+                diff: Type Float."""
+        diff = (new_mean - original_mean) / original_mean
+        return diff * 100
+
+    def stat_tests(self, upper, lower):
+        """A series of scipy statistical tests. Prints the results. Doesn't really make sense in terms of timeseries.
+            Accepts:
+                upper: Type Integer. Upper limit of data to be tested.
+                lower: Type Integer. Lower limit of data to be tested.
+            No return values."""
+        for key in self.original_averages.keys():
+            try:
+                ttest = scipy.stats.ttest_ind(
+                    self.original_averages[key][lower:upper],
+                    self.new_averages[key][lower:upper],
+                )
+                chi = scipy.stats.chisquare(
+                    self.new_averages[key][lower:upper],
+                    self.original_averages[key][lower:upper],
+                )
+                epps = scipy.stats.epps_singleton_2samp(
+                    self.original_averages[key][lower:upper],
+                    self.new_averages[key][lower:upper],
+                    t=(750, 900),
+                )
+                wasser = scipy.stats.wasserstein_distance(
+                    self.original_averages[key][lower:upper],
+                    self.new_averages[key][lower:upper],
+                )
+                print(
+                    key,
+                    "\n",
+                    ttest,
+                    "\n",
+                    chi,
+                    "\n",
+                    epps,
+                    "\n",
+                    "Wasserstein distance: ",
+                    wasser,
+                )
+            except SyntaxError:
+                # Dud error to track down what we should be excepting
+                pass
+
+
 if __name__ == "__main__":
     # Use argparse to handle command line arguments
     parser = argparse.ArgumentParser(description="Model the Insurance sector")
@@ -1341,6 +1587,25 @@ if __name__ == "__main__":
         action="store_true",
         help="Plot data comparing risk models for both insurance and reinsurance firms.",
     )
+    parser.add_argument(
+        "--config_compare_file1",
+        action="store",
+        dest="file1",
+        help="gives plots and stats about at least two different files. This is the original data.",
+    )
+    parser.add_argument(
+        "--config_compare_file2",
+        action="store",
+        dest="file2",
+        help="gives plots and stats about two different files. This is the new data.",
+    )
+    parser.add_argument(
+        "--config_compare_file3",
+        action="store",
+        dest="file3",
+        help="gives plots and stats about two different files. This is extra data.",
+    )
+
     args = parser.parse_args()
 
     if args.single:
@@ -1464,5 +1729,18 @@ if __name__ == "__main__":
                 infiletype=data_types[type], refiletype=rein_data_types[type]
             )
             compare.plot(outputfile=data_types[type][1:-4])
+
+    if args.file1 is not None and args.file2 is not None:
+        # CD = ConfigCompare("data/single_history_logs_old_2019_Aug_02_12_53.dat",
+        #                  "data/single_history_logs.dat",
+        #                  "data/single_history_logs_old_2019_Aug_02_13_13.dat")
+        # Get files of data that resulted from different conditions to compare. Can handle any number of replications.
+        CD = ConfigCompare(args.file1, args.file2, args.file3)
+        CD.plot(events=False, upper=1000, lower=200)
+        CD.stat_tests(upper=1000, lower=200)
+    elif (args.file1 is not None and args.file2 is None) or (
+        args.file1 is None and args.file2 is not None
+    ):
+        print("Need two data files for comparison")
 
 # ਲ਼

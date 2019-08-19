@@ -271,6 +271,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 # If we've ended up with no tranches, give up and return
                 return None
 
+            # TODO: Should only look at contracts in the current category
             while (
                 len(tranches) + len(self.reinsurance_profile.all_contracts())
                 < min_tranches
@@ -497,7 +498,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             reinsurance.append(
                 {
                     "reinsurer": contract.insurer,
-                    # QUERY: value vs excess?
                     "value": contract.value,
                     "category": contract.category,
                 }
