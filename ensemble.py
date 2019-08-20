@@ -16,12 +16,6 @@ import start
 from setup_simulation import SetupSim
 
 
-@operation
-def agg(*outputs):
-    # do nothing
-    return outputs
-
-
 def rake(hostname):
     jobs = []
 
@@ -29,13 +23,13 @@ def rake(hostname):
 
     # Number of replications to be carried out for each configuration. Usually one risk model, two risk models,
     # three risk models, four risk models.
-    replications = 70
+    replications = 10
 
     model = start.main
 
     m = operation(model, include_modules=True)
 
-    riskmodels = [1, 2, 3, 4]  # The number of risk models that will be used.
+    riskmodels = [3]  # [1, 2, 3, 4]  # The number of risk models that will be used.
 
     parameters = isleconfig.simulation_parameters
 
@@ -91,14 +85,15 @@ def rake(hostname):
             "insurance_firms_cash",
             "reinsurance_firms_cash",
             "individual_contracts",
-            "reinsurance_contracts" "unweighted_network_data",
+            "reinsurance_contracts",
+            "unweighted_network_data",
             "network_node_labels",
             "network_edge_labels",
             "number_of_agents",
         ]:
             del requested_logs[name]
 
-    if not isleconfig.save_network:
+    elif not isleconfig.save_network:
         for name in [
             "unweighted_network_data",
             "network_node_labels",

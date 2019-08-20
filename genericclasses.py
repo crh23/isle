@@ -32,6 +32,11 @@ if TYPE_CHECKING:
     ]
 
 
+@dataclasses.dataclass(order=True)
+class RandomNumber:
+    n: int
+
+
 class GenericAgent:
     def __init__(self):
         self.cash: float = 0

@@ -1056,9 +1056,7 @@ class InsuranceSimulation(GenericAgent):
                     "reinsurance_firm_market_entry_probability"
                 ]
             else:
-                raise ValueError(
-                    f"Unknown agent type. Simulation requested to create agent of type {agent_type}"
-                )
+                raise ValueError(f"Unknown agent type {agent_type}")
         return np.random.random() < prob
 
     def record_bankruptcy(self):

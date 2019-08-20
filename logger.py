@@ -217,20 +217,26 @@ class Logger:
             Accepts:
                 ensemble: Type Boolean. Saves to files based on number risk models.
             No return values."""
-        if ensemble is True:
+        import pickle
+
+        if ensemble:
             filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
             fpf = filename_prefix[self.number_riskmodels]
             network_logs = [
-                ("data/" + fpf + "_network_data.dat", self.network_data, "a")
+                ("data/" + fpf + "_network_data.pkl", self.network_data, "r+b")
             ]
-
             for filename, data, operation_character in network_logs:
-                with open(filename, operation_character) as wfile:
-                    wfile.write(str(data) + "\n")
+                with open(filename, operation_character) as file:
+                    list_ = pickle.load(file)
+                    list_.append(data)
+                    file.truncate(0)
+                    pickle.dump(list_, file)
+                    # wfile.write(str(data) + "\n")
         else:
-            with open("data/network_data.dat", "w") as wfile:
-                wfile.write(str(self.network_data) + "\n")
-                wfile.write(str(self.rc_event_schedule_initial) + "\n")
+            with open("data/network_data.pkl", "wb") as wfile:
+                pickle.dump((self.network_data, self.rc_event_schedule_initial), wfile)
+                # wfile.write(str(self.network_data) + "\n")
+                # wfile.write(str(self.rc_event_schedule_initial) + "\n")
 
     def add_insurance_agent(self):
         """Method for adding an additional insurer agent to the history log. This is necessary to keep the number

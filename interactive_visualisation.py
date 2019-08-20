@@ -19,17 +19,19 @@ from bokeh.application import Application
 from bokeh.layouts import row, WidgetBox
 from bokeh.server.server import Server
 
+import pickle
 
 io_loop = IOLoop.current()
 
-with open("./data/network_data.dat", "r") as rfile:
-    network_data_dict = [eval(k) for k in rfile]
+with open("./data/network_data.pkl", "rb") as rfile:
+    network_data_dict = pickle.load(rfile)
+    # network_data_dict = [eval(k) for k in rfile]
 
 unweighted_network_data = network_data_dict[0]["unweighted_network_data"]
 network_edge_labels = network_data_dict[0]["network_edge_labels"]
 network_node_labels = network_data_dict[0]["network_node_labels"]
 number_agent_type = network_data_dict[0]["number_of_agents"]
-
+max_time = len(number_agent_type)
 # doc = output_file("bokeh/networkx_graph_demo.html")
 
 
@@ -112,7 +114,7 @@ def modify_network(doc):
 
         timeselect_slider = Slider(
             start=0,
-            end=1000,
+            end=max_time - 1,
             value=new,
             value_throttled=new,
             step=1,
