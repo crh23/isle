@@ -1,7 +1,7 @@
 """
 This script allows to launch an ensemble of simulations for different number of risks models.
 It can be run locally if no argument is passed when called from the terminal.
-It can be run in the cloud if it is passed as argument the server that will be used.
+It can be run in the cloud if it is passed as argument the sandman2 server that will be used.
 """
 import sys
 import os
@@ -146,6 +146,8 @@ def rake(hostname=None, replications=10):
     """Setup of the simulations"""
     # Here the setup for the simulation is done.
     # Since this script is used to carry out simulations in the cloud will usually have more than 1 replication.
+    # We don't set filepath=, so the full set of events and seeds will be stored in data/risk_event_schedules.islestore
+    # If we wished we could replicate by setting isleconfig.replicating = True.
     setup = setup_simulation.SetupSim()
     [
         general_rc_event_schedule,
@@ -167,7 +169,7 @@ def rake(hostname=None, replications=10):
         simulation_parameters = parameter_sets[prefix]
 
         # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
-        # simulation state save interval (never, i.e. longer than max_time), and list of requested logs.
+        # simulation state save interval (never), and list of requested logs.
         job = [
             m(
                 simulation_parameters,
@@ -187,12 +189,11 @@ def rake(hostname=None, replications=10):
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
 
         for prefix, job in jobs.items():
-            # If there are 4 parameter sets jobs will be a list with 4 elements.
+            # If there are 4 parameter sets jobs will be a dict with 4 elements.
 
             """Run simulation and obtain result"""
             result = sess.submit(job)
 
-            """Find number of riskmodels from log"""
             delistified_result = [listify.delistify(list(res)) for res in result]
 
             """These are the files created to collect the results"""
