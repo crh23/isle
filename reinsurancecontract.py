@@ -58,24 +58,38 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         else:
             assert self.contract is not None
 
-        # import distributionaggregate
-        # if type(self.insurer).__name__ == "CatBond":
-        #     max_claims = 1
-        #     expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
-        #         risk, params=self.insurer.simulation_parameters, max_claims=max_claims,
-        #     )
-        #     total_premium = self.insurer.per_period_dividend * self.runtime
-        #     # Initial purchase cost is exposure + 1
-        #     expected_return = ((exposure + 1) - expected_total_claim + total_premium) / (exposure + 1) - 1
-        #     print(f"Catbond created with total return of {expected_return:.1%}")
-        # else:
-        #     max_claims = 0
-        #     expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
-        #         risk, params=self.insurer.simulation_parameters, max_claims=max_claims,
-        #     )
-        #     total_premium = self.periodized_premium * self.runtime
-        #     expected_return = total_premium - expected_total_claim
-        #     print(f"Reinsurance contract created with expected return of MU{expected_return:.0f}")
+        evaluating = False
+        if evaluating:
+            import distributionaggregate
+            import isleconfig
+
+            if type(self.insurer).__name__ == "CatBond":
+                max_claims = 1
+                expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+                    risk,
+                    params=self.insurer.simulation_parameters,
+                    max_claims=max_claims,
+                )
+                total_premium = self.insurer.per_period_dividend * self.runtime
+                # Initial purchase cost is exposure + 1
+                expected_return = (
+                    (exposure + 1) - expected_total_claim + total_premium
+                ) / (exposure + 1) - 1
+                if isleconfig.verbose:
+                    print(f"Catbond created with total return of {expected_return:.1%}")
+            else:
+                max_claims = 0
+                expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+                    risk,
+                    params=self.insurer.simulation_parameters,
+                    max_claims=max_claims,
+                )
+                total_premium = self.periodized_premium * self.runtime
+                expected_return = total_premium - expected_total_claim
+                if isleconfig.verbose:
+                    print(
+                        f"Reinsurance contract created with expected return of MU{expected_return:.0f}"
+                    )
 
     def explode(
         self, time: int, uniform_value: None = None, damage_extent: float = None
