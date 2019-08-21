@@ -1,7 +1,7 @@
 from itertools import chain
 
 import dataclasses
-from functools import lru_cache
+from functools import lru_cache, wraps
 from sortedcontainers import SortedList
 import numpy as np
 from scipy import stats
@@ -396,6 +396,7 @@ def weak_lru_cache(maxsize=128, typed=False):
     def lru_wrapped(user_function):
         cached_func = lru_cache(maxsize, typed)(user_function)
 
+        @wraps(user_function)
         def func_wrapper(*func_args, **func_kwargs):
             try:
                 return cached_func(*func_args, **func_kwargs)
