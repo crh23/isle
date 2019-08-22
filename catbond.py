@@ -27,6 +27,7 @@ class CatBond(MetaInsuranceOrg):
                 owner: Type class
         This initialised the catbond class instance, inheriting methods from MetaInsuranceOrg."""
         self.simulation = simulation
+        self.simulation_parameters = simulation.simulation_parameters
         self.id: int = self.simulation.get_unique_catbond_id()
         self.underwritten_contracts: Collection["MetaInsuranceContract"] = []
         self.cash: float = 0
@@ -37,7 +38,6 @@ class CatBond(MetaInsuranceOrg):
         self.per_period_dividend: float = per_period_premium
         self.creditor = self.simulation
         self.expiration: int = None
-        self.triggered = 0
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
     def iterate(self, time: int):

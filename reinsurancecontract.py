@@ -1,8 +1,9 @@
-import metainsurancecontract
-
 from typing import Optional
 from typing import TYPE_CHECKING
 from math import floor
+
+import metainsurancecontract
+import isleconfig
 
 if TYPE_CHECKING:
     from insurancefirms import InsuranceFirm
@@ -56,6 +57,39 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         else:
             assert self.contract is not None
 
+        evaluating = False
+        if evaluating:
+            import distributionaggregate
+            import isleconfig
+
+            if type(self.insurer).__name__ == "CatBond":
+                max_claims = 1
+                expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+                    risk,
+                    params=self.insurer.simulation_parameters,
+                    max_claims=max_claims,
+                )
+                total_premium = self.insurer.per_period_dividend * self.runtime
+                # Initial purchase cost is exposure + 1
+                expected_return = (
+                    (exposure + 1) - expected_total_claim + total_premium
+                ) / (exposure + 1) - 1
+                if isleconfig.verbose:
+                    print(f"Catbond created with total return of {expected_return:.1%}")
+            else:
+                max_claims = 0
+                expected_total_claim, std, var, exposure = distributionaggregate.get_contract_risk(
+                    risk,
+                    params=self.insurer.simulation_parameters,
+                    max_claims=max_claims,
+                )
+                total_premium = self.periodized_premium * self.runtime
+                expected_return = total_premium - expected_total_claim
+                if isleconfig.verbose:
+                    print(
+                        f"Reinsurance contract created with expected return of MU{expected_return:.0f}"
+                    )
+
     def explode(
         self, time: int, uniform_value: None = None, damage_extent: float = None
     ):
@@ -108,7 +142,6 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 # for the issuer
                 # TODO: Allow for catbonds that can pay out multiple times?
                 self.insurer: "CatBond"
-                self.insurer.triggered += 1
                 remaining_cb_cash = self.insurer.get_available_cash(time) - claim
                 assert remaining_cb_cash >= 0
                 if remaining_cb_cash < 2:
@@ -127,6 +160,23 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 else:
                     # If the catbond still has enough money to pay out the full exposure, no need to change anything.
                     pass
+            elif (
+                isleconfig.simulation_parameters["adjustable_reinsurance_premiums"]
+                and self.times_triggered
+                % isleconfig.simulation_parameters[
+                    "reinsurance_premium_adjustment_frequency"
+                ]
+                == 0
+            ):
+                adjustment = (
+                    isleconfig.simulation_parameters[
+                        "reinsurance_premium_adjustment_amount"
+                    ]
+                    + 1
+                )
+                self.periodized_premium *= adjustment
+                for i in range(len(self.payment_values)):
+                    self.payment_values[i] *= adjustment
 
     def mature(self, time: int):
         """Mature method.

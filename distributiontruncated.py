@@ -46,6 +46,7 @@ class TruncatedDistWrapper:
             size = 1
         else:
             size = passed_size
+        # We could also use inverse transform sampling
         # Sample RVs from the original distribution and then throw out the ones that are outside the bounds.
         init_sample_size = int(ceil(size / self.normalizing_factor * 1.1))
         sample = self.dist.rvs(size=init_sample_size)

@@ -33,7 +33,7 @@ simulation_parameters = {
     "contract_runtime_halfspread": 2,
     "reinsurance_contract_runtime": 12,
     "default_contract_payment_period": 3,
-    "max_time": 100,
+    "max_time": 300,
     "money_supply": 2000000000,
     "event_time_mean_separation": 100 / 3.0,
     "expire_immediately": False,
@@ -119,4 +119,10 @@ simulation_parameters = {
     # insurers may still end up with layered reinsurance to fill gaps
     "min_tranches": 1,
     "aid_budget": 1000000,
+    # If this is true then reinsurance premiums can be adjusted after cat events
+    "adjustable_reinsurance_premiums": False,
+    # How many cat events are required to adjust the premium
+    "reinsurance_premium_adjustment_frequency": 2,
+    # The amount (as a fraction of the existing premium) to increase by
+    "reinsurance_premium_adjustment_amount": 0.1,
 }

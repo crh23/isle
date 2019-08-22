@@ -307,7 +307,7 @@ class InsuranceSimulation(GenericAgent):
     ):
         """General function for initialising the agent parameters
             Takes the firm type as argument, also needing sim params and risk configs
-              Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
+            Creates the agent parameters of both firm types for the initial number specified in isleconfig.py
                 Returns None"""
         if firmtype == "insurancefirm":
             no_firms = simulation_parameters["no_insurancefirms"]
@@ -658,42 +658,36 @@ class InsuranceSimulation(GenericAgent):
         ]
 
         """ prepare dict """
-        current_log = {}  # TODO: rewrite this as a single dictionary literal?
-        current_log["total_cash"] = total_cash_no
-        current_log["total_excess_capital"] = total_excess_capital
-        current_log["total_profitslosses"] = total_profitslosses
-        current_log["total_contracts"] = total_contracts_no
-        current_log["total_operational"] = operational_no
-        current_log["total_reincash"] = total_reincash_no
-        current_log["total_reinexcess_capital"] = total_reinexcess_capital
-        current_log["total_reinprofitslosses"] = total_reinprofitslosses
-        current_log["total_reincontracts"] = total_reincontracts_no
-        current_log["total_reinoperational"] = reinoperational_no
-        current_log["total_catbondsoperational"] = catbondsoperational_no
-        current_log["market_premium"] = self.market_premium
-        current_log["market_reinpremium"] = self.reinsurance_market_premium
-        current_log["cumulative_bankruptcies"] = self.cumulative_bankruptcies
-        current_log["cumulative_market_exits"] = self.cumulative_market_exits
-        current_log[
-            "cumulative_unrecovered_claims"
-        ] = self.cumulative_unrecovered_claims
-        current_log["cumulative_claims"] = self.cumulative_claims
-        current_log["cumulative_bought_firms"] = self.cumulative_bought_firms
-        current_log[
-            "cumulative_nonregulation_firms"
-        ] = self.cumulative_nonregulation_firms
-
-        """ add agent-level data to dict"""
-        current_log["insurance_firms_cash"] = insurance_firms
-        current_log["reinsurance_firms_cash"] = reinsurance_firms
-        current_log["market_diffvar"] = self.compute_market_diffvar()
-
-        current_log["individual_contracts"] = [
-            len(firm.underwritten_contracts) for firm in self.insurancefirms
-        ]
-        current_log["reinsurance_contracts"] = [
-            len(firm.underwritten_contracts) for firm in self.reinsurancefirms
-        ]
+        current_log = {
+            "total_cash": total_cash_no,
+            "total_excess_capital": total_excess_capital,
+            "total_profitslosses": total_profitslosses,
+            "total_contracts": total_contracts_no,
+            "total_operational": operational_no,
+            "total_reincash": total_reincash_no,
+            "total_reinexcess_capital": total_reinexcess_capital,
+            "total_reinprofitslosses": total_reinprofitslosses,
+            "total_reincontracts": total_reincontracts_no,
+            "total_reinoperational": reinoperational_no,
+            "total_catbondsoperational": catbondsoperational_no,
+            "market_premium": self.market_premium,
+            "market_reinpremium": self.reinsurance_market_premium,
+            "cumulative_bankruptcies": self.cumulative_bankruptcies,
+            "cumulative_market_exits": self.cumulative_market_exits,
+            "cumulative_unrecovered_claims": self.cumulative_unrecovered_claims,
+            "cumulative_claims": self.cumulative_claims,
+            "cumulative_bought_firms": self.cumulative_bought_firms,
+            "cumulative_nonregulation_firms": self.cumulative_nonregulation_firms,
+            "insurance_firms_cash": insurance_firms,
+            "reinsurance_firms_cash": reinsurance_firms,
+            "market_diffvar": self.compute_market_diffvar(),
+            "individual_contracts": [
+                len(firm.underwritten_contracts) for firm in self.insurancefirms
+            ],
+            "reinsurance_contracts": [
+                len(firm.underwritten_contracts) for firm in self.reinsurancefirms
+            ],
+        }
 
         if isleconfig.save_network:
             adj_list, node_labels, edge_labels, num_entities = (
@@ -795,7 +789,7 @@ class InsuranceSimulation(GenericAgent):
 
         if operational_no > 0:
 
-            if risks_no > operational_no:  # TODO: as above
+            if risks_no > operational_no:
                 weights = risks_no / operational_no
                 for insurer in self.insurancefirms:
                     self.insurers_weights[insurer.id] = math.floor(weights)
@@ -805,7 +799,6 @@ class InsuranceSimulation(GenericAgent):
                     self.insurers_weights[operational_firms[s].id] += 1
 
     def _update_model_counters(self):
-        # TODO: this and the next look like they could be cleaner
         for insurer in self.insurancefirms:
             if insurer.operational:
                 for i in range(len(self.inaccuracy)):
@@ -921,7 +914,6 @@ class InsuranceSimulation(GenericAgent):
                 np_reinsurance_deductible_fraction: Type Integer
            Returns:
                 Calculated catbond price."""
-        # TODO: implement function dependent on total capital in cat bonds and on deductible ()
         # TODO: make max_reduction and max_cat_bond_surcharge into simulation_parameters ?
         if self.catbonds_off:
             return float("inf")
@@ -1045,7 +1037,6 @@ class InsuranceSimulation(GenericAgent):
                             Returns:
                                  True if firm can enter market
                                  False if firm cannot enter market"""
-        # TODO: Do firms really enter the market randomly, with at most one in each timestep?
         if prob == -1:
             if agent_type == "InsuranceFirm":
                 prob = self.simulation_parameters[
