@@ -6,6 +6,7 @@ It can be run in the cloud if it is passed as argument the sandman2 server that 
 import sys
 import os
 from typing import Dict
+import time
 
 import sandman2.api as sm
 
@@ -16,7 +17,7 @@ import start
 import setup_simulation
 
 
-def rake(hostname=None, replications=10):
+def rake(hostname=None, replications=50):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET
@@ -28,19 +29,18 @@ def rake(hostname=None, replications=10):
 
     """Configure the parameter sets to run"""
     default_parameters: Dict = isleconfig.simulation_parameters
+    parameter_sets: Dict[str:Dict] = {}
 
     ###################################################################################################################
     # This section should be freely modified to determine the experiment
     # The keys of parameter_sets are the prefixes to save logs under, the values are the parameters to run
     # The keys should be strings
 
-    parameter_sets: Dict[str:Dict] = {}
-
-    for prefix in range(1, 5):
+    for prefix in range(1, 4):
         # default_parameters is mutable, so should be copied
         new_parameters = default_parameters.copy()
         new_parameters["no_riskmodels"] = prefix
-        parameter_sets[str(prefix)] = new_parameters
+        parameter_sets["ensemble" + str(prefix)] = new_parameters
 
     ###################################################################################################################
 
@@ -187,80 +187,99 @@ def rake(hostname=None, replications=10):
     """Here the jobs are submitted"""
 
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
-
+        tasks = {}
         for prefix, job in jobs.items():
             # If there are 4 parameter sets jobs will be a dict with 4 elements.
 
             """Run simulation and obtain result"""
-            result = sess.submit(job)
+            task = sess.submit_async(job)
+            print(f"Started job, prefix {prefix}, given ID {task.id}")
+            tasks[prefix] = task
 
-            delistified_result = [listify.delistify(list(res)) for res in result]
+        print("Now waiting for jobs to complete\033[5m...\033[0m")
+        # Need to do it this way as dictionary can't change size during iteration
+        completed_tasks = []
+        while len(tasks) > 0:
+            for prefix in completed_tasks:
+                del tasks[prefix]
+            completed_tasks = []
 
-            """These are the files created to collect the results"""
-            wfiles_dict = {}
+            time.sleep(0.5)
+            for prefix, task in tasks.items():
+                if task.is_done():
+                    print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
+                    result = task.results
+                    completed_tasks.append(prefix)
+                    delistified_result = [
+                        listify.delistify(list(res)) for res in result
+                    ]
 
-            logfile_dict = {}
+                    """These are the files created to collect the results"""
+                    wfiles_dict = {}
 
-            for name in requested_logs.keys():
-                if "rc_event" in name or "number_riskmodels" in name:
-                    logfile_dict[name] = (
-                        os.getcwd()
-                        + dir_prefix
-                        + "check_"
-                        + prefix
-                        + requested_logs[name]
-                    )
-                elif "firms_cash" in name:
-                    logfile_dict[name] = (
-                        os.getcwd()
-                        + dir_prefix
-                        + "record_"
-                        + prefix
-                        + requested_logs[name]
-                    )
-                else:
-                    logfile_dict[name] = (
-                        os.getcwd()
-                        + dir_prefix
-                        + "data_"
-                        + prefix
-                        + requested_logs[name]
-                    )
+                    logfile_dict = {}
 
-            # with ... as would be awkward here, so use try ... finally
-            try:
-                for name in logfile_dict:
-                    wfiles_dict[name] = open(logfile_dict[name], "w")
+                    for name in requested_logs.keys():
+                        if "rc_event" in name or "number_riskmodels" in name:
+                            logfile_dict[name] = (
+                                os.getcwd()
+                                + dir_prefix
+                                + "check_"
+                                + prefix
+                                + requested_logs[name]
+                            )
+                        elif "firms_cash" in name:
+                            logfile_dict[name] = (
+                                os.getcwd()
+                                + dir_prefix
+                                + "record_"
+                                + prefix
+                                + requested_logs[name]
+                            )
+                        else:
+                            logfile_dict[name] = (
+                                os.getcwd()
+                                + dir_prefix
+                                + "data_"
+                                + prefix
+                                + requested_logs[name]
+                            )
 
-                """Recreate logger object locally and save logs"""
+                    # with ... as would be awkward here, so use try ... finally
+                    try:
+                        for name in logfile_dict:
+                            wfiles_dict[name] = open(logfile_dict[name], "w")
 
-                """Create local object"""
-                log = logger.Logger()
+                        """Recreate logger object locally and save logs"""
 
-                for replic in range(len(job)):
-                    """Populate logger object with logs obtained from remote simulation run"""
-                    log.restore_logger_object(list(result[replic]))
+                        """Create local object"""
+                        log = logger.Logger()
 
-                    """Save logs as dict (to <prefix>_history_logs.dat)"""
-                    log.save_log(True, prefix=prefix)
+                        for replic in range(len(job)):
+                            """Populate logger object with logs obtained from remote simulation run"""
+                            log.restore_logger_object(list(result[replic]))
 
-                    """Save network data"""
-                    if isleconfig.save_network:
-                        log.save_network_data(ensemble=True, prefix=prefix)
+                            """Save logs as dict (to <prefix>_history_logs.dat)"""
+                            log.save_log(True, prefix=prefix)
 
-                    """Save logs as individual files"""
-                    for name in logfile_dict:
-                        # Append the current replication data to the file
-                        wfiles_dict[name].write(
-                            str(delistified_result[replic][name]) + "\n"
-                        )
+                            """Save network data"""
+                            if isleconfig.save_network:
+                                log.save_network_data(ensemble=True, prefix=prefix)
 
-            finally:
-                """Once the data is stored in disk the files are closed"""
-                for name in logfile_dict:
-                    if name in wfiles_dict:
-                        wfiles_dict[name].close()
-                        del wfiles_dict[name]
+                            """Save logs as individual files"""
+                            for name in logfile_dict:
+                                # Append the current replication data to the file
+                                wfiles_dict[name].write(
+                                    str(delistified_result[replic][name]) + "\n"
+                                )
+
+                    finally:
+                        """Once the data is stored in disk the files are closed"""
+                        for name in logfile_dict:
+                            if name in wfiles_dict:
+                                wfiles_dict[name].close()
+                                del wfiles_dict[name]
+                    print(f"Finished writing files for prefix {prefix}")
 
 
 if __name__ == "__main__":

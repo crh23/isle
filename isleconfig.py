@@ -33,9 +33,9 @@ simulation_parameters = {
     "contract_runtime_halfspread": 2,
     "reinsurance_contract_runtime": 12,
     "default_contract_payment_period": 3,
-    "max_time": 300,
+    "max_time": 1000,
     "money_supply": 2000000000,
-    "event_time_mean_separation": 100 / 3.0,
+    "event_time_mean_separation": 100 / 3,
     "expire_immediately": False,
     "risk_factors_present": False,
     "risk_factor_lower_bound": 0.4,
@@ -54,8 +54,8 @@ simulation_parameters = {
     "reinsurance_off": False,
     "capacity_target_decrement_threshold": 1.8,
     "capacity_target_increment_threshold": 1.2,
-    "capacity_target_decrement_factor": 24 / 25.0,
-    "capacity_target_increment_factor": 25 / 24.0,
+    "capacity_target_decrement_factor": 24 / 25,
+    "capacity_target_increment_factor": 25 / 24,
     # Retention parameters
     "insurance_retention": 0.85,  # Ratio of insurance contracts retained every iteration.
     "reinsurance_retention": 1,  # Ratio of reinsurance contracts retained every iteration.
