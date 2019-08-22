@@ -164,16 +164,17 @@ class Logger:
         self.history_logs_to_save.append(log)
         self.history_logs = log
 
-    def save_log(self, background_run):
+    def save_log(self, ensemble_run, prefix=""):
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
            Is called at the end of the replication (if at all).
             Arguments:
-                background_run: Type bool. Is this an ensemble run (true) or not (false).
+                ensemble_run: Type bool. Is this an ensemble run (true) or not (false).
+                prefix: Type str. The prefix to prepend to the filename
             Returns None."""
 
         """Prepare writing tasks"""
-        if background_run:
-            to_log = self.replication_log_prepare()
+        if ensemble_run:
+            to_log = self.replication_log_prepare(prefix)
         else:
             to_log = self.single_log_prepare()
 
@@ -182,19 +183,19 @@ class Logger:
             with open(filename, operation_character) as wfile:
                 wfile.write(str(data) + "\n")
 
-    def replication_log_prepare(self):
+    def replication_log_prepare(self, prefix):
         """Method to prepare writing tasks for ensemble run saving.
             No arguments
             Returns list of tuples with three elements each.
                     Element 1: filename
                     Element 2: data structure to save
                     Element 3: operation parameter (w-write or a-append)."""
-        filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
-        fpf = filename_prefix[self.number_riskmodels]
-        to_log = [("data/" + fpf + "_history_logs.dat", self.history_logs, "a")]
+        to_log = [
+            ("data/" + "full_" + prefix + "_history_logs.dat", self.history_logs, "a")
+        ]
         return to_log
 
-    def single_log_prepare(self):
+    def single_log_prepare(self, prefix="single"):
         """Method to prepare writing tasks for single run saving.
             No arguments
             Returns list of tuples with three elements each.
@@ -202,9 +203,13 @@ class Logger:
                     Element 2: data structure to save
                     Element 3: operation parameter (w-write or a-append)."""
         to_log = []
-        filename = "data/single_history_logs.dat"
+        filename = "data/" + prefix + "_history_logs.dat"
         backupfilename = (
-            "data/single_history_logs_old_" + time.strftime("%Y_%b_%d_%H_%M") + ".dat"
+            "data/"
+            + prefix
+            + "_history_logs_old_"
+            + time.strftime("%Y_%b_%d_%H_%M")
+            + ".dat"
         )
         if os.path.exists(filename):
             os.rename(filename, backupfilename)
@@ -212,7 +217,7 @@ class Logger:
             to_log.append((filename, history_log, "a"))
         return to_log
 
-    def save_network_data(self, ensemble):
+    def save_network_data(self, ensemble, prefix=""):
         """Method to save network data to its own file.
             Accepts:
                 ensemble: Type Boolean. Saves to files based on number risk models.
@@ -220,10 +225,8 @@ class Logger:
         import pickle
 
         if ensemble:
-            filename_prefix = {1: "one", 2: "two", 3: "three", 4: "four"}
-            fpf = filename_prefix[self.number_riskmodels]
             network_logs = [
-                ("data/" + fpf + "_network_data.pkl", self.network_data, "r+b")
+                ("data/" + prefix + "_network_data.pkl", self.network_data, "r+b")
             ]
             for filename, data, operation_character in network_logs:
                 with open(filename, operation_character) as file:

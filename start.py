@@ -71,7 +71,11 @@ def main(
         simulation.save_data()
 
         # Don't save at t=0 or if the simulation has just finished
-        if t % save_iteration == 0 and 0 < t < sim_params["max_time"]:
+        if (
+            save_iteration > 0
+            and t % save_iteration == 0
+            and 0 < t < sim_params["max_time"]
+        ):
             # Need to use t+1 as resume will start at time saved
             save_simulation(t + 1, simulation, sim_params, exit_now=False)
 
