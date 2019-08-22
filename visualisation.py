@@ -427,6 +427,8 @@ class Visualisation(object):
         reincash = np.median(reincash_agg, axis=0)
         catbonds_number = np.median(catbonds_number_agg, axis=0)
 
+        ts_length = len(reincash)
+
         self.reins_time_series = TimeSeries(
             [
                 (
@@ -467,6 +469,7 @@ class Visualisation(object):
             axlst=axlst,
             fig=fig,
             colour=colour,
+            length=ts_length,
         )
         fig, axlst = self.reins_time_series.plot()
         return fig, axlst
