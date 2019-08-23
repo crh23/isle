@@ -139,7 +139,7 @@ def rake(hostname=None, replications=50):
 
     """Clear old dict saving files (*_history_logs.dat)"""
     for prefix in parameter_sets.keys():
-        filename = os.getcwd() + dir_prefix + prefix + "_history_logs.dat"
+        filename = os.getcwd() + dir_prefix + "full_" + prefix + "_history_logs.dat"
         if os.path.exists(filename):
             os.remove(filename)
 
@@ -178,6 +178,7 @@ def rake(hostname=None, replications=50):
                 np_seeds[x],
                 random_seeds[x],
                 save_iter,
+                0,
                 list(requested_logs.keys()),
             )
             for x in range(replications)
