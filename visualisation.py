@@ -798,6 +798,7 @@ class Histogram_plot:
 
         """Create figure with correct number of subplots"""
         self.fig, self.ax = plt.subplots(nrows=len(self.vis_list))
+        # self.fig, self.ax = plt.gcf(), plt.gca()
 
         """find max and min values"""
         """combine all data sets"""
@@ -1558,9 +1559,10 @@ class ConfigCompare:
                     "Wasserstein distance: ",
                     wasser,
                 )
-            except SyntaxError:
-                # Dud error to track down what we should be excepting
-                pass
+            except Exception as ex:
+                # Dud error to track down what we should be excepting (was previously bare except)
+                print(f"The exception should be {ex}!")
+                raise ex
 
 
 if __name__ == "__main__":
@@ -1647,7 +1649,8 @@ if __name__ == "__main__":
 
         # Loads all risk model history logs data (very long :'( ) and creates list of visualisation class instances.
         filenames = [
-            "./data/" + x + "_history_logs.dat" for x in ["one", "two", "three", "four"]
+            "./data/full_" + x + "_history_logs.dat"
+            for x in ["ensemble1", "ensemble2", "ensemble3"]
         ]
         for filename in filenames:
             with open(filename, "r") as rfile:

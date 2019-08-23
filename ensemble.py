@@ -36,14 +36,17 @@ def rake(hostname=None, replications=50):
     # The keys of parameter_sets are the prefixes to save logs under, the values are the parameters to run
     # The keys should be strings
 
-    for prefix in range(1, 4):
+    for number_riskmodels in [1, 3]:
         # default_parameters is mutable, so should be copied
         new_parameters = default_parameters.copy()
-        new_parameters["no_riskmodels"] = prefix
-        parameter_sets["ensemble" + str(prefix)] = new_parameters
+        new_parameters["no_riskmodels"] = number_riskmodels
+        parameter_sets["ensemble" + str(number_riskmodels)] = new_parameters
 
     ###################################################################################################################
-
+    print(
+        f"Running {len(parameter_sets)} simulations of {replications} "
+        f"replications of {default_parameters['max_time']} timesteps"
+    )
     for name in parameter_sets:
         assert isinstance(name, str)
 
@@ -162,6 +165,7 @@ def rake(hostname=None, replications=50):
     m = sm.operation(start.main, include_modules=True)
 
     jobs = {}
+    position_maps = {}
     for prefix in parameter_sets:
         # In this loop the parameters, schedules and random seeds for every run are prepared. Different risk models will
         # be run with the same schedule, damage size and random seed for a fair comparison.
@@ -183,6 +187,7 @@ def rake(hostname=None, replications=50):
             for x in range(replications)
         ]
         jobs[prefix] = job
+        position_maps[prefix] = {o.id: p for p, o in enumerate(job)}
 
     """Here the jobs are submitted"""
 
@@ -208,17 +213,14 @@ def rake(hostname=None, replications=50):
             for prefix, task in tasks.items():
                 if task.is_done():
                     print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
-                    result = task.results
+                    # These will be disordered, fix?
+                    results_iterator = task.iterresults()
                     completed_tasks.append(prefix)
-                    delistified_result = [
-                        listify.delistify(list(res)) for res in result
-                    ]
 
                     """These are the files created to collect the results"""
-                    wfiles_dict = {}
 
+                    # Construct filenames to write to
                     logfile_dict = {}
-
                     for name in requested_logs.keys():
                         if "rc_event" in name or "number_riskmodels" in name:
                             logfile_dict[name] = (
@@ -246,6 +248,7 @@ def rake(hostname=None, replications=50):
                             )
 
                     # with ... as would be awkward here, so use try ... finally
+                    wfiles_dict = {}
                     try:
                         for name in logfile_dict:
                             wfiles_dict[name] = open(logfile_dict[name], "w")
@@ -255,11 +258,14 @@ def rake(hostname=None, replications=50):
                         """Create local object"""
                         log = logger.Logger()
 
-                        for replic in range(len(job)):
-                            """Populate logger object with logs obtained from remote simulation run"""
-                            log.restore_logger_object(list(result[replic]))
+                        for output_id, result in results_iterator:
+                            position = position_maps[prefix][output_id]
+                            delistified_result = listify.delistify(list(result))
 
-                            """Save logs as dict (to <prefix>_history_logs.dat)"""
+                            """Populate logger object with logs obtained from remote simulation run"""
+                            log.restore_logger_object(list(result))
+
+                            """Save logs as dict (to full_<prefix>_history_logs.dat)"""
                             log.save_log(True, prefix=prefix)
 
                             """Save network data"""
@@ -268,10 +274,13 @@ def rake(hostname=None, replications=50):
 
                             """Save logs as individual files"""
                             for name in logfile_dict:
+                                # Async iteration doesn't preserve order (replications can be reshuffled), so in case
+                                # we want to compare like with like between parameter sets we store the original
+                                # position in the list.
+                                to_write = (position, delistified_result[name])
                                 # Append the current replication data to the file
-                                wfiles_dict[name].write(
-                                    str(delistified_result[replic][name]) + "\n"
-                                )
+                                wfiles_dict[name].write(repr(to_write) + "\n")
+                                # TODO: Use pickle or hickle rather than repr()s.
 
                     finally:
                         """Once the data is stored in disk the files are closed"""
@@ -280,6 +289,8 @@ def rake(hostname=None, replications=50):
                                 wfiles_dict[name].close()
                                 del wfiles_dict[name]
                     print(f"Finished writing files for prefix {prefix}")
+
+    print("Recieved all results and written all files")
 
 
 if __name__ == "__main__":

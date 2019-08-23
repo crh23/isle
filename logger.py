@@ -164,7 +164,7 @@ class Logger:
         self.history_logs_to_save.append(log)
         self.history_logs = log
 
-    def save_log(self, ensemble_run, prefix=""):
+    def save_log(self, ensemble_run: bool, prefix: str = "") -> None:
         """Method to save log to disk of local machine. Distinguishes single and ensemble runs.
            Is called at the end of the replication (if at all).
             Arguments:
@@ -183,16 +183,18 @@ class Logger:
             with open(filename, operation_character) as wfile:
                 wfile.write(str(data) + "\n")
 
-    def replication_log_prepare(self, prefix):
+    def replication_log_prepare(self, prefix, position: int = None):
         """Method to prepare writing tasks for ensemble run saving.
             No arguments
             Returns list of tuples with three elements each.
                     Element 1: filename
                     Element 2: data structure to save
                     Element 3: operation parameter (w-write or a-append)."""
-        to_log = [
-            ("data/" + "full_" + prefix + "_history_logs.dat", self.history_logs, "a")
-        ]
+        if position is not None:
+            data = (position, self.history_logs)
+        else:
+            data = self.history_logs
+        to_log = [("data/" + "full_" + prefix + "_history_logs.dat", data, "a")]
         return to_log
 
     def single_log_prepare(self, prefix="single"):
