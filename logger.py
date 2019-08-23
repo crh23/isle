@@ -143,17 +143,21 @@ class Logger:
 
         """Restore dict"""
         log = listify.delistify(log)
-
-        self.network_data["unweighted_network_data"] = log["unweighted_network_data"]
-        self.network_data["network_node_labels"] = log["network_node_labels"]
-        self.network_data["network_edge_labels"] = log["network_edge_labels"]
-        self.network_data["number_of_agents"] = log["number_of_agents"]
-        del (
-            log["number_of_agents"],
-            log["network_edge_labels"],
-            log["network_node_labels"],
-            log["unweighted_network_data"],
-        )
+        try:
+            self.network_data["unweighted_network_data"] = log[
+                "unweighted_network_data"
+            ]
+            self.network_data["network_node_labels"] = log["network_node_labels"]
+            self.network_data["network_edge_labels"] = log["network_edge_labels"]
+            self.network_data["number_of_agents"] = log["number_of_agents"]
+            del (
+                log["number_of_agents"],
+                log["network_edge_labels"],
+                log["network_node_labels"],
+                log["unweighted_network_data"],
+            )
+        except KeyError:
+            pass
 
         """Extract environment variables (number of risk models and risk event schedule)"""
         self.rc_event_schedule_initial = log["rc_event_schedule_initial"]
