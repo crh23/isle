@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import isleconfig
 import pickle
+import hickle
 import scipy
 import scipy.stats
 from matplotlib.offsetbox import AnchoredText
@@ -224,13 +225,13 @@ class InsuranceFirmAnimation(object):
 
 
 class Visualisation(object):
-    def __init__(self, history_logs_list):
+    def __init__(self, history_log):
         """Initialises visualisation class for all data.
             Accepts:
                 history_logs_list: Type List of DataDicts. Each element is a different replication/run. Each DataDict
                                     contains all info for that run.
             No return values."""
-        self.history_logs_list = history_logs_list
+        self.history_log = history_log
         self.scatter_data = {}
 
     def insurer_pie_animation(self, run=0):
@@ -239,10 +240,10 @@ class Visualisation(object):
                 run: Type Integer. Which replication/run is wanted. Allows loops or specific runs.
             Returns:
                 self.ins_pie_anim: Type animation class instance. Not used outside this method but is saved."""
-        data = self.history_logs_list[run]
-        insurance_cash = np.array(data["insurance_firms_cash"])
-        contract_data = data["individual_contracts"]
-        event_schedule = data["rc_event_schedule_initial"]
+        data = self.history_log
+        insurance_cash = np.array(data["insurance_firms_cash"][run])
+        contract_data = data["individual_contracts"][run]
+        event_schedule = data["rc_event_schedule_initial"][run]
         self.ins_pie_anim = InsuranceFirmAnimation(
             insurance_cash, contract_data, event_schedule, "Insurance Firm", save=True
         )
@@ -255,10 +256,10 @@ class Visualisation(object):
                 run: Type Integer. Which replication/run is wanted. Allows loops or specific runs.
             Returns:
                 self.reins_pie_anim: Type animation class instance. Not used outside this method but is saved."""
-        data = self.history_logs_list[run]
-        reinsurance_cash = np.array(data["reinsurance_firms_cash"])
-        contract_data = data["reinsurance_contracts"]
-        event_schedule = data["rc_event_schedule_initial"]
+        data = self.history_log
+        reinsurance_cash = data["reinsurance_firms_cash"][run]
+        contract_data = data["reinsurance_contracts"][run]
+        event_schedule = data["rc_event_schedule_initial"][run]
         self.reins_pie_anim = InsuranceFirmAnimation(
             reinsurance_cash,
             contract_data,
@@ -293,29 +294,18 @@ class Visualisation(object):
         insurance firms from saved data. Also sets event schedule for single run data, to plots event times on
         timeseries, as this is only helpful in this case."""
         if singlerun:
-            events = self.history_logs_list[0]["rc_event_schedule_initial"]
-            damages = self.history_logs_list[0]["rc_event_damage_initial"]
+            events = self.history_log["rc_event_schedule_initial"][0]
+            damages = self.history_log["rc_event_damage_initial"][0]
         else:
             events = None
             damages = None
 
         # Take the element-wise means/medians of the ensemble set (axis=0)
-        contracts_agg = [
-            history_logs["total_contracts"] for history_logs in self.history_logs_list
-        ]
-        profitslosses_agg = [
-            history_logs["total_profitslosses"]
-            for history_logs in self.history_logs_list
-        ]
-        operational_agg = [
-            history_logs["total_operational"] for history_logs in self.history_logs_list
-        ]
-        cash_agg = [
-            history_logs["total_cash"] for history_logs in self.history_logs_list
-        ]
-        premium_agg = [
-            history_logs["market_premium"] for history_logs in self.history_logs_list
-        ]
+        contracts_agg = self.history_log["total_contracts"]
+        profitslosses_agg = self.history_log["total_profitslosses"]
+        operational_agg = self.history_log["total_operational"]
+        cash_agg = self.history_log["total_cash"]
+        premium_agg = self.history_log["market_premium"]
 
         contracts = np.mean(contracts_agg, axis=0)
         profitslosses = np.mean(profitslosses_agg, axis=0)
@@ -394,33 +384,19 @@ class Visualisation(object):
         reinsurance firms from saved data. Also sets event schedule for single run data, to plots event times on
         timeseries, as this is only helpful in this case."""
         if singlerun:
-            events = self.history_logs_list[0]["rc_event_schedule_initial"]
-            damages = self.history_logs_list[0]["rc_event_damage_initial"]
+            events = self.history_log["rc_event_schedule_initial"][0]
+            damages = self.history_log["rc_event_damage_initial"][0]
         else:
             events = None
             damages = None
 
-        # Take the element-wise means/medians of the ensemble set (axis=0)
-        reincontracts_agg = [
-            history_logs["total_reincontracts"]
-            for history_logs in self.history_logs_list
-        ]
-        reinprofitslosses_agg = [
-            history_logs["total_reinprofitslosses"]
-            for history_logs in self.history_logs_list
-        ]
-        reinoperational_agg = [
-            history_logs["total_reinoperational"]
-            for history_logs in self.history_logs_list
-        ]
-        reincash_agg = [
-            history_logs["total_reincash"] for history_logs in self.history_logs_list
-        ]
-        catbonds_number_agg = [
-            history_logs["total_catbondsoperational"]
-            for history_logs in self.history_logs_list
-        ]
+        reincontracts_agg = self.history_log["total_reincontracts"]
+        reinprofitslosses_agg = self.history_log["total_reinprofitslosses"]
+        reinoperational_agg = self.history_log["total_reinoperational"]
+        reincash_agg = self.history_log["total_reincash"]
+        catbonds_number_agg = self.history_log["total_catbondsoperational"]
 
+        # Take the element-wise means/medians of the ensemble set (axis=0)
         reincontracts = np.mean(reincontracts_agg, axis=0)
         reinprofitslosses = np.mean(reinprofitslosses_agg, axis=0)
         reinoperational = np.median(reinoperational_agg, axis=0)
@@ -482,23 +458,21 @@ class Visualisation(object):
                 exits: numpy ndarray or list  - unclustered series
             Returns:
                 numpy ndarray of the same length as argument "exits": the clustered series."""
-        exits2 = []
-        ci = False
-        cidx = 0
-        for ee in exits:
-            if ci:
-                exits2.append(0)
-                if ee > 0:
-                    exits2[cidx] += ee
+        exits = np.asarray(exits)
+        assert exits.ndim == 2
+        clustered = np.zeros_like(exits)
+        for ts_index, timeseries in enumerate(exits):
+            # Sadly have to go row-by-row
+            current_index = -1
+            for i, value in enumerate(timeseries):
+                if value == 0:
+                    current_index = -1
                 else:
-                    ci = False
-            else:
-                exits2.append(ee)
-                if ee > 0:
-                    ci = True
-                    cidx = len(exits2) - 1
+                    if current_index == -1:
+                        current_index = i
+                    clustered[ts_index][i] += value
 
-        return np.asarray(exits2, dtype=np.float64)
+        return clustered
 
     def populate_scatter_data(self):
         """Method to generate data samples that do not have a time component (e.g. the size of bankruptcy events, i.e.
@@ -508,77 +482,43 @@ class Visualisation(object):
             Returns: None."""
 
         """Record data on sizes of unrecovered_claims"""
-        self.scatter_data["unrecovered_claims"] = []
-        for hlog in self.history_logs_list:  # for each replication
-            urc = np.diff(np.asarray(hlog["cumulative_unrecovered_claims"]))
-            self.scatter_data["unrecovered_claims"] = np.hstack(
-                [self.scatter_data["unrecovered_claims"], np.extract(urc > 0, urc)]
-            )
+        unrecovered_each_step = np.diff(
+            self.history_log["cumulative_unrecovered_claims"]
+        )
+        total_claims_each_step = np.diff(self.history_log["cumulative_claims"])
+        proportion_claims_unrecovered = unrecovered_each_step / total_claims_each_step
 
-        """Record data on sizes of unrecovered_claims"""
-        self.scatter_data["relative_unrecovered_claims"] = []
-        for hlog in self.history_logs_list:  # for each replication
-            urc = np.diff(np.asarray(hlog["cumulative_unrecovered_claims"]))
-            tcl = np.diff(np.asarray(hlog["cumulative_claims"]))
-            rurc = urc / tcl
-            self.scatter_data["relative_unrecovered_claims"] = np.hstack(
-                [self.scatter_data["unrecovered_claims"], np.extract(rurc > 0, rurc)]
-            )
-            try:
-                assert (
-                    np.isinf(self.scatter_data["relative_unrecovered_claims"]).any()
-                    is False
-                )
-            except AssertionError:
-                pass
-                # pdb.set_trace()
+        self.scatter_data["unrecovered_claims"] = np.extract(
+            unrecovered_each_step > 0, unrecovered_each_step
+        )
+        self.scatter_data["relative_unrecovered_claims"] = np.extract(
+            unrecovered_each_step > 0, proportion_claims_unrecovered
+        )
 
         """Record data on sizes of bankruptcy_events"""
-        self.scatter_data["bankruptcy_events"] = []
-        self.scatter_data["bankruptcy_events_relative"] = []
-        self.scatter_data["bankruptcy_events_clustered"] = []
-        self.scatter_data["bankruptcy_events_relative_clustered"] = []
-        for hlog in self.history_logs_list:  # for each replication
-            """Obtain numbers of operational firms. This is for computing the relative share of exiting firms."""
-            in_op = np.asarray(hlog["total_operational"])[:-1]
-            rein_op = np.asarray(hlog["total_reinoperational"])[:-1]
-            op = in_op + rein_op
-            exits = np.diff(
-                np.asarray(hlog["cumulative_market_exits"], dtype=np.float64)
-            )
-            assert (exits <= op).all()
-            op[op == 0] = 1
+        operational = (
+            self.history_log["total_operational"]
+            + self.history_log["total_reinoperational"]
+        )
+        exits = np.diff(self.history_log[["cumulative_market_exits"]])
 
-            """Obtain exits and relative exits"""
-            # exits = np.diff(np.asarray(hlog["cumulative_market_exits"], dtype=np.float64)) # used above already
-            rel_exits = exits / op
+        # exists will be zero when operational=0 anyway, so this quickly makes 0/0=0
+        operational[operational == 0] = 1
+        rel_exits = exits / operational
 
-            """Obtain clustered exits (absolute and relative)"""
-            exits2 = self.aux_clustered_exit_records(exits)
-            rel_exits2 = exits2 / op
+        clustered_exits = self.aux_clustered_exit_records(exits)
+        clustered_rel_exits = clustered_exits / operational
 
-            """Record data"""
-            self.scatter_data["bankruptcy_events"] = np.hstack(
-                [self.scatter_data["bankruptcy_events"], np.extract(exits > 0, exits)]
-            )
-            self.scatter_data["bankruptcy_events_relative"] = np.hstack(
-                [
-                    self.scatter_data["bankruptcy_events_relative"],
-                    np.extract(rel_exits > 0, rel_exits),
-                ]
-            )
-            self.scatter_data["bankruptcy_events_clustered"] = np.hstack(
-                [
-                    self.scatter_data["bankruptcy_events_clustered"],
-                    np.extract(exits2 > 0, exits2),
-                ]
-            )
-            self.scatter_data["bankruptcy_events_relative_clustered"] = np.hstack(
-                [
-                    self.scatter_data["bankruptcy_events_relative_clustered"],
-                    np.extract(rel_exits2 > 0, rel_exits2),
-                ]
-            )
+        self.scatter_data["bankruptcy_events"] = np.extract(exits > 0, exits)
+        self.scatter_data["bankruptcy_events_relative"] = np.extract(
+            rel_exits > 0, rel_exits
+        )
+        self.scatter_data["bankruptcy_events_clustered"] = np.extract(
+            clustered_exits > 0, clustered_exits
+        )
+        self.scatter_data["bankruptcy_events_relative_clustered"] = np.extract(
+            clustered_rel_exits > 0, clustered_rel_exits
+        )
 
     def show(self):
         plt.show()
@@ -1626,12 +1566,13 @@ if __name__ == "__main__":
     if args.single:
         from numpy import array
 
-        # load in data from the history_logs dictionary with open("data/history_logs.dat","r") as rfile:
-        with open("data/single_history_logs.dat", "r") as rfile:
-            history_logs_list = [eval(k) for k in rfile]  # one dict on each line
+        # load in data from the history_logs dictionary
+        data = hickle.load("data/single_full_logs.hdf")
+        assert type(data) is dict
+        history_log = data
 
         # first create visualisation object, then create graph/animation objects as necessary
-        vis = Visualisation(history_logs_list)
+        vis = Visualisation(history_log)
         if args.pie:
             vis.insurer_pie_animation()
             vis.reinsurer_pie_animation()
@@ -1641,21 +1582,21 @@ if __name__ == "__main__":
             insurerfig.savefig("figures/insurer_singlerun_timeseries.png")
             reinsurerfig.savefig("figures/reinsurer_singlerun_timeseries.png")
         vis.show()
-        N = len(history_logs_list)
 
     if args.timeseries_comparison or args.bankruptcydistribution:
         vis_list = []
         colour_list = ["red", "blue", "green", "yellow"]
 
-        # Loads all risk model history logs data (very long :'( ) and creates list of visualisation class instances.
+        # Loads all risk model history logs and creates list of visualisation class instances.
         filenames = [
-            "./data/full_" + x + "_history_logs.dat"
+            "./data/" + x + "_full_logs.hdf"
             for x in ["ensemble1", "ensemble2", "ensemble3"]
         ]
         for filename in filenames:
-            with open(filename, "r") as rfile:
-                history_logs_list = [eval(k) for k in rfile]  # one dict on each line
-                vis_list.append(Visualisation(history_logs_list))
+            data = hickle.load(filename)
+            assert type(data) is dict
+            history_log = data
+            vis_list.append(Visualisation(history_log))
 
     if args.timeseries_comparison:
         # Creates time series for all risk models in ensemble data.
@@ -1691,15 +1632,16 @@ if __name__ == "__main__":
         vis_list = []
         colour_list = ["red", "blue", "green", "yellow"]
 
-        # Loads all risk model history logs data (very long :'( ) and creates list of visualisation class instances.
+        # Loads all risk model history logs and creates list of visualisation class instances.
         filenames = [
-            "./data/" + x + "_history_logs_complete.dat"
-            for x in ["one", "two", "three", "four"]
+            "./data/" + x + "_full_logs.hdf"
+            for x in ["ensemble1", "ensemble2", "ensemble3"]
         ]
         for filename in filenames:
-            with open(filename, "r") as rfile:
-                history_logs_list = [eval(k) for k in rfile]  # one dict on each line
-                vis_list.append(Visualisation(history_logs_list))
+            data = hickle.load(filename)
+            assert type(data) is dict
+            history_log = data
+            vis_list.append(Visualisation(history_log))
 
         # Creates CDF for firm size using cash as measure of size.
         CP = CDFDistributionPlot(

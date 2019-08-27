@@ -8,16 +8,18 @@ import os
 from typing import Dict
 import time
 
+import pickle
+import zlib
+import numpy as np
 import sandman2.api as sm
 
 import isleconfig
 import listify
-import logger
 import start
 import setup_simulation
 
 
-def rake(hostname=None, replications=50):
+def rake(hostname=None, replications=35):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET
@@ -26,7 +28,10 @@ def rake(hostname=None, replications=50):
         hostname: The remote server to run the job on
         replications: The number of replications of each parameter set to run
     """
-
+    if hostname is None:
+        print("Running ensemble locally")
+    else:
+        print(f"Running ensemble on {hostname}")
     """Configure the parameter sets to run"""
     default_parameters: Dict = isleconfig.simulation_parameters
     parameter_sets: Dict[str:Dict] = {}
@@ -58,13 +63,12 @@ def rake(hostname=None, replications=50):
             print("Warning: Sandman authentication not found in environment variables.")
 
     # Don't want to use fat logs with lots of time steps/replications
-    if (
-        replications * isleconfig.simulation_parameters["max_time"] > 5000
-        and not isleconfig.slim_log
-    ):
+    max_time = isleconfig.simulation_parameters["max_time"]
+
+    if replications * max_time > 5000 and not isleconfig.slim_log:
         print(
             f"Warning: not using slim logs with {replications} replications and "
-            f"{isleconfig.simulation_parameters['max_time']} timesteps, logs may be very large"
+            f"{max_time} timesteps, logs may be very large"
         )
 
     if hostname is not None and isleconfig.show_network:
@@ -105,6 +109,40 @@ def rake(hostname=None, replications=50):
         "network_node_labels": "_network_node_labels.dat",
         "network_edge_labels": "_network_edge_labels.dat",
         "number_of_agents": "_number_of_agents",
+    }
+    """Define the numpy types of the underlying data in each requested log"""
+    types = {
+        "total_cash": np.float_,
+        "total_excess_capital": np.float_,
+        "total_profitslosses": np.float_,
+        "total_contracts": np.int_,
+        "total_operational": np.int_,
+        "total_reincash": np.float_,
+        "total_reinexcess_capital": np.float_,
+        "total_reinprofitslosses": np.float_,
+        "total_reincontracts": np.int_,
+        "total_reinoperational": np.int_,
+        "total_catbondsoperational": np.int_,
+        "market_premium": np.float_,
+        "market_reinpremium": np.float_,
+        "cumulative_bankruptcies": np.int_,
+        "cumulative_market_exits": np.int_,
+        "cumulative_unrecovered_claims": np.float_,
+        "cumulative_claims": np.float_,
+        "cumulative_bought_firms": np.int_,
+        "cumulative_nonregulation_firms": np.int_,
+        "insurance_firms_cash": np.float_,
+        "reinsurance_firms_cash": np.float_,
+        "market_diffvar": np.float_,
+        "rc_event_schedule_initial": np.int_,
+        "rc_event_damage_initial": np.float_,
+        "number_riskmodels": np.int_,
+        "individual_contracts": np.int_,
+        "reinsurance_contracts": np.int_,
+        "unweighted_network_data": np.float_,
+        "network_node_labels": np.float_,
+        "network_edge_labels": np.float_,
+        "number_of_agents": np.int_,
     }
 
     if isleconfig.slim_log:
@@ -193,6 +231,7 @@ def rake(hostname=None, replications=50):
     """Here the jobs are submitted"""
 
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
+        # TODO: Allow for resuming a detatched run with task = sess.get(job_id)
         tasks = {}
         for prefix, job in jobs.items():
             # If there are 4 parameter sets jobs will be a dict with 4 elements.
@@ -214,84 +253,21 @@ def rake(hostname=None, replications=50):
             for prefix, task in tasks.items():
                 if task.is_done():
                     print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
-                    # These will be disordered, fix?
                     results_iterator = task.iterresults()
                     completed_tasks.append(prefix)
 
-                    """These are the files created to collect the results"""
-
-                    # Construct filenames to write to
-                    logfile_dict = {}
-                    for name in requested_logs.keys():
-                        if "rc_event" in name or "number_riskmodels" in name:
-                            logfile_dict[name] = (
-                                os.getcwd()
-                                + dir_prefix
-                                + "check_"
-                                + prefix
-                                + requested_logs[name]
-                            )
-                        elif "firms_cash" in name:
-                            logfile_dict[name] = (
-                                os.getcwd()
-                                + dir_prefix
-                                + "record_"
-                                + prefix
-                                + requested_logs[name]
-                            )
-                        else:
-                            logfile_dict[name] = (
-                                os.getcwd()
-                                + dir_prefix
-                                + "data_"
-                                + prefix
-                                + requested_logs[name]
-                            )
-
-                    # with ... as would be awkward here, so use try ... finally
-                    wfiles_dict = {}
-                    try:
-                        for name in logfile_dict:
-                            wfiles_dict[name] = open(logfile_dict[name], "w")
-
-                        """Recreate logger object locally and save logs"""
-
-                        """Create local object"""
-                        log = logger.Logger()
-
-                        for output_id, result in results_iterator:
-                            position = position_maps[prefix][output_id]
-                            delistified_result = listify.delistify(list(result))
-
-                            """Populate logger object with logs obtained from remote simulation run"""
-                            log.restore_logger_object(list(result))
-
-                            """Save logs as dict (to full_<prefix>_history_logs.dat)"""
-                            log.save_log(True, prefix=prefix)
-
-                            """Save network data"""
-                            if isleconfig.save_network:
-                                log.save_network_data(ensemble=True, prefix=prefix)
-
-                            """Save logs as individual files"""
-                            for name in logfile_dict:
-                                # Async iteration doesn't preserve order (replications can be reshuffled), so in case
-                                # we want to compare like with like between parameter sets we store the original
-                                # position in the list.
-                                to_write = (position, delistified_result[name])
-                                # Append the current replication data to the file
-                                wfiles_dict[name].write(repr(to_write) + "\n")
-                                # TODO: Use pickle or hickle rather than repr()s.
-
-                    finally:
-                        """Once the data is stored in disk the files are closed"""
-                        for name in logfile_dict:
-                            if name in wfiles_dict:
-                                wfiles_dict[name].close()
-                                del wfiles_dict[name]
-                    print(f"Finished writing files for prefix {prefix}")
-
-    print("Recieved all results and written all files")
+                    results_list = [None for _ in range(replications)]
+                    for output_id, result in results_iterator:
+                        position = position_maps[prefix][output_id]
+                        results_list[position] = result
+                    # Note that the results are still compressed and pickled
+                    print(
+                        f"Downloaded compressed results for job {task.id}, writing to "
+                        f"file {'data/' + prefix + '_full_logs.hdf'}"
+                    )
+                    start.save_results(results_list, prefix)
+                    print(f"Finished writing results for job {task.id}")
+    print("Recieved all results and written all files, all finished.")
 
 
 if __name__ == "__main__":

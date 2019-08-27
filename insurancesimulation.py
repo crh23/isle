@@ -428,7 +428,7 @@ class InsuranceSimulation(GenericAgent):
                 # We've made the agents, add them to the simulation
                 self.insurancefirms += agents
                 for _ in agents:
-                    self.logger.add_insurance_agent()
+                    self.logger.add_firm("insurance")
 
             elif agent_class_string == "reinsurancefirm":
                 # Much the same as above
@@ -452,7 +452,7 @@ class InsuranceSimulation(GenericAgent):
                 ]
                 self.reinsurancefirms += agents
                 for _ in agents:
-                    self.logger.add_reinsurance_agent()
+                    self.logger.add_firm("reinsurance")
 
             elif agent_class_string == "catbond":
                 raise ValueError(f"Catbonds must be built before being added")
@@ -650,11 +650,13 @@ class InsuranceSimulation(GenericAgent):
         catbondsoperational_no = sum([cb.operational for cb in self.catbonds])
 
         """ collect agent-level data """
-        insurance_firms = [
-            (firm.cash, firm.id, firm.operational) for firm in self.insurancefirms
+        insurance_firms = [firm.cash for firm in self.insurancefirms]
+        reinsurance_firms = [firm.cash for firm in self.reinsurancefirms]
+        insurance_contracts = [
+            len(firm.underwritten_contracts) for firm in self.insurancefirms
         ]
-        reinsurance_firms = [
-            (firm.cash, firm.id, firm.operational) for firm in self.reinsurancefirms
+        reinsurance_contracts = [
+            len(firm.underwritten_contracts) for firm in self.reinsurancefirms
         ]
 
         """ prepare dict """
@@ -681,12 +683,8 @@ class InsuranceSimulation(GenericAgent):
             "insurance_firms_cash": insurance_firms,
             "reinsurance_firms_cash": reinsurance_firms,
             "market_diffvar": self.compute_market_diffvar(),
-            "individual_contracts": [
-                len(firm.underwritten_contracts) for firm in self.insurancefirms
-            ],
-            "reinsurance_contracts": [
-                len(firm.underwritten_contracts) for firm in self.reinsurancefirms
-            ],
+            "individual_contracts": insurance_contracts,
+            "reinsurance_contracts": reinsurance_contracts,
         }
 
         if isleconfig.save_network:

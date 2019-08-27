@@ -106,11 +106,9 @@ def condition_defaults_insurance(
     """Test for number of insurance bankruptcies (non zero, not all insurers)"""
     # series  = logobj.history_logs['total_operational']
     # if series[-1] != 0 and any(series[i]-series[i-1] < 0 for i in range(1,len(series))):
-    pass
-    opseries = [
-        logobj.history_logs["insurance_firms_cash"][-1][i][2]
-        for i in range(len(logobj.history_logs["insurance_firms_cash"][-1]))
-    ]
+
+    # We use cash > 0 as a proxy for operational
+    opseries = logobj.history_logs["insurance_firms_cash"][-1]
     if any(opseries) and not all(opseries):
         return 1
     else:
@@ -123,10 +121,7 @@ def condition_defaults_reinsurance(
     """Test for number of reinsurance bankruptcies (non zero, not all reinsurers)"""
     # series  = logobj.history_logs['total_reinoperational']
     # if series[-1] != 0 and any(series[i]-series[i-1] < 0 for i in range(1,len(series))):
-    opseries = [
-        logobj.history_logs["reinsurance_firms_cash"][-1][i][2]
-        for i in range(len(logobj.history_logs["reinsurance_firms_cash"][-1]))
-    ]
+    opseries = logobj.history_logs["reinsurance_firms_cash"][-1]
     if any(opseries) and not all(opseries):
         return 1
     else:
@@ -166,9 +161,9 @@ def condition_insurance_firm_dist(logobj):
     #     > isleconfig.simulation_parameters["cash_permanency_limit"]
     # ]
     dist = [
-        logobj.history_logs["insurance_firms_cash"][-1][i][0]
+        logobj.history_logs["insurance_firms_cash"][-1][i]
         for i in range(len(logobj.history_logs["insurance_firms_cash"][-1]))
-        if logobj.history_logs["insurance_firms_cash"][-1][i][2]
+        if logobj.history_logs["insurance_firms_cash"][-1][i] > 0
     ]
     """run two-sided KS test"""
     ks_statistic, p_value = stats.ks_2samp(
@@ -188,9 +183,9 @@ def condition_reinsurance_firm_dist(logobj):
     #     > isleconfig.simulation_parameters["cash_permanency_limit"]
     # ]
     dist = [
-        logobj.history_logs["reinsurance_firms_cash"][-1][i][0]
+        logobj.history_logs["reinsurance_firms_cash"][-1][i]
         for i in range(len(logobj.history_logs["reinsurance_firms_cash"][-1]))
-        if logobj.history_logs["reinsurance_firms_cash"][-1][i][2]
+        if logobj.history_logs["reinsurance_firms_cash"][-1][i] > 0
     ]
     """run two-sided KS test"""
     ks_statistic, p_value = stats.ks_2samp(

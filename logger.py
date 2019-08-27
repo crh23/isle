@@ -99,18 +99,17 @@ class Logger:
                 data_dict: Type dict. Data with the same keys as are used in self.history_log().
             Returns None."""
         for key in data_dict.keys():
-            if key not in ["individual_contracts", "reinsurance_contracts"]:
+            if key in [
+                "individual_contracts",
+                "reinsurance_contracts",
+                "insurance_firms_cash",
+                "reinsurance_firms_cash",
+            ]:
+                # These four are stored per-firm
+                for i in range(len(data_dict[key])):
+                    self.history_logs[key][i].append(data_dict[key][i])
+            else:
                 self.history_logs[key].append(data_dict[key])
-            elif key == "individual_contracts":
-                for i in range(len(data_dict["individual_contracts"])):
-                    self.history_logs["individual_contracts"][i].append(
-                        data_dict["individual_contracts"][i]
-                    )
-            elif key == "reinsurance_contracts":
-                for i in range(len(data_dict["reinsurance_contracts"])):
-                    self.history_logs["reinsurance_contracts"][i].append(
-                        data_dict["reinsurance_contracts"][i]
-                    )
 
     def obtain_log(self, requested_logs=None):
         if requested_logs is None:
@@ -129,7 +128,8 @@ class Logger:
         log = {name: self.history_logs[name] for name in requested_logs}
 
         """Convert to list and return"""
-        return listify.listify(log)
+        # return listify.listify(log)
+        return log
 
     def restore_logger_object(self, log):
         """Method to restore logger object. A log can be restored later. It can also be restored
@@ -142,7 +142,8 @@ class Logger:
             Returns None."""
 
         """Restore dict"""
-        log = listify.delistify(log)
+        if not isinstance(log, dict):
+            log = listify.delistify(log)
         try:
             self.network_data["unweighted_network_data"] = log[
                 "unweighted_network_data"
@@ -247,30 +248,19 @@ class Logger:
                 # wfile.write(str(self.network_data) + "\n")
                 # wfile.write(str(self.rc_event_schedule_initial) + "\n")
 
-    def add_insurance_agent(self):
-        """Method for adding an additional insurer agent to the history log. This is necessary to keep the number
-           of individual insurance firm logs constant in time.
-            No arguments.
-            Returns None."""
-        # TODO: should this not also be done for self.history_logs['insurance_firms_cash'] and
-        #                                        self.history_logs['reinsurance_firms_cash']
-        if len(self.history_logs["individual_contracts"]) > 0:
-            zeroes_to_append = list(
-                np.zeros(len(self.history_logs["individual_contracts"][0]), dtype=int)
-            )
+    def add_firm(self, firm_type: str):
+        """Notifies the logger of a new firm, so blank data can be added to firm-level logs"""
+        if firm_type == "insurance":
+            keys = ["individual_contracts", "insurance_firms_cash"]
+        elif firm_type == "reinsurance":
+            keys = ["reinsurance_contracts", "reinsurance_firms_cash"]
         else:
-            zeroes_to_append = []
-        self.history_logs["individual_contracts"].append(zeroes_to_append)
-
-    def add_reinsurance_agent(self):
-        """Method for adding an additional insurer agent to the history log. This is necessary to keep the number
-            of individual insurance firm logs constant in time.
-                No arguments.
-                Returns None."""
-        if len(self.history_logs["reinsurance_contracts"]) > 0:
-            zeroes_to_append = list(
-                np.zeros(len(self.history_logs["reinsurance_contracts"][0]), dtype=int)
-            )
-        else:
-            zeroes_to_append = []
-        self.history_logs["reinsurance_contracts"].append(zeroes_to_append)
+            raise ValueError
+        for key in keys:
+            if len(self.history_logs[key]) > 0:
+                zeroes_to_append = list(
+                    np.zeros(len(self.history_logs[key][0]), dtype=int)
+                )
+            else:
+                zeroes_to_append = []
+            self.history_logs[key].append(zeroes_to_append)

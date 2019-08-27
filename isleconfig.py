@@ -7,7 +7,9 @@ showprogress = False
 show_network = False
 save_network = False
 # Should logs be small in ensemble runs (only aggregated level data)?
-slim_log = True
+slim_log = False
+
+# TODO: These should be simulation parameters!
 buy_bankruptcies = False
 enforce_regulations = False
 aid_relief = False
