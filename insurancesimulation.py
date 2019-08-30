@@ -105,7 +105,6 @@ class InsuranceSimulation(GenericAgent):
             )
         else:
             self.risk_factor_distribution = Constant(loc=1.0)
-        # self.risk_value_distribution = scipy.stats.uniform(loc=100, scale=9900)
         self.risk_value_distribution = Constant(
             loc=simulation_parameters["value_per_risk"]
         )
@@ -532,7 +531,7 @@ class InsuranceSimulation(GenericAgent):
                     print("Next peril ", self.rc_event_schedule[categ_id])
 
         # Provide government aid if damage severe enough
-        if isleconfig.aid_relief:
+        if self.simulation_parameters["aid_relief"]:
             self.bank.adjust_aid_budget(time=t)
             if damage_extent is not None:
                 op_firms = [firm for firm in self.insurancefirms if firm.operational]
@@ -556,7 +555,7 @@ class InsuranceSimulation(GenericAgent):
                 if reinagent.cash < 0:
                     print(f"Reinsurer {reinagent.id} has negative cash")
 
-        if isleconfig.buy_bankruptcies:
+        if self.simulation_parameters["buy_bankruptcies"]:
             for reinagent in self.reinsurancefirms:
                 if reinagent.operational:
                     reinagent.consider_buyout(firm_type="reinsurer")
@@ -575,7 +574,7 @@ class InsuranceSimulation(GenericAgent):
                 if agent.cash < 0:
                     print(f"Insurer {agent.id} has negative cash")
 
-        if isleconfig.buy_bankruptcies:
+        if self.simulation_parameters["buy_bankruptcies"]:
             for agent in self.insurancefirms:
                 if agent.operational:
                     agent.consider_buyout(firm_type="insurer")
@@ -658,6 +657,8 @@ class InsuranceSimulation(GenericAgent):
         reinsurance_contracts = [
             len(firm.underwritten_contracts) for firm in self.reinsurancefirms
         ]
+        ins_dividends = sum([firm.dividends_paid for firm in self.insurancefirms])
+        re_dividends = sum([firm.dividends_paid for firm in self.reinsurancefirms])
 
         """ prepare dict """
         current_log = {
@@ -685,6 +686,8 @@ class InsuranceSimulation(GenericAgent):
             "market_diffvar": self.compute_market_diffvar(),
             "individual_contracts": insurance_contracts,
             "reinsurance_contracts": reinsurance_contracts,
+            "insurance_cumulative_dividends": ins_dividends,
+            "reinsurance_cumulative_dividends": re_dividends,
         }
 
         if isleconfig.save_network:

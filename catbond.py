@@ -38,6 +38,7 @@ class CatBond(MetaInsuranceOrg):
         self.per_period_dividend: float = per_period_premium
         self.creditor = self.simulation
         self.expiration: int = None
+        self.dividends_paid = 0
         # self.simulation_no_risk_categories = self.simulation.simulation_parameters["no_categories"]
 
     def iterate(self, time: int):

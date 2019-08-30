@@ -13,7 +13,8 @@ LOG_DEFAULT = (
     "cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar "
     "rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts "
     "unweighted_network_data network_node_labels network_edge_labels number_of_agents "
-    "cumulative_bought_firms cumulative_nonregulation_firms"
+    "cumulative_bought_firms cumulative_nonregulation_firms insurance_cumulative_dividends "
+    "reinsurance_cumulative_dividends"
 ).split(" ")
 
 
@@ -92,6 +93,8 @@ class Logger:
         self.history_logs["network_node_labels"] = []
         self.history_logs["network_edge_labels"] = []
         self.history_logs["number_of_agents"] = []
+        self.history_logs["insurance_cumulative_dividends"] = []
+        self.history_logs["reinsurance_cumulative_dividends"] = []
 
     def record_data(self, data_dict):
         """Method to record data for one period
@@ -176,7 +179,7 @@ class Logger:
                 ensemble_run: Type bool. Is this an ensemble run (true) or not (false).
                 prefix: Type str. The prefix to prepend to the filename
             Returns None."""
-
+        # TODO: remove if not required
         """Prepare writing tasks"""
         if ensemble_run:
             to_log = self.replication_log_prepare(prefix)

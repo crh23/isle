@@ -35,7 +35,6 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             No return values.
         Method is called from MetaInsuranceOrg iterate method between evaluating reinsurance and insurance risks to
         calculate dividend to be payed if the firm has made profit and has achieved capital targets."""
-
         profits = self.get_profitslosses()
         self.per_period_dividend = max(0, self.dividend_share_of_profits * profits)
         # max function ensures that no negative dividends are paid
@@ -389,6 +388,7 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         """Decides whether to get catbond or reinsurance for risk with given properties"""
         # This should be the only place where VaR is evaluated. It should be moved out if we want to use it for
         # pricing etc.
+        # TODO: Are we using premium_share correctly here?
         catbond_price = (
             self.get_catbond_price(risk)
             * risk.value

@@ -180,7 +180,7 @@ class MetaInsuranceOrg(GenericAgent):
                     "default_non-proportional_reinsurance_deductible"
                 ]
             self.np_reinsurance_limit_fraction = simulation_parameters[
-                "default_non-proportional_reinsurance_excess"
+                "default_non-proportional_reinsurance_limit"
             ]
             self.np_reinsurance_premium_share = simulation_parameters[
                 "default_non-proportional_reinsurance_premium_share"
@@ -262,7 +262,7 @@ class MetaInsuranceOrg(GenericAgent):
 
         if self.operational:
             # Firms submit cash and var data for regulation every 12 iterations
-            if time % 12 == 0 and isleconfig.enforce_regulations:
+            if time % 12 == 0 and self.simulation_parameters["enforce_regulations"]:
                 self.submit_regulator_report(time)
                 if not self.operational:
                     # If not enough average cash then firm is closed and so no underwriting.
@@ -412,7 +412,7 @@ class MetaInsuranceOrg(GenericAgent):
            This method is used when a firm does not have enough cash to pay all its obligations. It is only called from
            the method self.enter_illiquidity() which is only called from the method self._effect_payments(). This method
            dissolves the firm through the method self.dissolve()."""
-        if isleconfig.buy_bankruptcies:
+        if self.simulation_parameters["buy_bankruptcies"]:
             if self.is_insurer and self.operational:
                 self.simulation.add_firm_to_be_sold(self, time, "record_bankruptcy")
                 self.operational = False
@@ -1335,7 +1335,7 @@ class MetaInsuranceOrg(GenericAgent):
         if condition == "Warning":
             self.warning = True
         if condition == "LoseControl":
-            if isleconfig.buy_bankruptcies:
+            if self.simulation_parameters["buy_bankruptcies"]:
                 self.simulation.add_firm_to_be_sold(
                     self, time, "record_nonregulation_firm"
                 )

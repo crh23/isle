@@ -7,7 +7,7 @@ import os
 import pickle
 import zlib
 import random
-from typing import MutableMapping, MutableSequence, List
+from typing import MutableMapping, MutableSequence, List, Tuple
 
 import calibrationscore
 import insurancesimulation
@@ -43,7 +43,7 @@ def main(
     replic_id: int,
     requested_logs: MutableSequence = None,
     resume: bool = False,
-) -> MutableSequence:
+) -> Tuple[bytes, dict]:
     if not resume:
         np.random.seed(np_seed)
         random.seed(random_seed)
@@ -82,9 +82,14 @@ def main(
             # Need to use t+1 as resume will start at time saved
             save_simulation(t + 1, simulation, sim_params, exit_now=False)
 
-    # We compress the return value for the sake of minimising data transfer over the network
-    # TODO: Does this help? Locally it reduces the return sizes by a factor of 3, but maybe sandtable already compress?
-    return zlib.compress(pickle.dumps(simulation.obtain_log(requested_logs)))
+    log = simulation.obtain_log(requested_logs)
+
+    # We compute metadata about the return data that isn't compressed, so a skeleton data structure can be constructed
+    # before decompression
+    found_shapes = {name: np.shape(log[name]) for name in log}
+
+    # We compress the return value for the sake of minimising data transfer over the network and RAM usage
+    return (zlib.compress(pickle.dumps(log)), found_shapes)
 
 
 def save_simulation(
@@ -131,9 +136,10 @@ def load_simulation() -> dict:
 
 
 def save_results(results_list: list, prefix: str):
-    """Saves the results of a simulation run to disk. Takes a list of compressed, pickled dicts."""
-    # We decompress the first result so we can infer shape and type information
-    current_result = pickle.loads(zlib.decompress(results_list[0]))
+    """Saves the results of a simulation run to disk. results_list is a list of tuples, where each tuple consists of
+     a compressed, pickled dict and a dict of the shapes of the data in the compressed dict (metadata)"""
+    # We use the first metadata to infer basic shape information
+    current_shapes = results_list[0][1]
     replications = len(results_list)
 
     types = {
@@ -156,18 +162,22 @@ def save_results(results_list: list, prefix: str):
         "cumulative_claims": np.float_,
         "cumulative_bought_firms": np.int_,
         "cumulative_nonregulation_firms": np.int_,
-        "insurance_firms_cash": np.float_,
-        "reinsurance_firms_cash": np.float_,
         "market_diffvar": np.float_,
+        # Would store these two as an array of lists, but hdf5 can't do that
         "rc_event_schedule_initial": np.object,
         "rc_event_damage_initial": np.object,
         "number_riskmodels": np.int_,
-        "individual_contracts": np.int_,
-        "reinsurance_contracts": np.int_,
         "unweighted_network_data": np.float_,
         "network_node_labels": np.float_,
         "network_edge_labels": np.float_,
         "number_of_agents": np.int_,
+        "insurance_cumulative_dividends": np.float_,
+        "reinsurance_cumulative_dividends": np.float_,
+        # These are the big ones, so we need to pay attention to data types
+        "insurance_firms_cash": np.float32,
+        "reinsurance_firms_cash": np.float32,
+        "individual_contracts": np.uint16,
+        "reinsurance_contracts": np.uint16,
     }
     # bad_logs are the logs that don't have a consistent size between replications
     bad_logs = [
@@ -180,7 +190,7 @@ def save_results(results_list: list, prefix: str):
     ]
     event_info_names = ["rc_event_schedule_initial", "rc_event_damage_initial"]
 
-    logs_found = current_result.keys()
+    logs_found = current_shapes.keys()
     for name in logs_found:
         if name not in types:
             print(f"Warning: type of log {name} not known, assuming float")
@@ -189,33 +199,26 @@ def save_results(results_list: list, prefix: str):
     for name in logs_found:
         if name not in bad_logs:
             # These are mostly standard 1-d timeseries, but may also include stuff like no_riskmodels
-            shapes[name] = (replications,) + np.asarray(
-                current_result[name]
-            ).squeeze().shape
+            shapes[name] = (replications,) + current_shapes[name]
         else:
-            # These are sets of timeseries, where the sets have variable size; or the event schedules
-            # We have to decompress each replication here, which is annoying
-            # TODO: find a better way to do this, maybe have the simulation return uncompressed metadata
-            found_shapes = [
-                np.shape(pickle.loads(zlib.decompress(comp_repdata))[name])
-                for comp_repdata in results_list
-            ]
-            # This only works because the shapes only vary in one dimension
+            # We could probably do this for all of the data, but this is fine for now.
+            # These are sets of timeseries: the sets have variable size (also the event schedules)
+            # We use the uncompressed metadata
+            found_shapes = [result[1][name] for result in results_list]
+            # This only works because the shapes only vary in one dimension (tuple comparison is lexicographic)
             shapes[name] = (replications,) + max(found_shapes)
 
-    # Should make a nice compact data file
+    # Make a skeleton data structure so we only need to have one uncompressed log in memory at a time
     results_dict = {
         name: np.zeros(shape=shapes[name], dtype=types[name])
-        for name in current_result.keys()
+        for name in current_shapes.keys()
     }
-    # Don't need that first result any more, and it could be large in memory
-    del current_result
     # results_dict is a dictionary of numpy arrays, should be efficient to store.
     # The event schedules/damages are of differing lengths. Could pad them with NaNs, but probably
     # would be more trouble than it's worth
 
-    for i, compressed_result in enumerate(results_list):
-        result = pickle.loads(zlib.decompress(compressed_result))
+    for i, result_tuple in enumerate(results_list):
+        result = pickle.loads(zlib.decompress(result_tuple[0]))
         for name in results_dict:
             if (name not in event_info_names) and hasattr(result[name], "__len__"):
                 arr = np.asarray(result[name])
@@ -291,11 +294,6 @@ if __name__ == "__main__":
         "All other arguments will be ignored",
     )
     parser.add_argument(
-        "--oneriskmodel",
-        action="store_true",
-        help="allow overriding the number of riskmodels from the standard config (with 1)",
-    )
-    parser.add_argument(
         "--riskmodels",
         type=int,
         choices=[1, 2, 3, 4],
@@ -322,9 +320,6 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    if args.oneriskmodel:
-        isleconfig.oneriskmodel = True
-        override_no_riskmodels = 1
     if args.riskmodels:
         override_no_riskmodels = args.riskmodels
     if args.file:
@@ -389,7 +384,7 @@ if __name__ == "__main__":
 
     save_results([comp_result], "single")
 
-    decomp_result = pickle.loads(zlib.decompress(comp_result))
+    decomp_result = pickle.loads(zlib.decompress(comp_result[0]))
     L = logger.Logger()
     L.restore_logger_object(decomp_result)
     if isleconfig.save_network:

@@ -8,18 +8,15 @@ import os
 from typing import Dict
 import time
 
-import pickle
-import zlib
 import numpy as np
 import sandman2.api as sm
 
 import isleconfig
-import listify
 import start
 import setup_simulation
 
 
-def rake(hostname=None, replications=35):
+def rake(hostname=None, replications=9):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET
@@ -48,6 +45,7 @@ def rake(hostname=None, replications=35):
         parameter_sets["ensemble" + str(number_riskmodels)] = new_parameters
 
     ###################################################################################################################
+
     print(
         f"Running {len(parameter_sets)} simulations of {replications} "
         f"replications of {default_parameters['max_time']} timesteps"
@@ -62,17 +60,21 @@ def rake(hostname=None, replications=35):
         if not ("SANDMAN_KEY_ID" in os.environ and "SANDMAN_KEY_SECRET" in os.environ):
             print("Warning: Sandman authentication not found in environment variables.")
 
-    # Don't want to use fat logs with lots of time steps/replications
     max_time = isleconfig.simulation_parameters["max_time"]
 
-    if replications * max_time > 5000 and not isleconfig.slim_log:
-        print(
-            f"Warning: not using slim logs with {replications} replications and "
-            f"{max_time} timesteps, logs may be very large"
-        )
+    if not isleconfig.slim_log:
+        # We can estimate the log size per experiment in GB (max_time is squared as number of insurance firms also
+        # increases with time and per-firm logs are dominating in the limit). The 6 is empirical
+        # TODO: Is this even vaguely correct? Who knows!
+        estimated_log_size = max_time ** 2 * replications * 6 / (1000 ** 3)
+        if estimated_log_size > 1:
+            print(
+                "Uncompressed log size estimated to be above 1GB - consider using slim logs"
+            )
 
     if hostname is not None and isleconfig.show_network:
         print("Warning: can't show network on remote server")
+        isleconfig.show_network = False
 
     """Configuration of the ensemble"""
 
@@ -229,7 +231,7 @@ def rake(hostname=None, replications=35):
         position_maps[prefix] = {o.id: p for p, o in enumerate(job)}
 
     """Here the jobs are submitted"""
-
+    print("Jobs constructed, submitting")
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
         # TODO: Allow for resuming a detatched run with task = sess.get(job_id)
         tasks = {}
@@ -242,32 +244,52 @@ def rake(hostname=None, replications=35):
             tasks[prefix] = task
 
         print("Now waiting for jobs to complete\033[5m...\033[0m")
-        # Need to do it this way as dictionary can't change size during iteration
-        completed_tasks = []
-        while len(tasks) > 0:
-            for prefix in completed_tasks:
-                del tasks[prefix]
-            completed_tasks = []
+        wait_for_tasks(tasks, replications, position_maps)
 
-            time.sleep(0.5)
-            for prefix, task in tasks.items():
-                if task.is_done():
-                    print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
-                    results_iterator = task.iterresults()
-                    completed_tasks.append(prefix)
-
-                    results_list = [None for _ in range(replications)]
-                    for output_id, result in results_iterator:
-                        position = position_maps[prefix][output_id]
-                        results_list[position] = result
-                    # Note that the results are still compressed and pickled
-                    print(
-                        f"Downloaded compressed results for job {task.id}, writing to "
-                        f"file {'data/' + prefix + '_full_logs.hdf'}"
-                    )
-                    start.save_results(results_list, prefix)
-                    print(f"Finished writing results for job {task.id}")
     print("Recieved all results and written all files, all finished.")
+
+
+def wait_for_tasks(tasks: dict, replications: int, position_maps: dict):
+    """tasks is a dict mapping prefixes to job objects
+    position_maps is a dict of dicts: maps prefixes to dicts maping ids to positions
+    """
+    # Need to do it this way as dictionary can't change size during iteration
+    completed_tasks = []
+    while len(tasks) > 0:
+        for prefix in completed_tasks:
+            del tasks[prefix]
+        completed_tasks = []
+
+        time.sleep(0.5)
+        for prefix, task in tasks.items():
+            if task.is_done():
+                print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
+                results_iterator = task.iterresults()  # Could just use .results()?
+                completed_tasks.append(prefix)
+
+                results_list = [None for _ in range(replications)]
+                for output_id, result in results_iterator:
+                    position = position_maps[prefix][output_id]
+                    results_list[position] = result
+                # Note that the results are still compressed and pickled
+                print(
+                    f"Obtained compressed results for job {task.id}, writing to "
+                    f"file {'data/' + prefix + '_full_logs.hdf'}"
+                )
+                start.save_results(results_list, prefix)
+                print(f"Finished writing results for job {task.id}")
+
+
+# TODO: Currently broken due to a sandman bug
+def restore_jobs(jobs, hostname):
+    """jobs is a dict mapping prefixes to job ids"""
+    # Can't restore jobs on a local scheduler
+    assert hostname is not None
+    with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
+        tasks = {prefix: sess.get(jobs[prefix]) for prefix in jobs}
+        # Might need to store the position maps - can't test what can be extracted until sandman is fixed
+        # position_maps = None
+        # replications = list(tasks.values())[0].f
 
 
 if __name__ == "__main__":
@@ -276,3 +298,6 @@ if __name__ == "__main__":
         # The server is passed as an argument.
         host = sys.argv[1]
     rake(host)
+    # jobs = {"ensemble1" : "23a3f4e1",
+    #         "ensemble2" : "485f7221"}
+    # restore_jobs(jobs, host)

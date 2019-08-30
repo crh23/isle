@@ -45,6 +45,7 @@ class GenericAgent:
         self.profits_losses: float = 0
         self.creditor = None
         self.id = -1
+        self.dividends_paid = 0
 
     def _pay(self, obligation: "Obligation"):
         """Method to _pay other class instances.
@@ -69,7 +70,9 @@ class GenericAgent:
             recipient = recipient.creditor
         if self.get_operational():
             self.cash -= amount
-            if purpose != "dividend":
+            if purpose == "dividend":
+                self.dividends_paid += amount
+            else:
                 self.profits_losses -= amount
             recipient.receive(amount)
         else:
