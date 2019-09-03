@@ -9,7 +9,7 @@ slim_log = False
 
 # fmt: off
 simulation_parameters = {
-    "max_time": 4000,
+    "max_time": 40,
     "no_categories": 4,
 
     # no_[re]insurancefirms are initial conditions only
@@ -97,7 +97,7 @@ simulation_parameters = {
 
     # Firms adjust their capacity target based on the ratio between their risk held and the capacity they could gain
     # from reinsurance
-    "capacity_target_decrement_threshold": 1.8,
+    "capacity_target_decrement_threshold": 1.8,  # TODO: What?
     "capacity_target_increment_threshold": 1.2,
     "capacity_target_decrement_factor": 24 / 25,
     "capacity_target_increment_factor": 25 / 24,
@@ -171,7 +171,7 @@ simulation_parameters = {
     "min_tranches": 2,
 
     # If this is true then reinsurance premiums can be adjusted after cat events
-    "adjustable_reinsurance_premiums": False,
+    "adjustable_reinsurance_premiums": True,
 
     # How many cat events are required to adjust the premium in the above
     "reinsurance_premium_adjustment_frequency": 2,

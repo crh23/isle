@@ -17,14 +17,13 @@ import start
 import setup_simulation
 
 
-def rake(hostname=None, replications=9, summary: callable = None):
+def rake(hostname=None, summary: callable = None):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET
     are set.
     Args:
         hostname: The remote server to run the job on
-        replications: The number of replications of each parameter set to run
         summary: The summary statistic (function) to apply to the results
     """
     if importlib.util.find_spec("hickle") is None:
@@ -36,27 +35,32 @@ def rake(hostname=None, replications=9, summary: callable = None):
         print(f"Running ensemble on {hostname}")
     """Configure the parameter sets to run"""
     default_parameters: Dict = isleconfig.simulation_parameters
-    parameter_sets: Dict[str:Dict] = {}
+    parameter_list = None
 
     ###################################################################################################################
     # This section should be freely modified to determine the experiment
     # The keys of parameter_sets are the prefixes to save logs under, the values are the parameters to run
     # The keys should be strings
 
-    for number_riskmodels in [1, 3]:
-        # default_parameters is mutable, so should be copied
-        new_parameters = default_parameters.copy()
-        new_parameters["no_riskmodels"] = number_riskmodels
-        parameter_sets["ensemble" + str(number_riskmodels)] = new_parameters
+    import SALib.util
+    import SALib.sample.morris
+
+    problem = SALib.util.read_param_file("isle_all_parameters.txt")
+    param_values = SALib.sample.morris.sample(problem, N=problem["num_vars"] * 3)
+    parameters = [tuple(row) for row in param_values]
+    parameter_list = [
+        {problem["names"][i]: row[i] for i in range(len(row))} for row in param_values
+    ]
+    for d in parameter_list:
+        d.update(default_parameters.copy())
+        d["max_time"] = 2000
+    assert parameter_list[1] != parameter_list[0]
 
     ###################################################################################################################
 
-    print(
-        f"Running {len(parameter_sets)} simulations of {replications} "
-        f"replications of {default_parameters['max_time']} timesteps"
-    )
-    for name in parameter_sets:
-        assert isinstance(name, str)
+    max_time = isleconfig.simulation_parameters["max_time"]
+
+    print(f"Running {len(parameter_list)} simulations of {max_time} timesteps")
 
     """Sanity checks"""
 
@@ -64,18 +68,6 @@ def rake(hostname=None, replications=9, summary: callable = None):
     if hostname is not None:
         if not ("SANDMAN_KEY_ID" in os.environ and "SANDMAN_KEY_SECRET" in os.environ):
             print("Warning: Sandman authentication not found in environment variables.")
-
-    max_time = isleconfig.simulation_parameters["max_time"]
-
-    if not isleconfig.slim_log:
-        # We can estimate the log size per experiment in GB (max_time is squared as number of insurance firms also
-        # increases with time and per-firm logs are dominating in the limit). The 6 is empirical
-        # TODO: Is this even vaguely correct? Who knows!
-        estimated_log_size = max_time ** 2 * replications * 6 / (1000 ** 3)
-        if estimated_log_size > 1:
-            print(
-                "Uncompressed log size estimated to be above 1GB - consider using slim logs"
-            )
 
     if hostname is not None and isleconfig.show_network:
         print("Warning: can't show network on remote server")
@@ -185,12 +177,6 @@ def rake(hostname=None, replications=9, summary: callable = None):
             )
         os.makedirs("data")
 
-    """Clear old dict saving files (*_history_logs.dat)"""
-    for prefix in parameter_sets.keys():
-        filename = os.getcwd() + dir_prefix + "full_" + prefix + "_history_logs.dat"
-        if os.path.exists(filename):
-            os.remove(filename)
-
     """Setup of the simulations"""
     # Here the setup for the simulation is done.
     # Since this script is used to carry out simulations in the cloud will usually have more than 1 replication.
@@ -202,115 +188,38 @@ def rake(hostname=None, replications=9, summary: callable = None):
         general_rc_event_damage,
         np_seeds,
         random_seeds,
-    ] = setup.obtain_ensemble(replications)
-
-    # never save simulation state in ensemble runs (resuming is impossible anyway)
-    save_iter = 0
+    ] = setup.obtain_ensemble(len(parameter_list))
 
     m = sm.operation(start.main, include_modules=True)
 
-    jobs = {}
-    position_maps = {}
-    for prefix in parameter_sets:
-        # In this loop the parameters, schedules and random seeds for every run are prepared. Different risk models will
-        # be run with the same schedule, damage size and random seed for a fair comparison.
-
-        simulation_parameters = parameter_sets[prefix]
-
-        # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
-        # simulation state save interval (never), and list of requested logs.
-        job = [
-            m(
-                simulation_parameters,
-                general_rc_event_schedule[x],
-                general_rc_event_damage[x],
-                np_seeds[x],
-                random_seeds[x],
-                save_iter,
-                0,
-                list(requested_logs.keys()),
-                summary=summary,
-            )
-            for x in range(replications)
-        ]
-        jobs[prefix] = job
-        position_maps[prefix] = {o.id: p for p, o in enumerate(job)}
-
+    # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
+    # simulation state save interval (never), and list of requested logs.
+    job = [
+        m(
+            parameter_list[x],
+            general_rc_event_schedule[x],
+            general_rc_event_damage[x],
+            np_seeds[x],
+            random_seeds[x],
+            0,
+            0,
+            list(requested_logs.keys()),
+            summary=summary,
+        )
+        for x in range(len(parameter_list))
+    ]
     """Here the jobs are submitted"""
     print("Jobs constructed, submitting")
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
-        # TODO: Allow for resuming a detatched run with task = sess.get(job_id)
-        tasks = {}
-        for prefix, job in jobs.items():
-            # If there are 4 parameter sets jobs will be a dict with 4 elements.
+        print("Starting job")
+        # Don't use async here, since there is only one job
+        result = sess.submit(job)
 
-            """Run simulation and obtain result"""
-            task = sess.submit_async(job)
-            print(f"Started job, prefix {prefix}, given ID {task.id}")
-            tasks[prefix] = task
-
-        print("Now waiting for jobs to complete\033[5m...\033[0m")
-        wait_for_tasks(tasks, replications, position_maps, summary)
-
-    print("Recieved all results and written all files, all finished.")
+    result_dict = {t: r for t, r in zip(parameters, result)}
+    start.save_summary([result_dict])
 
 
-def wait_for_tasks(
-    tasks: dict, replications: int, position_maps: dict, summary: callable = None
-):
-    """tasks is a dict mapping prefixes to job objects
-    position_maps is a dict of dicts: maps prefixes to dicts maping ids to positions
-    """
-    # Need to do it this way as dictionary can't change size during iteration
-    completed_tasks = []
-    if summary is not None:
-        summary_values = {}
-    while len(tasks) > 0:
-        for prefix in completed_tasks:
-            del tasks[prefix]
-        completed_tasks = []
-
-        time.sleep(0.5)
-        for prefix, task in tasks.items():
-            if task.is_done():
-                print(f"Finsihed job, prefix {prefix}, with ID {task.id}")
-                results_iterator = task.iterresults()  # Could just use .results()?
-                completed_tasks.append(prefix)
-
-                results_list = [None for _ in range(replications)]
-                for output_id, result in results_iterator:
-                    position = position_maps[prefix][output_id]
-                    results_list[position] = result
-                if summary is None:
-                    # Note that the results are still compressed and pickled
-                    print(
-                        f"Obtained compressed results for job {task.id}, writing to "
-                        f"file {'data/' + prefix + '_full_logs.hdf'}"
-                    )
-                    start.save_results(results_list, prefix)
-                    print(f"Finished writing results for job {task.id}")
-                else:
-                    # Should be very small, so no need to worry about RAM etc.
-                    print(f"Obtained summary statistic for job {task.id}")
-                    summary_values[prefix] = results_list
-    if summary is not None:
-        print("All tasks complete, writing summary statistics to file")
-        start.save_summary(summary_values)
-
-
-# TODO: Currently broken due to a sandman bug
-def restore_jobs(jobs, hostname):
-    """jobs is a dict mapping prefixes to job ids"""
-    # Can't restore jobs on a local scheduler
-    assert hostname is not None
-    with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
-        tasks = {prefix: sess.get(jobs[prefix]) for prefix in jobs}
-        # Might need to store the position maps - can't test what can be extracted until sandman is fixed
-        # position_maps = None
-        # replications = list(tasks.values())[0].f
-
-
-def summmmmm(log):
+def get_cumulative_bankruptcies(log):
     return log["cumulative_bankruptcies"][-1]
 
 
@@ -319,7 +228,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         # The server is passed as an argument.
         host = sys.argv[1]
-    rake(host, summary=summmmmm)
+    rake(host, summary=get_cumulative_bankruptcies)
     # jobs = {"ensemble1" : "23a3f4e1",
     #         "ensemble2" : "485f7221"}
     # restore_jobs(jobs, host)

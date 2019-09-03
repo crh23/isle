@@ -43,6 +43,7 @@ def main(
     replic_id: int,
     requested_logs: MutableSequence = None,
     resume: bool = False,
+    summary: callable = None,
 ) -> Tuple[bytes, dict]:
     if not resume:
         np.random.seed(np_seed)
@@ -83,13 +84,15 @@ def main(
             save_simulation(t + 1, simulation, sim_params, exit_now=False)
 
     log = simulation.obtain_log(requested_logs)
+    if summary is not None:
+        return summary(log)
+    else:
+        # We compute metadata about the return data that isn't compressed, so a skeleton data structure can be
+        # constructed before decompression
+        found_shapes = {name: np.shape(log[name]) for name in log}
 
-    # We compute metadata about the return data that isn't compressed, so a skeleton data structure can be constructed
-    # before decompression
-    found_shapes = {name: np.shape(log[name]) for name in log}
-
-    # We compress the return value for the sake of minimising data transfer over the network and RAM usage
-    return (zlib.compress(pickle.dumps(log)), found_shapes)
+        # We compress the return value for the sake of minimising data transfer over the network and RAM usage
+        return (zlib.compress(pickle.dumps(log)), found_shapes)
 
 
 def save_simulation(
@@ -255,6 +258,19 @@ def save_results(results_list: list, prefix: str):
     hickle.dump(data, filename, compression="gzip")
 
 
+def save_summary(summary_values: List[dict]):
+    filename = "data/summary_statistics.hdf"
+    if os.path.exists(filename):
+        # Don't want to blindly overwrite, so make backups
+        import time
+
+        backupfilename = filename + "." + time.strftime("%Y-%m-%dT%H%M%S")
+        os.rename(filename, backupfilename)
+    import hickle
+
+    hickle.dump(summary_values, filename, compression="gzip")
+
+
 # main entry point
 if __name__ == "__main__":
 
@@ -367,7 +383,6 @@ if __name__ == "__main__":
         ) = np_seeds = random_seeds = [None]
 
     # Run the main program
-    # Note that we pass the filepath as the replic_ID
     comp_result = main(
         simulation_parameters,
         general_rc_event_schedule[0],
@@ -378,9 +393,6 @@ if __name__ == "__main__":
         replic_id=1,
         resume=args.resume,
     )
-    # result = pickle.loads(zlib.decompress(result))
-
-    # save_results([listify.delistify(list(result))], "single")
 
     save_results([comp_result], "single")
 
