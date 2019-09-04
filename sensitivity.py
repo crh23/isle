@@ -1,7 +1,5 @@
 """
-This script allows to launch an ensemble of simulations for different number of risks models.
-It can be run locally if no argument is passed when called from the terminal.
-It can be run in the cloud if it is passed as argument the sandman2 server that will be used.
+A modification of ensemble.py to do sensitivity analysis using SALib
 """
 import sys
 import os
@@ -39,8 +37,7 @@ def rake(hostname=None, summary: callable = None):
 
     ###################################################################################################################
     # This section should be freely modified to determine the experiment
-    # The keys of parameter_sets are the prefixes to save logs under, the values are the parameters to run
-    # The keys should be strings
+    # parameters should be a list of (hashable) lables for the settings, which parameter_list should be a list of.
 
     import SALib.util
     import SALib.sample.morris
@@ -186,38 +183,41 @@ def rake(hostname=None, summary: callable = None):
     # We don't set filepath=, so the full set of events and seeds will be stored in data/risk_event_schedules.islestore
     # If we wished we could replicate by setting isleconfig.replicating = True.
     setup = setup_simulation.SetupSim()
+    print("Setting up simulation")
     [
         general_rc_event_schedule,
         general_rc_event_damage,
         np_seeds,
         random_seeds,
     ] = setup.obtain_ensemble(len(parameter_list))
-
+    print("Constructing sandman operation")
     m = sm.operation(start.main, include_modules=True)
-
     # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
     # simulation state save interval (never), and list of requested logs.
-    job = [
-        m(
-            parameter_list[x],
-            general_rc_event_schedule[x],
-            general_rc_event_damage[x],
-            np_seeds[x],
-            random_seeds[x],
-            0,
-            0,
-            list(requested_logs.keys()),
-            summary=summary,
-        )
-        for x in range(len(parameter_list))
-    ]
+    print("Assembling jobs")
+    n = len(parameter_list)
+    m_params = (
+        parameter_list,
+        general_rc_event_schedule,
+        general_rc_event_damage,
+        np_seeds,
+        random_seeds,
+        [0] * n,
+        [0] * n,
+        [list(requested_logs.keys())] * n,
+        [False] * n,
+        [summary] * n,
+    )
+    # This is actually quite slow for large sets of jobs. Can't use mp.Pool due to unpickleability
+    # Could use pathos if we actually end up caring
+    job = list(map(m, *m_params))
     """Here the jobs are submitted"""
-    print("Jobs constructed, submitting")
+    print("Jobs created, submitting")
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
         print("Starting job")
         # Don't use async here, since there is only one job
         result = sess.submit(job)
-
+    print("Job done, saving")
     result_dict = {t: r for t, r in zip(parameters, result)}
     start.save_summary([result_dict])
 

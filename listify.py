@@ -2,7 +2,7 @@
    from cloud (sandman2) to local."""
 
 
-def listify(d):
+def listify(d: dict) -> list:
     """Function to convert dict to list with keys in last list element.
         Arguments:
             d: dict - input dict

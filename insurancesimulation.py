@@ -145,7 +145,7 @@ class InsuranceSimulation(GenericAgent):
 
         "Set up monetary system (should instead be with the customers, if customers are modeled explicitly)"
         self.cash: float = self.simulation_parameters["money_supply"]
-        self.bank = CentralBank(self.cash)
+        self.bank = CentralBank(self.cash, self)
 
         "set up risk categories"
         self.riskcategories: Sequence[int] = list(
@@ -1384,3 +1384,20 @@ class InsuranceSimulation(GenericAgent):
         """unweighted adjacency matrix"""
         adj_matrix = np.sign(weights_matrix)
         return adj_matrix.tolist(), node_labels, edge_labels, num_entities
+
+    def count_money(self):
+        """Counts all the money in the economy. Used if the economy runs out of money
+        Just a quick and dirty function to check money doesn't get created or destroyed.
+        We do get some drift thanks to (I assume) floating point error"""
+        try:
+            firms = self.insurancefirms + self.reinsurancefirms + self.catbonds
+        except AttributeError:
+            firms = []
+        firm_cash = sum(firm.cash for firm in firms)
+        own_cash = self.cash
+        bank_cash = 0  # self.bank.economy_money
+        total = firm_cash + own_cash + bank_cash
+        # if not total == self.simulation_parameters["money_supply"]:
+        #     raise RuntimeError(f"Money has been lost - {total} is held by all agents, but "
+        #                        f"{self.simulation_parameters['money_supply']} is expected")
+        return self.simulation_parameters["money_supply"] - total
