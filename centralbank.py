@@ -3,7 +3,7 @@ import numpy as np
 
 
 class CentralBank:
-    def __init__(self, money_supply):
+    def __init__(self, money_supply, simulation):
         """Constructor Method.
             No accepted arguments.
         Constructs the CentralBank class. This class is currently only used to award interest payments."""
@@ -17,6 +17,7 @@ class CentralBank:
         self.economy_money = money_supply
         self.warnings = {}
         self.aid_budget = self.aid_budget_reset = simulation_parameters["aid_budget"]
+        self.simulation = simulation
 
     def update_money_supply(self, amount, reduce=True):
         """Method to update the current supply of money in the insurance simulation economy. Only used to monitor
@@ -24,12 +25,14 @@ class CentralBank:
             Accepts:
                 amount: Type Integer.
                 reduce: Type Boolean."""
-        if reduce:
-            self.economy_money -= amount
-        else:
-            self.economy_money += amount
-        if not self.economy_money > 0:
-            raise RuntimeError("Economy just lost all its money")
+        pass
+        # if reduce:
+        #     self.economy_money -= amount
+        # else:
+        #     self.economy_money += amount
+        # if not self.economy_money >= 0:
+        #     simulation_parameters["simulation"].count_money()
+        #     raise RuntimeError("Economy appears to be out of money")
 
     def award_interest(self, firm, total_cash):
         """Method to award interest.
@@ -38,8 +41,11 @@ class CentralBank:
                 total_cash: Type decimal
         This method takes an agents cash and awards it an interest payment on the cash."""
         interest_payment = total_cash * self.interest_rate
-        firm.receive(interest_payment)
-        self.update_money_supply(interest_payment, reduce=True)
+        self.simulation.receive_obligation(
+            interest_payment, firm, self.simulation._time, "interest"
+        )
+        # firm.receive(interest_payment)
+        # self.update_money_supply(interest_payment, reduce=True)
 
     def set_interest_rate(self):
         """Method to set the interest rate

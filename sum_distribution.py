@@ -38,7 +38,7 @@ def sum_beta_pdf(damage, n, resolution=5000):
 
 
 def plot_mc(ns, no_mc_sims=100000, norm_approx=False, kde=True, hist=True):
-    if not kde or hist:
+    if not (kde or hist):
         raise ValueError("At least one of kde and hist must be passed")
     print("Doing MC simulation for n = " + ", ".join([str(n) for n in ns]))
     for n in ns:
