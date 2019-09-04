@@ -48,7 +48,8 @@ class CatBond(MetaInsuranceOrg):
             No return values
         For each time iteration this is called from insurancesimulation to perform duties: interest payments,
         _pay obligations, mature the contract if ended, make payments."""
-        assert len(self.underwritten_contracts) == 1
+        if not len(self.underwritten_contracts) == 1:
+            raise RuntimeError("Catbond has ended up underwriting multiple contracts")
         # Interest gets paid directly to the owner of the catbond (i.e. the simulation)
         self.simulation.bank.award_interest(self.owner, self.cash)
         self._effect_payments(time)

@@ -11,7 +11,8 @@ class TruncatedDistWrapper:
         self.normalizing_factor = dist.cdf(upper_bound) - dist.cdf(lower_bound)
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
-        assert self.upper_bound > self.lower_bound
+        if not self.upper_bound > self.lower_bound:
+            raise ValueError("upper bound should be above lower bound")
 
     @weak_lru_cache(maxsize=1024)
     def pdf(self, x):
@@ -36,7 +37,8 @@ class TruncatedDistWrapper:
     @weak_lru_cache(maxsize=1024)
     def ppf(self, x):
         x = np.asarray(x)
-        assert (x >= 0).all() and (x <= 1).all()
+        if not ((x >= 0).all() and (x <= 1).all()):
+            raise ValueError("Probablities not in [0, 1] passed (lol)")
         return self.dist.ppf(
             x * self.normalizing_factor + self.dist.cdf(self.lower_bound)
         )

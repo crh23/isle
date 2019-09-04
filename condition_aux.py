@@ -138,7 +138,8 @@ def scaler(
         Returns:
             Calibratied series."""
     series = np.asarray(series)
-    assert (series > 1).all()
+    if not (series > 1).all():
+        raise ValueError("Series is not uniformly greater than one")
     logseries = np.log(series)
     mean = np.mean(logseries)
     std = np.std(logseries)

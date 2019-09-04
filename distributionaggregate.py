@@ -190,7 +190,10 @@ def contract_risk(
     variance = expected_square_total_claim - expected_total_claim ** 2
     std = np.sqrt(variance)
 
-    assert max(round(expected_total_claim), var) <= exposure
+    if not max(round(expected_total_claim), var) <= exposure:
+        raise RuntimeError(
+            "var or expected claim greater than exposure, something's wrong"
+        )
     if factor:
         expected_total_claim *= factor
         var = round(var * factor)
@@ -212,8 +215,10 @@ def get_contract_risk(
         "limit_fraction",
         "runtime",
     ]:
-        assert risk.__dict__[prop] is not None
-    assert risk.deductible_fraction < risk.limit_fraction <= 1
+        if risk.__dict__[prop] is None:
+            raise ValueError(f"Risk parameter {prop} no present but required")
+    if not risk.deductible_fraction < risk.limit_fraction <= 1:
+        raise ValueError("Invalid deductible/limit passed")
     return contract_risk(
         number_risks=risk.number_risks,
         value_per_risk=int(round(risk.value / risk.number_risks)),

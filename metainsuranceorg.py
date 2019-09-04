@@ -309,7 +309,10 @@ class MetaInsuranceOrg(GenericAgent):
                     new_nonproportional_risks
                 )
 
-                assert self.recursion_limit > 0
+                if not self.recursion_limit > 0:
+                    raise ValueError(
+                        "recursion limit is zero, can't evaluate any risks ever"
+                    )
                 not_accepted_reinrisks = None
                 for repetition in range(self.recursion_limit):
                     # Here we process all the new reinrisks in order to keep the portfolio as balanced as possible.
@@ -440,7 +443,10 @@ class MetaInsuranceOrg(GenericAgent):
             self.enter_bankruptcy(time)
         else:
             for obligation in due:
-                assert self.cash > obligation.amount
+                if not self.cash > obligation.amount:
+                    raise RuntimeError(
+                        "Insufficient cash to pay obligations, but in market_exit not enter_illiquidity"
+                    )
                 self._pay(obligation)
             self.obligations = []
             self.dissolve(time, "record_market_exit")
@@ -559,10 +565,7 @@ class MetaInsuranceOrg(GenericAgent):
             ].total_exposure
             + (contract.limit - contract.deductible),
         )
-        # if new_characterisation[1] != 1.0:
-        #     print(new_characterisation[1])
-        # assert new_characterisation[:3] == self.risk_char_slow(contract.category)[:3]
-        # assert np.isclose(new_characterisation[3], self.risk_char_slow(contract.category)[3])
+
         self.underwritten_risk_characterisation[
             contract.category
         ] = new_characterisation
@@ -901,8 +904,10 @@ class MetaInsuranceOrg(GenericAgent):
         for risk in roundrobin(reinrisks_per_categ):
             # Here we take only one risk per category at a time to achieve risk[C1], risk[C2], risk[C3],
             # risk[C4], risk[C1], risk[C2], ... if possible.
-            assert risk
-            assert risk.owner.operational
+            if not risk:
+                raise ValueError("Empty risk (None) found in risks passed to reinsurer")
+            if not risk.owner.operational:
+                raise RuntimeError("Reinsurance risk has non-operational owner")
             accept, cash_left_by_categ, var_this_risk, self.excess_capital = self.riskmodel.evaluate(
                 self.underwritten_risks, self.cash, risk
             )
@@ -980,7 +985,8 @@ class MetaInsuranceOrg(GenericAgent):
         not_accepted_risks = [[] for _ in range(len(risks_per_categ))]
         has_accepted_risks = False
         for risk in roundrobin(risks_per_categ):
-            assert risk
+            if not risk:
+                raise ValueError("Empty risk (None) found in risks passed to insurer")
             if acceptable_by_category[risk.category] > 0:
                 if risk.contract and risk.contract.expiration > time:
                     # In this case the risk being inspected already has a contract, so we are deciding whether to

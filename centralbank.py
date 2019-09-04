@@ -28,7 +28,8 @@ class CentralBank:
             self.economy_money -= amount
         else:
             self.economy_money += amount
-        assert self.economy_money > 0
+        if not self.economy_money > 0:
+            raise RuntimeError("Economy just lost all its money")
 
     def award_interest(self, firm, total_cash):
         """Method to award interest.

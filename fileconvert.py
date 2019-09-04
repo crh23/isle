@@ -73,7 +73,8 @@ def convert(prefix: str):
                 for replication_data in this_data:
                     rfile.write(repr(replication_data.tolist()) + "\n")
             else:
-                assert isinstance(this_data, list)
+                if not isinstance(this_data, list):
+                    raise ValueError("Data is neither a list nor an array")
                 for replication_data in this_data:
                     rfile.write(repr(replication_data) + "\n")
 

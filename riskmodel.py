@@ -84,7 +84,8 @@ class RiskModel:
         runtimes = np.zeros(len(categ_risks))
         for i, risk in enumerate(categ_risks):
             # TODO: factor in excess instead of value?
-            assert risk.limit is not None
+            if risk.limit is None:
+                raise ValueError("no no, no no no no, no no no no, there's no limit")
             exposures[i] = risk.value - risk.deductible
             risk_factors[i] = risk.risk_factor
             runtimes[i] = risk.runtime
@@ -145,7 +146,8 @@ class RiskModel:
         This method iterates through the risks in each category and calculates the average VaR, how many could be
         underwritten according to their average VaR, how much cash would be left per category if all risks were
         underwritten at average VaR, and the total expected profit (currently always None)."""
-        assert len(cash) == self.category_number
+        if not len(cash) == self.category_number:
+            raise ValueError("Cash should be split category-wise")
 
         # prepare variables
         acceptable_by_category = []
@@ -211,7 +213,10 @@ class RiskModel:
             expected_profits = None
         else:
             if necessary_liquidity == 0:
-                assert expected_profits == 0
+                if not expected_profits == 0:
+                    raise ValueError(
+                        "Expected profits should be zero at this point, but isn't"
+                    )
                 expected_profits = self.init_profit_estimate * cash[0]
             else:
                 expected_profits /= necessary_liquidity
@@ -249,7 +254,8 @@ class RiskModel:
         each underwritten contract were to be claimed at expected values. The additional cash required to cover the
         offered risk (if applicable) is then calculated (should only be one)."""
         cash_left_by_categ = np.copy(cash)
-        assert len(cash_left_by_categ) == self.category_number
+        if not len(cash_left_by_categ) == self.category_number:
+            raise ValueError("cash left not split by category")
         # prepare variables
         additional_required = np.zeros(self.category_number)
         additional_var_per_categ = np.zeros(self.category_number)
@@ -296,7 +302,8 @@ class RiskModel:
                 additional_var_per_categ[categ_id] += var_claim_total
 
         # Additional value at risk should only occur in one category. Assert that this is the case.
-        assert sum(additional_var_per_categ > 0) <= 1
+        if not sum(additional_var_per_categ > 0) <= 1:
+            raise ValueError("Additional VaR in multiple categories")
         var_this_risk = max(additional_var_per_categ)
 
         return cash_left_by_categ, additional_required, var_this_risk
@@ -340,13 +347,17 @@ class RiskModel:
         underwritten or not."""
         # TODO: split this into two functions
         # ensure that any risk to be considered supplied directly as argument is non-proportional/excess-of-loss
-        assert (offered_risk is None) or offered_risk.insurancetype == "excess-of-loss"
+        if not (
+            (offered_risk is None) or offered_risk.insurancetype == "excess-of-loss"
+        ):
+            raise ValueError("proportional risk isn't evaluated like this")
         # construct cash_left_by_categ as a sequence, defining remaining liquidity by category
         if not isinstance(cash, (np.ndarray, list)):
             cash_left_by_categ = np.ones(self.category_number) * cash
         else:
             cash_left_by_categ = np.copy(cash)
-        assert len(cash_left_by_categ) == self.category_number
+        if not len(cash_left_by_categ) == self.category_number:
+            raise ValueError("cash left by categ has wrong length")
 
         # sort current contracts
         el_risks = [risk for risk in risks if risk.insurancetype == "excess-of-loss"]

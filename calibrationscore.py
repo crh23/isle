@@ -9,14 +9,15 @@ import calibration_conditions  # Test functions
 
 
 class CalibrationScore:
-    def __init__(self, l):
+    def __init__(self, l: logger.Logger):
         """Constructor method.
             Arguments:
                 l: Type: Logger object. The log of a single simulation run.
             Returns instance."""
 
         """Assert sanity of log and save log."""
-        assert isinstance(l, logger.Logger)
+        if not isinstance(l, logger.Logger):
+            raise ValueError("object passed is not a logger")
         self.logger = l
 
         """Prepare list of calibration tests from calibration_conditions.py"""

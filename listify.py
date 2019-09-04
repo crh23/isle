@@ -20,7 +20,7 @@ def listify(d):
     return lst
 
 
-def delistify(l):
+def delistify(l: list) -> dict:
     """Function to convert listified dict back to dict.
         Arguments:
             l: list - input listified dict. This must be a list of dict
@@ -31,7 +31,8 @@ def delistify(l):
 
     """extract keys"""
     keys = l.pop()
-    assert len(keys) == len(l)
+    if not len(keys) == len(l):
+        raise ValueError("passed list is not a listified dict")
 
     """create dict"""
     d = {key: l[i] for i, key in enumerate(keys)}

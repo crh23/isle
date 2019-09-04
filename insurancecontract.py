@@ -44,7 +44,10 @@ class InsuranceContract(metainsurancecontract.MetaInsuranceContract):
             limit_fraction,
         )
         # the property holder in an insurance contract should always be the simulation
-        assert self.property_holder is self.insurer.simulation
+        if self.property_holder is not self.insurer.simulation:
+            raise ValueError(
+                "Only the simulation should be able to take out insurance contracts"
+            )
         self.property_holder: "InsuranceSimulation"
 
     def explode(self, time, uniform_value=None, damage_extent=None):

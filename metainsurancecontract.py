@@ -174,7 +174,8 @@ class MetaInsuranceContract:
         self.reinsurer = reinsurer
         self.reinsurance_share = reinsurance_share
         self.reincontract = reincontract
-        assert self.reinsurance_share in [None, 0.0, 1.0]
+        if self.reinsurance_share not in [None, 0.0, 1.0]:
+            raise ValueError("Reinsurance share must be 0, 1 or none")
 
     def unreinsure(self):
         """Unreinsurance Method.

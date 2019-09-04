@@ -51,7 +51,8 @@ class ReinsuranceDistWrapper:
                 if region[0] < value
             ]
         for region in self.coverage:
-            assert 0 <= region[0] < region[1] <= 1
+            if not (0 <= region[0] < region[1] <= 1):
+                raise ValueError(f"coverage contains invalid region {region}")
 
         if self.dist.cdf(0) != 0 or self.dist.cdf(1) != 1:
             raise ValueError(

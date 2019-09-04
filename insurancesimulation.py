@@ -113,7 +113,11 @@ class InsuranceSimulation(GenericAgent):
 
         "set initial market price (normalized, i.e. must be multiplied by value or excess-deductible)"
         if self.simulation_parameters["expire_immediately"]:
-            assert self.cat_separation_distribution.dist.name == "expon"
+            if not self.cat_separation_distribution.dist.name == "expon":
+                # TODO: comeon, its geometric really
+                raise ValueError(
+                    "cat separation distribution must be exponential (for now)"
+                )
             expected_damage_frequency = 1 - scipy.stats.poisson(
                 self.simulation_parameters["mean_contract_runtime"]
                 / self.simulation_parameters["event_time_mean_separation"]
@@ -399,7 +403,10 @@ class InsuranceSimulation(GenericAgent):
         if agents:
             # We're probably just adding a catbond
             if agent_class_string == "catbond":
-                assert len(agents) == n
+                if not len(agents) == n:
+                    raise ValueError(
+                        "Mismatch in number of agents and claimed number of agents"
+                    )
                 self.catbonds += agents
             else:
                 raise ValueError("Only catbonds may be passed directly")
@@ -408,7 +415,10 @@ class InsuranceSimulation(GenericAgent):
             if agent_class_string == "insurancefirm":
                 if not self.insurancefirms:
                     # There aren't any other firms yet, add the first ones
-                    assert len(self.agent_parameters["insurancefirm"]) == n
+                    if not len(self.agent_parameters["insurancefirm"]) == n:
+                        raise ValueError(
+                            "Agent parameters list has incorrect length when adding initial insurers"
+                        )
                     agent_parameters = self.agent_parameters["insurancefirm"]
                 else:
                     # We are adding new agents to an existing simulation
@@ -432,7 +442,10 @@ class InsuranceSimulation(GenericAgent):
             elif agent_class_string == "reinsurancefirm":
                 # Much the same as above
                 if not self.reinsurancefirms:
-                    assert len(self.agent_parameters["reinsurancefirm"]) == n
+                    if not len(self.agent_parameters["reinsurancefirm"]) == n:
+                        raise ValueError(
+                            "Agent parameters list has incorrect length when adding initial reinsurers"
+                        )
                     agent_parameters = self.agent_parameters["reinsurancefirm"]
                 else:
                     agent_parameters = [
@@ -740,7 +753,8 @@ class InsuranceSimulation(GenericAgent):
                 amount: Type Integer"""
         self.cash -= amount
         self.bank.update_money_supply(amount, reduce=True)
-        assert self.cash >= 0
+        if not self.cash >= 0:
+            raise RuntimeError("Simulation out of money oh no we're all doomed")
 
     def _reset_reinsurance_weights(self):
         """Method for clearing and setting reinsurance weights dependant on how many reinsurance companies exist and

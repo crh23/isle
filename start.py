@@ -232,7 +232,8 @@ def save_results(results_list: list, prefix: str):
 
     # Need to do a little pre-processing
     for key in list(results_dict.keys()):
-        assert isinstance(results_dict[key], np.ndarray)
+        if not isinstance(results_dict[key], np.ndarray):
+            raise ValueError(f"Results_dict[{key}] is not an array")
         if results_dict[key].size == 0:
             del results_dict[key]
             continue

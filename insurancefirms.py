@@ -131,7 +131,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         market premium is above its average premium, otherwise firm is 'forced' to get a catbond or reinsurance. Only
         implemented for non-proportional(excess of loss) reinsurance. Only issues one reinsurance or catbond per
         iteration unless not enough capacity to meet target."""
-        assert self.simulation_reinsurance_type == "non-proportional"
+        if not self.simulation_reinsurance_type == "non-proportional":
+            raise ValueError("Only non-proportional reinsurance is currently supported")
         """get prices"""
 
         capacity = None
@@ -273,7 +274,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                 tranches = self.reinsurance_profile.split_longest(tranches)
             risks_to_return = []
             for tranche in tranches:
-                assert tranche[1] > tranche[0]
+                if not tranche[1] > tranche[0]:
+                    raise ValueError("Ended up with invalid tranche")
                 risk = self.reinsure_tranche(
                     categ_id,
                     tranche[0] / total_value,
@@ -318,7 +320,10 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             deductible=deductible_fraction * total_value,
             limit=limit_fraction * total_value,
         )
-        assert risk.deductible_fraction < risk.limit_fraction <= 1
+        if not (risk.deductible_fraction < risk.limit_fraction <= 1):
+            raise ValueError(
+                "Can't reinsure invalid tranche - deductible must be < limit <= 1"
+            )
 
         reinsurance_type = self.decide_reinsurance_type(risk)
         if reinsurance_type == "reinsurance":
@@ -420,14 +425,20 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
 
     def get_catbond_price(self, risk: genericclasses.RiskProperties) -> float:
         """Returns the total per-risk premium for a catbond """
-        assert risk.deductible_fraction is not None
+        if risk.deductible_fraction is None:
+            raise ValueError(
+                "Risk has no associated deductible fraction, can't price catbond"
+            )
         return self.simulation.get_cat_bond_price(
             risk.deductible_fraction, risk.limit_fraction
         )
 
     def get_reinsurance_price(self, risk: genericclasses.RiskProperties) -> float:
         """Returns the total per-risk premium for reinsurance"""
-        assert risk.deductible_fraction is not None
+        if risk.deductible_fraction is None:
+            raise ValueError(
+                "Risk has no associated deductible fraction, can't price catbond"
+            )
         return self.simulation.get_reinsurance_premium(
             risk.deductible_fraction, risk.limit_fraction
         )
@@ -534,7 +545,8 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
         )
         if risk.deductible_fraction == risk.limit_fraction == 1:
             return None
-        assert risk.deductible_fraction < risk.limit_fraction <= 1
+        if not (risk.deductible_fraction < risk.limit_fraction <= 1):
+            raise ValueError("After refreshing risk has become invalid")
         return risk
 
 

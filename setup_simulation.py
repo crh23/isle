@@ -7,7 +7,6 @@
       - np_seed: int - numpy module random seed
       - random_seed: int - random module random seed
    A simulation given event schedule dictionary d should be set up like so:
-        assert isleconfig.simulation_parameters["no_categories"] == d["num_categories"]
         simulation.rc_event_schedule = d["event_times"]
         simulation.rc_event_damages = d["event_damages"]
         np.random.seed(d["np_seed"])
@@ -101,12 +100,13 @@ class SetupSim:
         # the model. The number of replications is calculated from the length of the exisiting values.
         # With the information stored it is possible to replicate the entire behavior of the ensemble at a later time.
         event_schedules = []
-        assert (
+        if not (
             len(self.np_seed)
             == len(self.random_seed)
             == len(self.general_rc_event_damage)
             == len(self.general_rc_event_schedule)
-        )
+        ):
+            raise ValueError("Required data not all the same lenght, can't store")
         replications = len(self.np_seed)
 
         for i in range(replications):
@@ -140,13 +140,14 @@ class SetupSim:
             pickle.dump(event_schedules, wfile, protocol=pickle.HIGHEST_PROTOCOL)
 
     def recall(self):
-        assert (
+        if not (
             self.np_seed
             == self.random_seed
             == self.general_rc_event_schedule
             == self.general_rc_event_damage
             == []
-        )
+        ):
+            raise ValueError("Some of the data to be recalled already exists")
         with open("./data/" + self.filepath, "rb") as rfile:
             event_schedules = pickle.load(rfile)
         self.replications = len(event_schedules)

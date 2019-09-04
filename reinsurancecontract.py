@@ -55,7 +55,10 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         if self.insurancetype == "excess-of-loss":
             self.property_holder.add_reinsurance(contract=self)
         else:
-            assert self.contract is not None
+            if self.contract is None:
+                raise ValueError(
+                    "Proportional reinsurance must have an associated contract"
+                )
 
         evaluating = False
         if evaluating:
@@ -105,7 +108,10 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
         # Just a type hint since for a generic insurance contract property_holder can be the simulation
         self.property_holder: "InsuranceFirm"
 
-        assert uniform_value is None
+        if uniform_value is not None:
+            raise ValueError(
+                "uniform value should not be given for reinsurance contract explosion"
+            )
         if damage_extent is None:
             raise ValueError("Damage extent should be given")
         if damage_extent > self.deductible:
@@ -143,7 +149,8 @@ class ReinsuranceContract(metainsurancecontract.MetaInsuranceContract):
                 # TODO: Allow for catbonds that can pay out multiple times?
                 self.insurer: "CatBond"
                 remaining_cb_cash = self.insurer.get_available_cash(time) - claim
-                assert remaining_cb_cash >= 0
+                if not remaining_cb_cash >= 0:
+                    raise ValueError("Catbond has run out of cash, oh no")
                 if remaining_cb_cash < 2:
                     # If the claim uses up all the catbond's remaining money, the contract ends
                     self.expiration = time

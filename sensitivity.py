@@ -49,12 +49,15 @@ def rake(hostname=None, summary: callable = None):
     param_values = SALib.sample.morris.sample(problem, N=problem["num_vars"] * 3)
     parameters = [tuple(row) for row in param_values]
     parameter_list = [
-        {problem["names"][i]: row[i] for i in range(len(row))} for row in param_values
+        {
+            **default_parameters.copy(),
+            "max_time": 2000,
+            **{problem["names"][i]: row[i] for i in range(len(row))},
+        }
+        for row in param_values
     ]
-    for d in parameter_list:
-        d.update(default_parameters.copy())
-        d["max_time"] = 2000
-    assert parameter_list[1] != parameter_list[0]
+    if parameter_list[1] == parameter_list[0]:
+        raise RuntimeError("Parameter list appears to be homogenous!")
 
     ###################################################################################################################
 

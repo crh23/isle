@@ -38,7 +38,8 @@ def sum_beta_pdf(damage, n, resolution=5000):
 
 
 def plot_mc(ns, no_mc_sims=100000, norm_approx=False, kde=True, hist=True):
-    assert kde or hist
+    if not kde or hist:
+        raise ValueError("At least one of kde and hist must be passed")
     print("Doing MC simulation for n = " + ", ".join([str(n) for n in ns]))
     for n in ns:
         results = []
@@ -121,7 +122,8 @@ def plot_3d(pdfs):
     y = []
     z = []
     for n in pdfs:
-        assert len(pdfs[n][0]) == len(pdfs[n][1])
+        if not len(pdfs[n][0]) == len(pdfs[n][1]):
+            raise ValueError("Attempting to ploy pdfs of unequal sizes")
         x += list(np.array(pdfs[n][0]) / n)
         z += list(np.array(pdfs[n][1]) * n)
         y += [n] * len(pdfs[n][0])

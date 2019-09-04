@@ -56,7 +56,8 @@ def rake(hostname=None, replications=9, summary: callable = None):
         f"replications of {default_parameters['max_time']} timesteps"
     )
     for name in parameter_sets:
-        assert isinstance(name, str)
+        if not isinstance(name, str):
+            raise ValueError("Prefixes must be strings")
 
     """Sanity checks"""
 
@@ -302,7 +303,8 @@ def wait_for_tasks(
 def restore_jobs(jobs, hostname):
     """jobs is a dict mapping prefixes to job ids"""
     # Can't restore jobs on a local scheduler
-    assert hostname is not None
+    if hostname is None:
+        raise ValueError("Can't restore from local scheduler")
     with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
         tasks = {prefix: sess.get(jobs[prefix]) for prefix in jobs}
         # Might need to store the position maps - can't test what can be extracted until sandman is fixed

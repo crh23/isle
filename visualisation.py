@@ -459,7 +459,8 @@ class Visualisation(object):
             Returns:
                 numpy ndarray of the same length as argument "exits": the clustered series."""
         exits = np.asarray(exits)
-        assert exits.ndim == 2
+        if not exits.ndim == 2:
+            raise ValueError("exits should be 2-dimensional")
         clustered = np.zeros_like(exits)
         for ts_index, timeseries in enumerate(exits):
             # Sadly have to go row-by-row
@@ -1568,7 +1569,8 @@ if __name__ == "__main__":
 
         # load in data from the history_logs dictionary
         data = hickle.load("data/single_full_logs.hdf")
-        assert type(data) is dict
+        if not type(data) is dict:
+            raise ValueError("hickle file does not contain a dict")
         history_log = data
 
         # first create visualisation object, then create graph/animation objects as necessary
@@ -1594,7 +1596,8 @@ if __name__ == "__main__":
         ]
         for filename in filenames:
             data = hickle.load(filename)
-            assert type(data) is dict
+            if type(data) is not dict:
+                raise ValueError(f"Hickle file {filename} does not contain a dict")
             history_log = data
             vis_list.append(Visualisation(history_log))
 
@@ -1639,7 +1642,8 @@ if __name__ == "__main__":
         ]
         for filename in filenames:
             data = hickle.load(filename)
-            assert type(data) is dict
+            if type(data) is not dict:
+                raise ValueError(f"Hickle file, {filename}, contains non-dict data")
             history_log = data
             vis_list.append(Visualisation(history_log))
 
