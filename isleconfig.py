@@ -17,7 +17,7 @@ simulation_parameters = {
     "no_reinsurancefirms": 4,
 
     # Numer of risk models in the market
-    "no_riskmodels": 1,
+    "no_riskmodels": 4,
 
     # values >=1; inaccuracy higher with higher values
     "riskmodel_inaccuracy_parameter": 2,
@@ -76,6 +76,7 @@ simulation_parameters = {
 
     # If True, will use the static deductible (if reinsurance type is non-proportional), otherwise the dynamic
     # deductible settings below are used
+    # TODO: RM Unsused
     "static_non-proportional_reinsurance_levels": False,
     "default_non-proportional_reinsurance_deductible": 0.3,
 
@@ -124,7 +125,7 @@ simulation_parameters = {
     # This parameter activates (deactivates) the following market permanency constraints.
     "market_permanency_off": False,
     # If a firm has cash less that this, they leave the market
-    "cash_permanency_limit": 100,
+    "cash_permanency_limit": 100,  # TODO: Check Morris - don't tweak by less than 1
     # If insurers have fewer than this many contracts for the below time period then they leave the market
     "insurance_permanency_contracts_limit": 4,
     # Likewise, but regarding the ratio of actual cash to cash being reserved to cover risk
@@ -141,6 +142,12 @@ simulation_parameters = {
     "initial_agent_cash": 80000,
     "initial_reinagent_cash": 2000000,
 
+    # The total number of (insurance) risks in the market
+    "no_risks": 20000,
+
+    # The value of each insurance risk
+    "value_per_risk": 1000,
+
     # The per time period bank interest rate (note: time period ~ 1 month)
     "interest_rate": 0.001,
 
@@ -150,12 +157,6 @@ simulation_parameters = {
     # The limits on the adjustment for market price of insurance
     "upper_price_limit": 1.2,
     "lower_price_limit": 0.85,
-
-    # The total number of (insurance) risks in the market
-    "no_risks": 20000,
-
-    # The value of each insurance risk
-    "value_per_risk": 1000,
 
     # The maximum upscaling of premiums based on insurer size - set to 1 to disable scaled premiums.
     # High values will give bigger insurers more money (we can assume they are more "trusted")

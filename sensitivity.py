@@ -37,8 +37,7 @@ def rake(hostname=None, summary: callable = None):
 
     ###################################################################################################################
     # This section should be freely modified to determine the experiment
-    # The keys of parameter_sets are the prefixes to save logs under, the values are the parameters to run
-    # The keys should be strings
+    # parameters should be a list of (hashable) lables for the settings, which parameter_list should be a list of.
 
     import SALib.util
     import SALib.sample.morris
