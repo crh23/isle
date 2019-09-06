@@ -32,6 +32,10 @@ if not os.path.isdir("data"):
     os.makedirs("data")
 
 
+def cumulative_bankruptcies(log):
+    return log["cumulative_bankruptcies"][-1]
+
+
 # main function
 def main(
     sim_params: MutableMapping,

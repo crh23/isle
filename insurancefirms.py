@@ -220,9 +220,11 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
 
         if number_risks > 0:
             tranches = self.reinsurance_profile.uncovered(categ_id)
-
             # Don't get reinsurance above maximum limit
-            while tranches[-1][1] > self.np_reinsurance_limit_fraction * total_value:
+            while (
+                tranches
+                and tranches[-1][1] > self.np_reinsurance_limit_fraction * total_value
+            ):
                 if tranches[-1][0] >= self.np_reinsurance_limit_fraction * total_value:
                     tranches.pop()
                 else:
@@ -231,7 +233,9 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
                         self.np_reinsurance_limit_fraction * total_value,
                     )
             while (
-                tranches[0][0] < self.np_reinsurance_deductible_fraction * total_value
+                tranches
+                and tranches[0][0]
+                < self.np_reinsurance_deductible_fraction * total_value
             ):
                 if (
                     tranches[0][1]
