@@ -230,6 +230,7 @@ def rake(hostname=None, replications=9, summary: callable = None):
                 save_iter,
                 0,
                 list(requested_logs.keys()),
+                resume=False,
                 summary=summary,
             )
             for x in range(replications)
@@ -312,16 +313,12 @@ def restore_jobs(jobs, hostname):
         # replications = list(tasks.values())[0].f
 
 
-def summmmmm(log):
-    return log["cumulative_bankruptcies"][-1]
-
-
 if __name__ == "__main__":
     host = None
     if len(sys.argv) > 1:
         # The server is passed as an argument.
         host = sys.argv[1]
-    rake(host, summary=summmmmm)
+    rake(host, summary=start.cumulative_bankruptcies)
     # jobs = {"ensemble1" : "23a3f4e1",
     #         "ensemble2" : "485f7221"}
     # restore_jobs(jobs, host)
