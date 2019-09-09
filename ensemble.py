@@ -318,7 +318,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         # The server is passed as an argument.
         host = sys.argv[1]
-    rake(host, summary=start.cumulative_bankruptcies)
+    rake(host, summary="start.cumulative_bankruptcies")
     # jobs = {"ensemble1" : "23a3f4e1",
     #         "ensemble2" : "485f7221"}
     # restore_jobs(jobs, host)
