@@ -8,14 +8,12 @@ import time
 import importlib
 
 import numpy as np
-import sandman2.api as sm
-
 import isleconfig
 import start
 import setup_simulation
 
 
-def rake(hostname=None, summary: callable = None):
+def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET
@@ -23,6 +21,8 @@ def rake(hostname=None, summary: callable = None):
     Args:
         hostname: The remote server to run the job on
         summary: The summary statistic (function) to apply to the results
+        use_sandman: if True, uses sandman, otherwise uses multiprocessing (faster if running very many simulations
+                        locally)
     """
     if importlib.util.find_spec("hickle") is None:
         raise ModuleNotFoundError("hickle not found but required for saving logs")
@@ -30,7 +30,10 @@ def rake(hostname=None, summary: callable = None):
     if hostname is None:
         print("Running ensemble locally")
     else:
-        print(f"Running ensemble on {hostname}")
+        if use_sandman:
+            print(f"Running ensemble on {hostname}")
+        else:
+            raise ValueError("use_sandman is False, but hostname is given")
     """Configure the parameter sets to run"""
     default_parameters: Dict = isleconfig.simulation_parameters
     parameter_list = None
@@ -190,13 +193,9 @@ def rake(hostname=None, summary: callable = None):
         np_seeds,
         random_seeds,
     ] = setup.obtain_ensemble(len(parameter_list))
-    print("Constructing sandman operation")
-    m = sm.operation(start.main, include_modules=True)
-    # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
-    # simulation state save interval (never), and list of requested logs.
-    print("Assembling jobs")
+
     n = len(parameter_list)
-    m_params = (
+    m_params = zip(
         parameter_list,
         general_rc_event_schedule,
         general_rc_event_damage,
@@ -208,15 +207,34 @@ def rake(hostname=None, summary: callable = None):
         [False] * n,
         [summary] * n,
     )
-    # This is actually quite slow for large sets of jobs. Can't use mp.Pool due to unpickleability
-    # Could use pathos if we actually end up caring
-    job = list(map(m, *m_params))
-    """Here the jobs are submitted"""
-    print("Jobs created, submitting")
-    with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
-        print("Starting job")
-        # Don't use async here, since there is only one job
-        result = sess.submit(job)
+
+    if use_sandman:
+        import sandman2.api as sm
+        from itertools import starmap
+
+        print("Constructing sandman operation")
+        m = sm.operation(start.main, include_modules=True)
+        print("Assembling jobs")
+
+        # Here is assembled each job with the corresponding: simulation parameters, time events, damage events, seeds,
+        # simulation state save interval (never), and list of requested logs.
+
+        # This is actually quite slow for large sets of jobs. Can't use mp.Pool due to unpickleability
+        # Could use pathos if we actually end up caring
+        job = list(starmap(m, m_params))
+        """Here the jobs are submitted"""
+        print("Jobs created, submitting")
+        with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
+            print("Starting job")
+            # Don't use async here, since there is only one job
+            result = sess.submit(job)
+    else:
+        import multiprocessing as mp
+
+        print("Running multiprocessing pool")
+        with mp.Pool(maxtasksperchild=4) as pool:
+            result = pool.starmap(start.main, m_params)
+
     print("Job done, saving")
     result_dict = {t: r for t, r in zip(parameters, result)}
     start.save_summary([result_dict])

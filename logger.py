@@ -114,7 +114,7 @@ class Logger:
             else:
                 self.history_logs[key].append(data_dict[key])
 
-    def obtain_log(self, requested_logs=None):
+    def obtain_log(self, requested_logs=None) -> dict:
         if requested_logs is None:
             requested_logs = LOG_DEFAULT
         """Method to transfer entire log (self.history_log as well as risk event schedule). This is
