@@ -11,6 +11,7 @@ import numpy as np
 import isleconfig
 import start
 import setup_simulation
+import calibration_statistic
 
 
 def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
@@ -46,7 +47,7 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     import SALib.sample.morris
 
     problem = SALib.util.read_param_file("isle_all_parameters.txt")
-    param_values = SALib.sample.morris.sample(problem, N=problem["num_vars"] * 3)
+    param_values = SALib.sample.morris.sample(problem, N=1)  # problem["num_vars"] * 3)
     parameters = [tuple(row) for row in param_values]
     parameter_list = [
         {
@@ -105,69 +106,13 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
         "rc_event_schedule_initial": "_rc_event_schedule.dat",
         "rc_event_damage_initial": "_rc_event_damage.dat",
         "number_riskmodels": "_number_riskmodels.dat",
-        "individual_contracts": "_insurance_contracts.dat",
+        "insurance_contracts": "_insurance_contracts.dat",
         "reinsurance_contracts": "_reinsurance_contracts.dat",
         "unweighted_network_data": "_unweighted_network_data.dat",
         "network_node_labels": "_network_node_labels.dat",
         "network_edge_labels": "_network_edge_labels.dat",
         "number_of_agents": "_number_of_agents",
     }
-    """Define the numpy types of the underlying data in each requested log"""
-    types = {
-        "total_cash": np.float_,
-        "total_excess_capital": np.float_,
-        "total_profitslosses": np.float_,
-        "total_contracts": np.int_,
-        "total_operational": np.int_,
-        "total_reincash": np.float_,
-        "total_reinexcess_capital": np.float_,
-        "total_reinprofitslosses": np.float_,
-        "total_reincontracts": np.int_,
-        "total_reinoperational": np.int_,
-        "total_catbondsoperational": np.int_,
-        "market_premium": np.float_,
-        "market_reinpremium": np.float_,
-        "cumulative_bankruptcies": np.int_,
-        "cumulative_market_exits": np.int_,
-        "cumulative_unrecovered_claims": np.float_,
-        "cumulative_claims": np.float_,
-        "cumulative_bought_firms": np.int_,
-        "cumulative_nonregulation_firms": np.int_,
-        "insurance_firms_cash": np.float_,
-        "reinsurance_firms_cash": np.float_,
-        "market_diffvar": np.float_,
-        "rc_event_schedule_initial": np.int_,
-        "rc_event_damage_initial": np.float_,
-        "number_riskmodels": np.int_,
-        "individual_contracts": np.int_,
-        "reinsurance_contracts": np.int_,
-        "unweighted_network_data": np.float_,
-        "network_node_labels": np.float_,
-        "network_edge_labels": np.float_,
-        "number_of_agents": np.int_,
-    }
-
-    if isleconfig.slim_log:
-        for name in [
-            "insurance_firms_cash",
-            "reinsurance_firms_cash",
-            "individual_contracts",
-            "reinsurance_contracts",
-            "unweighted_network_data",
-            "network_node_labels",
-            "network_edge_labels",
-            "number_of_agents",
-        ]:
-            del requested_logs[name]
-
-    elif not isleconfig.save_network:
-        for name in [
-            "unweighted_network_data",
-            "network_node_labels",
-            "network_edge_labels",
-            "number_of_agents",
-        ]:
-            del requested_logs[name]
 
     """Configure log directory and ensure that the directory exists"""
     dir_prefix = "/data/"
@@ -203,7 +148,7 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
         random_seeds,
         [0] * n,
         [0] * n,
-        [list(requested_logs.keys())] * n,
+        [None] * n,
         [False] * n,
         [summary] * n,
     )
@@ -240,16 +185,14 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     start.save_summary([result_dict])
 
 
-def get_cumulative_bankruptcies(log):
-    return log["cumulative_bankruptcies"][-1]
-
-
 if __name__ == "__main__":
     host = None
+    use_sandman = False
     if len(sys.argv) > 1:
         # The server is passed as an argument.
         host = sys.argv[1]
-    rake(host, summary=get_cumulative_bankruptcies)
+        use_sandman = True
+    rake(host, summary=calibration_statistic.calculate_single, use_sandman=use_sandman)
     # jobs = {"ensemble1" : "23a3f4e1",
     #         "ensemble2" : "485f7221"}
     # restore_jobs(jobs, host)

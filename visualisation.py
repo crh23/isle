@@ -242,7 +242,7 @@ class Visualisation(object):
                 self.ins_pie_anim: Type animation class instance. Not used outside this method but is saved."""
         data = self.history_log
         insurance_cash = np.array(data["insurance_firms_cash"][run])
-        contract_data = data["individual_contracts"][run]
+        contract_data = data["insurance_contracts"][run]
         event_schedule = data["rc_event_schedule_initial"][run]
         self.ins_pie_anim = InsuranceFirmAnimation(
             insurance_cash, contract_data, event_schedule, "Insurance Firm", save=True
@@ -1302,7 +1302,7 @@ class ConfigCompare:
                     or "riskmodels" in key
                 ):
                     pass
-                elif key == "individual_contracts" or key == "reinsurance_contracts":
+                elif key == "insurance_contracts" or key == "reinsurance_contracts":
                     avg_contract_per_firm = []
                     for t in range(len(data[key][0])):
                         total_contracts = 0

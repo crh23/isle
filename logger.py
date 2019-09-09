@@ -11,11 +11,24 @@ LOG_DEFAULT = (
     "total_reincontracts total_reinoperational total_catbondsoperational market_premium "
     "market_reinpremium cumulative_bankruptcies cumulative_market_exits cumulative_unrecovered_claims "
     "cumulative_claims insurance_firms_cash reinsurance_firms_cash market_diffvar "
-    "rc_event_schedule_initial rc_event_damage_initial number_riskmodels individual_contracts reinsurance_contracts "
+    "rc_event_schedule_initial rc_event_damage_initial number_riskmodels insurance_contracts reinsurance_contracts "
     "unweighted_network_data network_node_labels network_edge_labels number_of_agents "
     "cumulative_bought_firms cumulative_nonregulation_firms insurance_cumulative_dividends "
     "reinsurance_cumulative_dividends"
 ).split(" ")
+
+firm_level_logs = [
+    "insurance_firms_cash",
+    "reinsurance_firms_cash",
+    "insurance_contracts",
+    "reinsurance_contracts",
+    "insurance_claims",
+    "reinsurance_claims",
+    "insurance_pls",
+    "reinsurance_pls",
+    "insurance_cumulative_premiums",
+    "reinsurance_cumulative_premiums",
+]
 
 
 class Logger:
@@ -59,9 +72,8 @@ class Logger:
         for _v in insurance_sector:
             self.history_logs[_v] = []
 
-        """Variables pertaining to individual insurance firms"""
-        self.history_logs["individual_contracts"] = []
-        self.history_logs["insurance_firms_cash"] = []
+        for name in firm_level_logs:
+            self.history_logs[name] = []
 
         """Variables pertaining to reinsurance sector"""
         self.history_logs["total_reincash"] = []
@@ -69,10 +81,6 @@ class Logger:
         self.history_logs["total_reinprofitslosses"] = []
         self.history_logs["total_reincontracts"] = []
         self.history_logs["total_reinoperational"] = []
-
-        """Variables pertaining to individual reinsurance firms"""
-        self.history_logs["reinsurance_firms_cash"] = []
-        self.history_logs["reinsurance_contracts"] = []
 
         """Variables pertaining to cat bonds"""
         self.history_logs["total_catbondsoperational"] = []
@@ -102,13 +110,8 @@ class Logger:
                 data_dict: Type dict. Data with the same keys as are used in self.history_log().
             Returns None."""
         for key in data_dict.keys():
-            if key in [
-                "individual_contracts",
-                "reinsurance_contracts",
-                "insurance_firms_cash",
-                "reinsurance_firms_cash",
-            ]:
-                # These four are stored per-firm
+            if key in firm_level_logs:
+                # These are stored per-firm
                 for i in range(len(data_dict[key])):
                     self.history_logs[key][i].append(data_dict[key][i])
             else:
@@ -116,7 +119,7 @@ class Logger:
 
     def obtain_log(self, requested_logs=None) -> dict:
         if requested_logs is None:
-            requested_logs = LOG_DEFAULT
+            requested_logs = self.history_logs.keys()
         """Method to transfer entire log (self.history_log as well as risk event schedule). This is
            used to transfer the log to master core from work cores in ensemble runs in the cloud.
             No arguments.
@@ -253,16 +256,11 @@ class Logger:
 
     def add_firm(self, firm_type: str):
         """Notifies the logger of a new firm, so blank data can be added to firm-level logs"""
-        if firm_type == "insurance":
-            keys = ["individual_contracts", "insurance_firms_cash"]
-        elif firm_type == "reinsurance":
-            keys = ["reinsurance_contracts", "reinsurance_firms_cash"]
-        else:
-            raise ValueError
+        keys = [key for key in firm_level_logs if key.startswith(firm_type)]
         for key in keys:
             if len(self.history_logs[key]) > 0:
                 zeroes_to_append = list(
-                    np.zeros(len(self.history_logs[key][0]), dtype=int)
+                    np.zeros(len(self.history_logs[key][0]), dtype=float)
                 )
             else:
                 zeroes_to_append = []

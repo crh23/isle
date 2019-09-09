@@ -660,18 +660,26 @@ class InsuranceSimulation(GenericAgent):
         operational_no = sum([firm.operational for firm in self.insurancefirms])
         reinoperational_no = sum([firm.operational for firm in self.reinsurancefirms])
         catbondsoperational_no = sum([cb.operational for cb in self.catbonds])
-
-        """ collect agent-level data """
-        insurance_firms = [firm.cash for firm in self.insurancefirms]
-        reinsurance_firms = [firm.cash for firm in self.reinsurancefirms]
-        insurance_contracts = [
-            len(firm.underwritten_contracts) for firm in self.insurancefirms
-        ]
-        reinsurance_contracts = [
-            len(firm.underwritten_contracts) for firm in self.reinsurancefirms
-        ]
         ins_dividends = sum([firm.dividends_paid for firm in self.insurancefirms])
         re_dividends = sum([firm.dividends_paid for firm in self.reinsurancefirms])
+
+        """ collect agent-level data """
+        insurance_firms_cash = [firm.cash for firm in self.insurancefirms]
+        reinsurance_firms_cash = [firm.cash for firm in self.reinsurancefirms]
+        insurance_contracts = [firm.num_underwritten() for firm in self.insurancefirms]
+        reinsurance_contracts = [
+            firm.num_underwritten() for firm in self.reinsurancefirms
+        ]
+        insurance_claims = [firm.claims_this_iteration for firm in self.insurancefirms]
+        reinsurance_claims = [
+            firm.claims_this_iteration for firm in self.reinsurancefirms
+        ]
+        insurance_pls = [firm.get_profitslosses() for firm in self.insurancefirms]
+        reinsurance_pls = [firm.get_profitslosses() for firm in self.reinsurancefirms]
+        insurance_premiums = [firm.premiums_recieved for firm in self.insurancefirms]
+        reinsurance_premiums = [
+            firm.premiums_recieved for firm in self.reinsurancefirms
+        ]
 
         """ prepare dict """
         current_log = {
@@ -694,13 +702,19 @@ class InsuranceSimulation(GenericAgent):
             "cumulative_claims": self.cumulative_claims,
             "cumulative_bought_firms": self.cumulative_bought_firms,
             "cumulative_nonregulation_firms": self.cumulative_nonregulation_firms,
-            "insurance_firms_cash": insurance_firms,
-            "reinsurance_firms_cash": reinsurance_firms,
             "market_diffvar": self.compute_market_diffvar(),
-            "individual_contracts": insurance_contracts,
-            "reinsurance_contracts": reinsurance_contracts,
             "insurance_cumulative_dividends": ins_dividends,
             "reinsurance_cumulative_dividends": re_dividends,
+            "insurance_firms_cash": insurance_firms_cash,
+            "reinsurance_firms_cash": reinsurance_firms_cash,
+            "insurance_contracts": insurance_contracts,
+            "reinsurance_contracts": reinsurance_contracts,
+            "insurance_claims": insurance_claims,
+            "reinsurance_claims": reinsurance_claims,
+            "insurance_pls": insurance_pls,
+            "reinsurance_pls": reinsurance_pls,
+            "insurance_cumulative_premiums": insurance_premiums,
+            "reinsurance_cumulative_premiums": reinsurance_premiums,
         }
 
         if isleconfig.save_network:
@@ -1248,10 +1262,7 @@ class InsuranceSimulation(GenericAgent):
             total = self.simulation_parameters["no_risks"]
         elif firm.is_reinsurer:
             total = sum(
-                [
-                    reinfirm.number_underwritten_contracts()
-                    for reinfirm in self.reinsurancefirms
-                ]
+                [reinfirm.num_underwritten() for reinfirm in self.reinsurancefirms]
                 + [len(self.reinrisks)]
             )
         else:
@@ -1259,7 +1270,7 @@ class InsuranceSimulation(GenericAgent):
         if total == 0:
             return 0
         else:
-            return firm.number_underwritten_contracts() / total
+            return firm.num_underwritten() / total
 
     def get_total_firm_cash(self, firm_type: str):
         """Method to get sum of all cash of firms of a given type. Called from consider_buyout() but could be used for

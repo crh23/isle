@@ -222,6 +222,7 @@ class MetaInsuranceOrg(GenericAgent):
         ]
         # The share of all risks that this firm holds. Gets updated every timestep
         self.risk_share = 0
+        self.claims_this_iteration = 0
 
     def iterate(self, time: int):
         """Method that iterates each firm by one time step.
@@ -680,7 +681,7 @@ class MetaInsuranceOrg(GenericAgent):
             Returns agents excess capital"""
         return self.excess_capital
 
-    def number_underwritten_contracts(self) -> int:
+    def num_underwritten(self) -> int:
         return len(self.underwritten_contracts)
 
     def get_underwritten_contracts(self) -> Collection["MetaInsuranceContract"]:
@@ -1131,6 +1132,7 @@ class MetaInsuranceOrg(GenericAgent):
             No return values.
         This method records in insurancesimulation.py every claim made. It is called either from insurancecontract.py
         or reinsurancecontract.py respectively."""
+        self.claims_this_iteration += 1
         self.simulation.record_claims(claim)
 
     def reset_pl(self):
@@ -1139,6 +1141,7 @@ class MetaInsuranceOrg(GenericAgent):
                No return value.
            Reset the profits and losses variable of each firm at the beginning of every iteration. It has to be run in
            insurancesimulation.py at the beginning of the iterate method"""
+        self.claims_this_iteration = 0
         self.profits_losses = 0
 
     def roll_over(self, time: int):

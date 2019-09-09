@@ -12,6 +12,7 @@ from typing import MutableMapping, MutableSequence, List, Tuple
 import calibrationscore
 import insurancesimulation
 import listify
+import calibration_statistic
 
 # import config file and apply configuration
 import isleconfig
@@ -183,14 +184,14 @@ def save_results(results_list: list, prefix: str):
         # These are the big ones, so we need to pay attention to data types
         "insurance_firms_cash": np.float32,
         "reinsurance_firms_cash": np.float32,
-        "individual_contracts": np.uint16,
+        "insurance_contracts": np.uint16,
         "reinsurance_contracts": np.uint16,
     }
     # bad_logs are the logs that don't have a consistent size between replications
     bad_logs = [
         "rc_event_schedule_initial",
         "rc_event_damage_initial",
-        "individual_contracts",
+        "insurance_contracts",
         "insurance_firms_cash",
         "reinsurance_contracts",
         "reinsurance_firms_cash",
@@ -387,6 +388,7 @@ if __name__ == "__main__":
             general_rc_event_damage
         ) = np_seeds = random_seeds = [None]
 
+    summary = calibration_statistic.calculate_single
     # Run the main program
     comp_result = main(
         simulation_parameters,
@@ -397,16 +399,20 @@ if __name__ == "__main__":
         save_iter,
         replic_id=1,
         resume=args.resume,
+        summary=summary,
     )
+    if summary is None:
+        save_results([comp_result], "single")
 
-    save_results([comp_result], "single")
+        decomp_result = pickle.loads(zlib.decompress(comp_result[0]))
+        L = logger.Logger()
+        L.restore_logger_object(decomp_result)
+        if isleconfig.save_network:
+            L.save_network_data(ensemble=False)
 
-    decomp_result = pickle.loads(zlib.decompress(comp_result[0]))
-    L = logger.Logger()
-    L.restore_logger_object(decomp_result)
-    if isleconfig.save_network:
-        L.save_network_data(ensemble=False)
-
-    """ Obtain calibration score """
-    CS = calibrationscore.CalibrationScore(L)
-    score = CS.test_all()
+        """ Obtain calibration score """
+        CS = calibrationscore.CalibrationScore(L)
+        score = CS.test_all()
+    else:
+        print("\nSummary output:")
+        print(comp_result)

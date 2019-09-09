@@ -32,7 +32,7 @@ requested_logs = {
     "rc_event_schedule_initial": "_rc_event_schedule.dat",
     "rc_event_damage_initial": "_rc_event_damage.dat",
     "number_riskmodels": "_number_riskmodels.dat",
-    "individual_contracts": "_insurance_contracts.dat",
+    "insurance_contracts": "_insurance_contracts.dat",
     "reinsurance_contracts": "_reinsurance_contracts.dat",
     "unweighted_network_data": "_unweighted_network_data.dat",
     "network_node_labels": "_network_node_labels.dat",

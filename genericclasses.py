@@ -46,6 +46,7 @@ class GenericAgent:
         self.creditor = None
         self.id = -1
         self.dividends_paid = 0
+        self.premiums_recieved = 0
 
     def _pay(self, obligation: "Obligation"):
         """Method to _pay other class instances.
@@ -72,6 +73,8 @@ class GenericAgent:
             self.cash -= amount
             if purpose == "dividend":
                 self.dividends_paid += amount
+            elif purpose == "premium":
+                recipient.track_premiums(amount)
             else:
                 self.profits_losses -= amount
             recipient.receive(amount)
@@ -132,6 +135,10 @@ class GenericAgent:
         """Method to accept cash payments."""
         self.cash += amount
         self.profits_losses += amount
+
+    def track_premiums(self, amount: float):
+        """Tracks total premiums recieved for logging"""
+        self.premiums_recieved += amount
 
 
 @dataclasses.dataclass
