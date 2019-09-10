@@ -7,7 +7,7 @@ import os
 import pickle
 import zlib
 import random
-from typing import MutableMapping, MutableSequence, List, Tuple
+from typing import MutableMapping, MutableSequence, List, Tuple, Union
 
 import calibrationscore
 import insurancesimulation
@@ -48,8 +48,10 @@ def main(
     replic_id: int,
     requested_logs: MutableSequence = None,
     resume: bool = False,
-    summary: callable = None,
+    summary: Union[callable, str] = None,
 ) -> Tuple[bytes, dict]:
+    if isinstance(summary, str):
+        summary = eval(summary)
     if not resume:
         np.random.seed(np_seed)
         random.seed(random_seed)
@@ -264,7 +266,7 @@ def save_results(results_list: list, prefix: str):
     hickle.dump(data, filename, compression="gzip")
 
 
-def save_summary(summary_values: List[dict]):
+def save_summary(summary_values):
     filename = "data/summary_statistics.hdf"
     if os.path.exists(filename):
         # Don't want to blindly overwrite, so make backups

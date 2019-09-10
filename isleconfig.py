@@ -9,7 +9,7 @@ slim_log = False
 
 # fmt: off
 simulation_parameters = {
-    "max_time": 2000,
+    "max_time": 20,
     "no_categories": 4,
 
     # no_[re]insurancefirms are initial conditions only
