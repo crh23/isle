@@ -47,7 +47,7 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     import SALib.sample.morris
 
     problem = SALib.util.read_param_file("isle_all_parameters.txt")
-    param_values = SALib.sample.morris.sample(problem, N=1)  # problem["num_vars"] * 3)
+    param_values = SALib.sample.morris.sample(problem, N=problem["num_vars"] * 3)
     parameters = [tuple(row) for row in param_values]
     parameter_list = [
         {
@@ -155,7 +155,6 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
 
     if use_sandman:
         import sandman2.api as sm
-        from itertools import starmap
 
         print("Constructing sandman operation")
         m = sm.operation(start.main, include_modules=True)
@@ -165,8 +164,8 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
         # simulation state save interval (never), and list of requested logs.
 
         # This is actually quite slow for large sets of jobs. Can't use mp.Pool due to unpickleability
-        # Could use pathos if we actually end up caring
-        job = list(starmap(m, m_params))
+        # Could use pathos or similar if we actually end up caring
+        job = list(map(m, m_params))
         """Here the jobs are submitted"""
         print("Jobs created, submitting")
         with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
@@ -178,7 +177,7 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
 
         print("Running multiprocessing pool")
         with mp.Pool(maxtasksperchild=4) as pool:
-            result = pool.starmap(start.main, m_params)
+            result = pool.map(start.main, m_params, chunksize=4)
 
     print("Job done, saving")
     result_dict = {t: r for t, r in zip(parameters, result)}

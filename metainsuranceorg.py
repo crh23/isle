@@ -330,7 +330,7 @@ class MetaInsuranceOrg(GenericAgent):
                 )
 
             """obtain risk model evaluation (VaR) for underwriting decisions and for capacity specific decisions"""
-            # TODO: Enable reinsurance shares other than 0.0 and 1.0
+            # TODO: Enable (proportional) reinsurance shares other than 0.0 and 1.0
             [
                 _,
                 acceptable_by_category,
@@ -1029,7 +1029,7 @@ class MetaInsuranceOrg(GenericAgent):
                             self,
                             risk,
                             time,
-                            self.simulation.get_market_premium(),
+                            self.insurance_premium(),
                             random_runtime,
                             self.default_contract_payment_period,
                             expire_immediately=self.simulation_parameters[

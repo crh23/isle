@@ -5,6 +5,8 @@ import scipy.stats as stats
 def calculate_single(log: dict, t: int = -1):
     """Takes a dict as returned by Logger.obtainlog() and returns a vector of statistics
     We always look at year-long data"""
+
+    """First do firm-wise timeseries data"""
     ins_pls = np.array(
         [sum(firm_data[t - 12 : t]) for firm_data in log["insurance_pls"]]
     )
@@ -48,4 +50,7 @@ def calculate_single(log: dict, t: int = -1):
         for result in (st.mean, st.variance):
             output.append(result)
 
+    """Next do market premium"""
+    premium = np.mean(log["market_premium"][t - 12 : t])
+    output.append(premium)
     return output

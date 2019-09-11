@@ -1,8 +1,8 @@
 riskmodel_inaccuracy_parameter, 1.5, 4
 riskmodel_margin_of_safety, 1, 4
-value_at_risk_tail_probability, 0.0001, 0.1
-norm_profit_markup, 0.1, 1
-dividend_share_of_profits, 0.1, 0.7
+value_at_risk_tail_probability, 0.0001, 0.05
+norm_profit_markup, 0.1, 0.5
+dividend_share_of_profits, 0.01, 0.5
 insurance_firm_market_entry_probability, 0.05, 0.95
 reinsurance_firm_market_entry_probability, 0.05, 0.95
 default_non-proportional_reinsurance_limit, 0.5, 1.0
@@ -13,10 +13,10 @@ reinsurance_reinsurance_levels_lower_bound, 0, 0.3
 reinsurance_reinsurance_levels_upper_bound, 0.3, 0.6
 capacity_target_decrement_threshold, 1, 2
 capacity_target_increment_threshold, 1, 2
-capacity_target_decrement_factor, 0.75, 1
-capacity_target_increment_factor, 1, 1.5
-insurance_retention, 0, 1
-reinsurance_retention, 0, 1
+capacity_target_decrement_factor, 0.85, 1
+capacity_target_increment_factor, 1, 1.2
+insurance_retention, 0.4, 1
+reinsurance_retention, 0.4, 1
 premium_sensitivity, 1, 10
 reinpremium_sensitivity, 1, 10
 insurers_balance_ratio, 0, 30
@@ -28,8 +28,8 @@ insurance_permanency_time_constraint, 2, 96
 reinsurance_permanency_contracts_limit, 1, 100
 reinsurance_permanency_ratio_limit, 0.4, 1
 reinsurance_permanency_time_constraint, 2, 96
-initial_agent_cash, 10000, 100000
-initial_reinagent_cash, 100000, 1000000
+initial_agent_cash, 10000, 500000
+initial_reinagent_cash, 1000000, 10000000
 interest_rate, 0, 0.01
 upper_price_limit, 1, 2
 lower_price_limit, 0.5, 1

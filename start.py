@@ -40,16 +40,29 @@ def cumulative_bankruptcies(log):
 # main function
 def main(
     sim_params: MutableMapping,
-    rc_event_schedule: MutableSequence[MutableSequence[int]],
-    rc_event_damage: MutableSequence[MutableSequence[float]],
-    np_seed: int,
-    random_seed: int,
-    save_iteration: int,
-    replic_id: int,
+    rc_event_schedule: MutableSequence[MutableSequence[int]] = None,
+    rc_event_damage: MutableSequence[MutableSequence[float]] = None,
+    np_seed: int = None,
+    random_seed: int = None,
+    save_iteration: int = None,
+    replic_id: int = None,
     requested_logs: MutableSequence = None,
     resume: bool = False,
     summary: Union[callable, str] = None,
 ) -> Tuple[bytes, dict]:
+    if isinstance(sim_params, tuple):
+        (
+            sim_params,
+            rc_event_schedule,
+            rc_event_damage,
+            np_seed,
+            random_seed,
+            save_iteration,
+            replic_id,
+            requested_logs,
+            resume,
+            summary,
+        ) = sim_params
     if isinstance(summary, str):
         summary = eval(summary)
     if not resume:
