@@ -25,6 +25,10 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
         use_sandman: if True, uses sandman, otherwise uses multiprocessing (faster if running very many simulations
                         locally)
     """
+
+    # TODO: RM
+    np.seterr(all="raise")
+
     if importlib.util.find_spec("hickle") is None:
         raise ModuleNotFoundError("hickle not found but required for saving logs")
 
@@ -62,7 +66,7 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
 
     ###################################################################################################################
 
-    max_time = isleconfig.simulation_parameters["max_time"]
+    max_time = parameter_list[0]["max_time"]
 
     print(f"Running {len(parameter_list)} simulations of {max_time} timesteps")
 
@@ -140,17 +144,19 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     ] = setup.obtain_ensemble(len(parameter_list))
 
     n = len(parameter_list)
-    m_params = zip(
-        parameter_list,
-        general_rc_event_schedule,
-        general_rc_event_damage,
-        np_seeds,
-        random_seeds,
-        [0] * n,
-        [0] * n,
-        [None] * n,
-        [False] * n,
-        [summary] * n,
+    m_params = list(
+        zip(
+            parameter_list,
+            general_rc_event_schedule,
+            general_rc_event_damage,
+            np_seeds,
+            random_seeds,
+            [0] * n,
+            [0] * n,
+            [None] * n,
+            [False] * n,
+            [summary] * n,
+        )
     )
 
     if use_sandman:
@@ -166,18 +172,31 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
         # This is actually quite slow for large sets of jobs. Can't use mp.Pool due to unpickleability
         # Could use pathos or similar if we actually end up caring
         job = list(map(m, m_params))
+        # Split up into chunks so sandman server doesn't blow up
+        max_size = 71
+        job_lists = []
+        while len(job) > 0:
+            job_lists.append(job[: min(max_size, len(job))])
+            job = job[min(max_size, len(job)) :]
         """Here the jobs are submitted"""
         print("Jobs created, submitting")
         with sm.Session(host=hostname, default_cb_to_stdout=True) as sess:
             print("Starting job")
-            # Don't use async here, since there is only one job
-            result = sess.submit(job)
+            # Could use async, but, again, that might make the cluster blow up
+            result = []
+            for job in job_lists:
+                result += sess.submit(job)
     else:
+        # result = []
+        # m_params.reverse()
+        # for i, param_set in enumerate(m_params):
+        #     result.append(start.main(param_set))
         import multiprocessing as mp
 
         print("Running multiprocessing pool")
-        with mp.Pool(maxtasksperchild=4) as pool:
-            result = pool.map(start.main, m_params, chunksize=4)
+        # set maxtasksperchild, otherwise it seems that garbage collection(?) misbehaves and we get huge memory usage
+        with mp.Pool(maxtasksperchild=1) as pool:
+            result = pool.map(start.main, m_params, chunksize=1)
 
     print("Job done, saving")
     result_dict = {t: r for t, r in zip(parameters, result)}

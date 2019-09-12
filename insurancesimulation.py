@@ -680,6 +680,10 @@ class InsuranceSimulation(GenericAgent):
         reinsurance_premiums = [
             firm.premiums_recieved for firm in self.reinsurancefirms
         ]
+        insurance_ratios = [firm.get_solvency_ratio() for firm in self.insurancefirms]
+        reinsurance_ratios = [
+            firm.get_solvency_ratio() for firm in self.reinsurancefirms
+        ]
 
         """ prepare dict """
         current_log = {
@@ -715,6 +719,8 @@ class InsuranceSimulation(GenericAgent):
             "reinsurance_pls": reinsurance_pls,
             "insurance_cumulative_premiums": insurance_premiums,
             "reinsurance_cumulative_premiums": reinsurance_premiums,
+            "insurance_ratios": insurance_ratios,
+            "reinsurance_ratios": reinsurance_ratios,
         }
 
         if isleconfig.save_network:

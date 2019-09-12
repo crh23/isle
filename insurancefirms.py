@@ -553,6 +553,14 @@ class InsuranceFirm(metainsuranceorg.MetaInsuranceOrg):
             raise ValueError("After refreshing risk has become invalid")
         return risk
 
+    def get_solvency_ratio(self):
+        solvency = self.cash
+        var = self.cash - self.excess_capital
+        if var == 0:
+            return 1
+        else:
+            return solvency / var
+
 
 class ReinsuranceFirm(InsuranceFirm):
     """ReinsuranceFirm class.

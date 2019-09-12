@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import numpy as np
 import os
+import sys
+import traceback
 import pickle
 import zlib
 import random
@@ -39,7 +41,7 @@ def cumulative_bankruptcies(log):
 
 # main function
 def main(
-    sim_params: MutableMapping,
+    sim_params: Union[MutableMapping, Tuple],
     rc_event_schedule: MutableSequence[MutableSequence[int]] = None,
     rc_event_damage: MutableSequence[MutableSequence[float]] = None,
     np_seed: int = None,
@@ -49,70 +51,79 @@ def main(
     requested_logs: MutableSequence = None,
     resume: bool = False,
     summary: Union[callable, str] = None,
-) -> Tuple[bytes, dict]:
-    if isinstance(sim_params, tuple):
-        (
-            sim_params,
-            rc_event_schedule,
-            rc_event_damage,
-            np_seed,
-            random_seed,
-            save_iteration,
-            replic_id,
-            requested_logs,
-            resume,
-            summary,
-        ) = sim_params
-    if isinstance(summary, str):
-        summary = eval(summary)
-    if not resume:
-        np.random.seed(np_seed)
-        random.seed(random_seed)
+) -> Union[Tuple[bytes, dict], dict]:
+    try:
+        if isinstance(sim_params, tuple):
+            (
+                sim_params,
+                rc_event_schedule,
+                rc_event_damage,
+                np_seed,
+                random_seed,
+                save_iteration,
+                replic_id,
+                requested_logs,
+                resume,
+                summary,
+            ) = sim_params
+        if isinstance(summary, str):
+            summary = eval(summary)
+        if not resume:
+            np.random.seed(np_seed)
+            random.seed(random_seed)
 
-        sim_params["simulation"] = simulation = insurancesimulation.InsuranceSimulation(
-            override_no_riskmodels,
-            replic_id,
-            sim_params,
-            rc_event_schedule,
-            rc_event_damage,
-        )
-        time = 0
-    else:
-        d = load_simulation()
-        np.random.set_state(d["np_seed"])
-        random.setstate(d["random_seed"])
-        time = d["time"]
-        simulation = d["simulation"]
-        sim_params = d["simulation_parameters"]
-        for key in d["isleconfig"]:
-            isleconfig.__dict__[key] = d["isleconfig"][key]
-        isleconfig.simulation_parameters = sim_params
-    for t in range(time, sim_params["max_time"]):
-        # Main time iteration loop
-        simulation.iterate(t)
+            sim_params[
+                "simulation"
+            ] = simulation = insurancesimulation.InsuranceSimulation(
+                override_no_riskmodels,
+                replic_id,
+                sim_params,
+                rc_event_schedule,
+                rc_event_damage,
+            )
+            time = 0
+        else:
+            d = load_simulation()
+            np.random.set_state(d["np_seed"])
+            random.setstate(d["random_seed"])
+            time = d["time"]
+            simulation = d["simulation"]
+            sim_params = d["simulation_parameters"]
+            for key in d["isleconfig"]:
+                isleconfig.__dict__[key] = d["isleconfig"][key]
+            isleconfig.simulation_parameters = sim_params
+        for t in range(time, sim_params["max_time"]):
+            # Main time iteration loop
+            try:
+                simulation.iterate(t)
+            except RuntimeError:
+                print("Simulation encountered error")
+                return None
 
-        # log data
-        simulation.save_data()
+            # log data
+            simulation.save_data()
 
-        # Don't save at t=0 or if the simulation has just finished
-        if (
-            save_iteration > 0
-            and t % save_iteration == 0
-            and 0 < t < sim_params["max_time"]
-        ):
-            # Need to use t+1 as resume will start at time saved
-            save_simulation(t + 1, simulation, sim_params, exit_now=False)
+            # Don't save at t=0 or if the simulation has just finished
+            if (
+                save_iteration > 0
+                and t % save_iteration == 0
+                and 0 < t < sim_params["max_time"]
+            ):
+                # Need to use t+1 as resume will start at time saved
+                save_simulation(t + 1, simulation, sim_params, exit_now=False)
 
-    log = simulation.obtain_log(requested_logs)
-    if summary is not None:
-        return summary(log)
-    else:
-        # We compute metadata about the return data that isn't compressed, so a skeleton data structure can be
-        # constructed before decompression
-        found_shapes = {name: np.shape(log[name]) for name in log}
+        log = simulation.obtain_log(requested_logs)
+        if summary is not None:
+            return summary(log)
+        else:
+            # We compute metadata about the return data that isn't compressed, so a skeleton data structure can be
+            # constructed before decompression
+            found_shapes = {name: np.shape(log[name]) for name in log}
 
-        # We compress the return value for the sake of minimising data transfer over the network and RAM usage
-        return (zlib.compress(pickle.dumps(log)), found_shapes)
+            # We compress the return value for the sake of minimising data transfer over the network and RAM usage
+            return (zlib.compress(pickle.dumps(log)), found_shapes)
+    except Exception:
+        raise Exception("".join(traceback.format_exception(*sys.exc_info())))
 
 
 def save_simulation(

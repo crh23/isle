@@ -367,7 +367,11 @@ class IdSet(Collection[T]):
         self._dict = {}
         if seq is not None:
             for item in seq:
-                self.add(item)
+                try:
+                    self.add(item)
+                except ValueError:
+                    # Silently remove duplicates
+                    pass
 
     def __hash__(self):
         return None
@@ -380,6 +384,12 @@ class IdSet(Collection[T]):
 
     def __contains__(self, item: T) -> bool:
         return id(item) in self._dict
+
+    def __repr__(self) -> str:
+        return "IdSet(" + repr(list(self._dict.values())) + ")"
+
+    def __str__(self) -> str:
+        return "{" + str(list(self._dict.values()))[1:-1] + "}"
 
     def add(self, item: T) -> None:
         if item not in self:
