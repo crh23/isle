@@ -174,6 +174,8 @@ class RiskModel:
 
             expected_profits += incr_expected_profits
 
+            if average_exposure == 0:
+                average_exposure = self.init_average_exposure
             # compute value at risk
             var_per_risk = (
                 self.get_ppf(categ_id=categ_id, tail_size=self.var_tail_prob)

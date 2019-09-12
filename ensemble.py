@@ -5,7 +5,7 @@ It can be run in the cloud if it is passed as argument the sandman2 server that 
 """
 import sys
 import os
-from typing import Dict
+from typing import Dict, Callable, Iterable
 import time
 import importlib
 
@@ -17,7 +17,7 @@ import start
 import setup_simulation
 
 
-def rake(hostname=None, replications=9, summary: callable = None):
+def rake(hostname=None, replications=4, summary: callable = None):
     """
     Uses the sandman2 api to run multiple replications of multiple configurations of the simulation.
     If hostname=None, runs locally. Otherwise, make sure environment variable SANDMAN_KEY_ID and SANDMAN_KEY_SECRET

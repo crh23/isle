@@ -28,6 +28,8 @@ firm_level_logs = [
     "reinsurance_pls",
     "insurance_cumulative_premiums",
     "reinsurance_cumulative_premiums",
+    "insurance_ratios",
+    "reinsurance_ratios",
 ]
 
 
@@ -112,6 +114,11 @@ class Logger:
         for key in data_dict.keys():
             if key in firm_level_logs:
                 # These are stored per-firm
+                if not len(data_dict[key]) == len(self.history_logs[key]):
+                    raise RuntimeError(
+                        f"Log {key} passed to logger has different number of firms to those already in"
+                        f" log - {len(data_dict[key])} passed, {len(self.history_logs[key])} expected"
+                    )
                 for i in range(len(data_dict[key])):
                     self.history_logs[key][i].append(data_dict[key][i])
             else:

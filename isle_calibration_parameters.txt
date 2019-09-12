@@ -1,0 +1,6 @@
+# This file will hold the parameters to actually calibrate on, as well as info on their priors
+# Priors can be uniform linearly or uniform in a logarithmic sense
+# Format is:
+# <parameter name>, <lower bound>, <upper bound>, (linear|logarithmic)
+riskmodel_inaccuracy_parameter, 1.5, 4, linear
+
