@@ -208,16 +208,52 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
     start.save_summary([result_dict])
 
 
+def analyse(data: dict):
+    keylist = list(data.keys())
+    # SALib expects a matrix, so we give it a matrix
+    x = np.array(keylist)
+    outputs = []
+    for key_name in keylist:
+        result_dict = data[key_name]
+        result = [
+            result_dict[name]
+            for name in calibration_statistic.statistics
+            if name in result_dict
+        ]
+        outputs.append(result)
+        found_statistics = [
+            name for name in calibration_statistic.statistics if name in result_dict
+        ]
+    y_full = np.array(outputs)
+
+    import SALib.util
+    import SALib.analyze.morris
+
+    problem = SALib.util.read_param_file("isle_all_parameters.txt")
+    outputs = {}
+    for i, stat in enumerate(found_statistics):
+        print(stat + ":")
+        outputs[stat] = SALib.analyze.morris.analyze(
+            problem, x, y_full[:, i], print_to_console=True
+        )
+    return outputs
+
+
 if __name__ == "__main__":
-    host = None
-    use_sandman = False
-    if len(sys.argv) > 1:
-        # The server is passed as an argument.
-        host = sys.argv[1]
-        use_sandman = True
-    rake(
-        host, summary="calibration_statistic.calculate_single", use_sandman=use_sandman
-    )
-    # jobs = {"ensemble1" : "23a3f4e1",
-    #         "ensemble2" : "485f7221"}
-    # restore_jobs(jobs, host)
+    import hickle
+
+    data = hickle.load("data/summary_statistics.hdf")
+    result = analyse(data[0])
+    hickle.dump(result, "data/sensitivity_analysis_results.hdf")
+    # host = None
+    # remote = False
+    # if len(sys.argv) > 1:
+    #     # The server is passed as an argument.
+    #     host = sys.argv[1]
+    #     remote = True
+    # rake(
+    #     host, summary="calibration_statistic.calculate_single", use_sandman=remote
+    # )
+    # # jobs = {"ensemble1" : "23a3f4e1",
+    # #         "ensemble2" : "485f7221"}
+    # # restore_jobs(jobs, host)
