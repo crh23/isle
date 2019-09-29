@@ -210,20 +210,28 @@ def rake(hostname=None, summary: callable = None, use_sandman: bool = False):
 
 def analyse(data: dict):
     keylist = list(data.keys())
-    # SALib expects a matrix, so we give it a matrix
     x = np.array(keylist)
     outputs = []
+    found_statistics = None
     for key_name in keylist:
         result_dict = data[key_name]
-        result = [
-            result_dict[name]
-            for name in calibration_statistic.statistics
-            if name in result_dict
-        ]
+        # If the simulation fails to run due to an exception then it returns None instead of a dict
+        if result_dict is not None:
+            result = [
+                result_dict[name]
+                for name in calibration_statistic.statistics
+                if name in result_dict
+            ]
+
+            found_statistics = [
+                name for name in calibration_statistic.statistics if name in result_dict
+            ]
+        else:
+            if found_statistics is None:
+                raise ValueError("First data element is None, please fix manually")
+            # Want to make nan or something, but that breaks analysis
+            result = [0 for _ in found_statistics]
         outputs.append(result)
-        found_statistics = [
-            name for name in calibration_statistic.statistics if name in result_dict
-        ]
     y_full = np.array(outputs)
 
     import SALib.util
@@ -234,7 +242,7 @@ def analyse(data: dict):
     for i, stat in enumerate(found_statistics):
         print(stat + ":")
         outputs[stat] = SALib.analyze.morris.analyze(
-            problem, x, y_full[:, i], print_to_console=True
+            problem, x, y_full[:, i], print_to_console=False
         )
     return outputs
 
@@ -242,9 +250,11 @@ def analyse(data: dict):
 if __name__ == "__main__":
     import hickle
 
-    data = hickle.load("data/summary_statistics.hdf")
-    result = analyse(data[0])
-    hickle.dump(result, "data/sensitivity_analysis_results.hdf")
+    #
+    # data = hickle.load("data/summary_statistics.hdf")
+    # results = analyse(data[0])
+    # hickle.dump(results, "data/sensitivity_analysis_results.hdf")
+    results = hickle.load("data/sensitivity_analysis_results.hdf")
     # host = None
     # remote = False
     # if len(sys.argv) > 1:
